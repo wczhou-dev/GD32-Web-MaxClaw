@@ -1,41 +1,260 @@
-// server.js
-// 目标：模拟 Modbus-TCP Server，给你的 Web Tester / modbus master 连接测试用。
+/**
+ * server.js - GD32-Web-MaxClaw 主入口
+ * 
+ * 类比嵌入式：
+ * - 就像 main() 函数，整个程序的起点
+ * - 初始化各个外设（UART、GPIO、TIM等）
+ * - 启动主循环
+ */
 
-const ModbusRTU = require("modbus-serial");
+const express = require('express');
+const cors = require('cors');
+const path = require('path');
+const fs = require('fs');
 
-const HOLDING_SIZE = 200;
-const holding = new Uint16Array(HOLDING_SIZE);
+// 导入各模块
+const DevicePool = require('./DevicePool');
+const PollingEngine = require('./PollingEngine');
+const WebSocketManager = require('./WebSocketMgr');
+const OTAHandler = require('./OTAHandler');
+const createOtaRouter = require('./api/ota');
 
-// === 嵌入式视角：这块就像“寄存器映射表” ===
-holding[0] = 0x1234; // 例子：随便放个初值，方便你读出来验证链路
+// ==================== 配置加载 ====================
 
-const vector = {
-  // === 嵌入式视角：读保持寄存器 == 读 4xxxx 映射区（类似读取一段内存/寄存器窗口）===
-  getHoldingRegister: (addr) => {
-    if (addr < 0 || addr >= HOLDING_SIZE) {
-      // 嵌入式视角：越界就像触发 BusFault/参数错误，必须立刻拒绝
-      throw new Error(`Illegal data address: ${addr}`);
+/**
+ * 加载配置文件
+ * 类比：从Flash/EEPROM加载系统配置
+ */
+function loadConfig() {
+    const configPath = path.join(__dirname, 'config', 'devices.json');
+    
+    try {
+        if (fs.existsSync(configPath)) {
+            const config = JSON.parse(fs.readFileSync(configPath, 'utf8'));
+            console.log('[Config] Loaded:', config.devices?.length || 0, 'devices');
+            return config;
+        }
+    } catch (err) {
+        console.error('[Config] Load error:', err.message);
     }
-    return holding[addr];
-  },
+    
+    // 返回默认配置
+    return {
+        devices: [{ name: '1号舍', ip: '192.168.10.199', port: 502, unitId: 1, enabled: true }],
+        backend: { port: 3000, firmwarePath: 'F:/firmware' },
+        polling: { intervalMs: 1000, timeoutMs: 2000, retryCount: 3 }
+    };
+}
 
-  // === 嵌入式视角：写保持寄存器 == 写 4xxxx 映射区（类似写某个寄存器）===
-  setRegister: (addr, value) => {
-    if (addr < 0 || addr >= HOLDING_SIZE) {
-      throw new Error(`Illegal data address: ${addr}`);
+// ==================== 获取本机IP ====================
+
+/**
+ * 获取本机局域网IP
+ * 类比：获取网络接口地址
+ */
+function getLocalIP() {
+    const nets = require('os').networkInterfaces();
+    for (const name of Object.keys(nets)) {
+        for (const net of nets[name]) {
+            if (net.family === 'IPv4' && !net.internal) {
+                return net.address;
+            }
+        }
     }
-    holding[addr] = value & 0xffff;
-    return;
-  },
-};
+    return '127.0.0.1';
+}
 
-// 502 为 Modbus-TCP 标准端口；建议先用 1502 测试，通了再切 502
-const PORT = Number(process.env.PORT || 1502);
-const HOST = "0.0.0.0";
+// ==================== 主程序 ====================
 
-// === 嵌入式视角：这里相当于“初始化以太网 + 打开监听端口 + 注册协议处理回调”===
-// 在 Node 里，连接/收包不是“中断回调”，而是事件循环分发的事件（见下方解释）
-new ModbusRTU.ServerTCP(vector, { host: HOST, port: PORT, debug: true });
+async function main() {
+    console.log('========================================');
+    console.log('  GD32-Web-MaxClaw 后端服务');
+    console.log('========================================');
+    
+    // 1. 加载配置
+    const config = loadConfig();
+    const localIP = getLocalIP();
+    console.log(`[System] Local IP: ${localIP}`);
+    
+    // 2. 初始化DevicePool（设备连接池）
+    console.log('\n[Step 1/6] Initializing DevicePool...');
+    const devicePool = new DevicePool();
+    
+    // 添加设备
+    for (const dev of config.devices) {
+        if (dev.enabled) {
+            devicePool.addDevice(dev);
+        }
+    }
+    
+    // 3. 初始化OTA处理器
+    console.log('\n[Step 2/6] Initializing OTA Handler...');
+    const otaHandler = new OTAHandler({
+        firmwarePath: config.backend.firmwarePath || 'F:/firmware',
+        backendIp: localIP,
+        port: 18080
+    });
+    await otaHandler.startServer();
+    
+    // 4. 初始化PollingEngine（轮询引擎）
+    console.log('\n[Step 3/6] Initializing PollingEngine...');
+    const pollingEngine = new PollingEngine(devicePool, config.polling);
+    
+    // 5. 初始化WebSocket管理器
+    console.log('\n[Step 4/6] Initializing WebSocket...');
+    const wsManager = new WebSocketManager({ port: config.backend.port || 3000 });
+    
+    // 设置数据回调 - 轮询到数据后推送给前端
+    pollingEngine.onData = (deviceKey, sensorData) => {
+        const device = devicePool.getAllDevices().find(d => d.key === deviceKey);
+        if (device) {
+            wsManager.pushSensorData(device.ip, sensorData);
+        }
+    };
+    
+    // 设置状态变化回调
+    pollingEngine.onStatusChange = (deviceKey, status) => {
+        const device = devicePool.getAllDevices().find(d => d.key === deviceKey);
+        if (device) {
+            wsManager.pushDeviceStatus(device.ip, status);
+        }
+    };
+    
+    await wsManager.start();
+    
+    // 设置客户端消息处理
+    wsManager.onClientMessage = async (clientId, message) => {
+        console.log(`[WS] Client message: ${message.type}`);
+        
+        switch (message.type) {
+            case 'relay_control':
+                try {
+                    // 查找设备
+                    const device = devicePool.getAllDevices().find(d => d.ip === message.deviceIp);
+                    if (device) {
+                        await pollingEngine.controlRelay(device.key, message.relayIndex, message.value);
+                        wsManager.sendResponse(clientId, 'relay_control', true);
+                    } else {
+                        wsManager.sendResponse(clientId, 'relay_control', false, { error: 'Device not found' });
+                    }
+                } catch (err) {
+                    wsManager.sendResponse(clientId, 'relay_control', false, { error: err.message });
+                }
+                break;
+                
+            case 'ota_start':
+                try {
+                    const device = devicePool.getAllDevices().find(d => d.ip === message.deviceIp);
+                    if (device) {
+                        await pollingEngine.triggerOTA(device.key, message.version);
+                        wsManager.sendResponse(clientId, 'ota_start', true);
+                    } else {
+                        wsManager.sendResponse(clientId, 'ota_start', false, { error: 'Device not found' });
+                    }
+                } catch (err) {
+                    wsManager.sendResponse(clientId, 'ota_start', false, { error: err.message });
+                }
+                break;
+                
+            case 'get_devices':
+                // 返回设备列表
+                wsManager.sendToClient(clientId, {
+                    type: 'device_list',
+                    devices: devicePool.getAllDevices()
+                });
+                break;
+        }
+    };
+    
+    // 6. 启动Express API服务
+    console.log('\n[Step 5/6] Initializing Express API...');
+    const app = express();
+    
+    app.use(cors());
+    app.use(express.json());
+    app.use(express.static(path.join(__dirname, 'public')));
+    
+    // 挂载pollingEngine到app
+    app.locals.pollingEngine = pollingEngine;
+    app.locals.wsManager = wsManager;
+    
+    // 注册OTA路由
+    app.use('/api/ota', createOtaRouter(otaHandler));
+    
+    // 设备列表API
+    app.get('/api/devices', (req, res) => {
+        res.json({ success: true, devices: devicePool.getAllDevices() });
+    });
+    
+    // 设备状态API
+    app.get('/api/devices/:ip/status', (req, res) => {
+        const devices = devicePool.getAllDevices();
+        const device = devices.find(d => d.ip === req.params.ip);
+        if (device) {
+            res.json({ success: true, status: devicePool.getStatus(device.key) });
+        } else {
+            res.status(404).json({ success: false, error: 'Device not found' });
+        }
+    });
+    
+    // 健康检查
+    app.get('/api/health', (req, res) => {
+        res.json({ 
+            status: 'ok', 
+            uptime: process.uptime(),
+            devices: devicePool.getAllDevices().map(d => ({ ip: d.ip, status: d.status })),
+            wsClients: wsManager.getStats().clientCount
+        });
+    });
+    
+    // 启动HTTP服务
+    const httpPort = config.backend.port || 3000;
+    app.listen(httpPort, () => {
+        console.log(`\n[Step 6/6] HTTP server: http://localhost:${httpPort}`);
+        console.log('\n========================================');
+        console.log('  ✅ GD32-Web-MaxClaw 后端启动成功！');
+        console.log('========================================');
+        console.log(`\n📍 访问地址:`);
+        console.log(`   HTTP API: http://localhost:${httpPort}`);
+        console.log(`   WebSocket: ws://localhost:${httpPort}`);
+        console.log(`   OTA固件: http://${localIP}:8080/download/SciGeneAI.rbl`);
+        console.log(`\n📡 等待环控器连接...`);
+        console.log(`   IP: ${config.devices[0]?.ip || '192.168.10.199'}`);
+        console.log('');
+    });
+    
+    // 连接所有设备
+    console.log('\n[Connect] Connecting to devices...');
+    for (const device of devicePool.getAllDevices()) {
+        if (device.enabled) {
+            await devicePool.connect(device.key);
+        }
+    }
+    
+    // 启动轮询
+    pollingEngine.start();
+    
+    // 启动心跳检测
+    wsManager.startHeartbeat();
+}
 
-console.log(`Modbus-TCP server listening on ${HOST}:${PORT}`);
-console.log(`Try connect from your client to ${HOST}:${PORT}`);
+// 错误处理
+process.on('uncaughtException', (err) => {
+    console.error('[Error] Uncaught exception:', err);
+});
+
+process.on('unhandledRejection', (reason, promise) => {
+    console.error('[Error] Unhandled rejection at:', promise, 'reason:', reason);
+});
+
+// 优雅退出
+process.on('SIGINT', () => {
+    console.log('\n[System] Shutting down...');
+    process.exit(0);
+});
+
+// 启动
+main().catch(err => {
+    console.error('[Error] Fatal error:', err);
+    process.exit(1);
+});
