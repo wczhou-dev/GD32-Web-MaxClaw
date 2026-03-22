@@ -8,6 +8,9 @@
  */
 
 const express = require('express');
+const initLogger = require('./Logger'); // 引入日志模块
+initLogger(); // 初始化日志拦截器，并执行双文件轮转逻辑
+
 const cors = require('cors');
 const path = require('path');
 const fs = require('fs');
