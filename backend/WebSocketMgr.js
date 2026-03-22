@@ -14,6 +14,7 @@ class WebSocketManager {
      * @param {Object} options - 配置选项
      */
     constructor(options = {}) {
+        this.server = options.server; // 支持传入共享的 HTTP Server
         this.port = options.port || 3000;
         this.clients = new Map();  // 存储连接的客户端
         this.wss = null;
@@ -29,7 +30,11 @@ class WebSocketManager {
     start() {
         return new Promise((resolve, reject) => {
             try {
-                this.wss = new WebSocket.Server({ port: this.port });
+                if (this.server) {
+                    this.wss = new WebSocket.Server({ server: this.server });
+                } else {
+                    this.wss = new WebSocket.Server({ port: this.port });
+                }
                 
                 this.wss.on('connection', (ws, req) => {
                     this.handleConnection(ws, req);

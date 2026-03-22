@@ -33,7 +33,7 @@ class DevicePool {
 
         const client = new ModbusRTU();
         client.setID(config.unitId || 1);
-        client.setTimeout(config.timeoutMs || 2000);
+        client.setTimeout(config.timeoutMs || 3000);
 
         const deviceInfo = {
             ip: config.ip,
@@ -103,11 +103,26 @@ class DevicePool {
 
         try {
             device.client.close(() => {});
+        } catch (_) {
+            /* 关闭时忽略内部异常，确保状态被重置 */
+        } finally {
             device.status = 'DISCONNECTED';
             this.emit('statusChange', key, 'OFFLINE');
-        } catch (err) {
-            console.error(`[DevicePool] Disconnect error: ${err.message}`);
         }
+    }
+
+    /**
+     * 内部：发生通信错误后强制重置句柄，确保下次轮询可以重连
+     * @param {string} key 
+     */
+    _resetConnection(key) {
+        const device = this.devices.get(key);
+        if (!device) return;
+        try {
+            device.client.close(() => {});
+        } catch (_) { /* 忽略 */ }
+        device.status = 'DISCONNECTED';
+        this.emit('statusChange', key, 'OFFLINE');
     }
 
     /**
@@ -135,18 +150,17 @@ class DevicePool {
             // 成功，更新状态
             device.info.timeoutCount = 0;
             device.info.lastSeen = Date.now();
-            
+            console.log(`[DevicePool] Read success from ${key}: addr=0x${address.toString(16)}, len=${length}, data=[${response.data.join(', ')}]`);
             return response;
         } catch (err) {
-            // 处理超时等错误
             device.info.timeoutCount++;
-            
-            if (device.info.timeoutCount >= 3) {
-                device.status = 'OFFLINE';
-                this.emit('statusChange', key, 'OFFLINE');
-                console.error(`[DevicePool] Device ${key} OFFLINE (timeout ${device.info.timeoutCount})`);
+            if (device.info.timeoutCount > 3) {
+                // 累计超过 3 次超时才真正重置句柄断开底端，防止偶发丢包引发 TCP 频繁握手雪崩
+                this._resetConnection(key);
+                console.error(`[DevicePool] Read failed consecutive ${device.info.timeoutCount} times, hard resetting TCP: ${err.message}`);
+            } else {
+                console.warn(`[DevicePool] Read failed, soft timeout (${device.info.timeoutCount}/3): ${err.message}`);
             }
-            
             throw err;
         }
     }
@@ -171,9 +185,16 @@ class DevicePool {
 
         try {
             await device.client.writeRegister(address, value);
+            console.log(`[DevicePool] Write success to ${key}: addr=0x${address.toString(16)}, val=${value}`);
             return true;
         } catch (err) {
-            console.error(`[DevicePool] Write failed: ${err.message}`);
+            device.info.timeoutCount++;
+            if (device.info.timeoutCount > 3) {
+                this._resetConnection(key);
+                console.error(`[DevicePool] Write failed consecutive ${device.info.timeoutCount} times, hard resetting TCP: ${err.message}`);
+            } else {
+                console.warn(`[DevicePool] Write failed, soft timeout (${device.info.timeoutCount}/3): ${err.message}`);
+            }
             throw err;
         }
     }
@@ -196,9 +217,16 @@ class DevicePool {
 
         try {
             await device.client.writeRegisters(address, values);
+            console.log(`[DevicePool] WriteRegisters success to ${key}: addr=0x${address.toString(16)}, len=${values.length}`);
             return true;
         } catch (err) {
-            console.error(`[DevicePool] WriteRegisters failed: ${err.message}`);
+            device.info.timeoutCount++;
+            if (device.info.timeoutCount > 3) {
+                this._resetConnection(key);
+                console.error(`[DevicePool] WriteRegisters failed consecutive ${device.info.timeoutCount} times, hard resetting TCP: ${err.message}`);
+            } else {
+                console.warn(`[DevicePool] WriteRegisters failed, soft timeout (${device.info.timeoutCount}/3): ${err.message}`);
+            }
             throw err;
         }
     }

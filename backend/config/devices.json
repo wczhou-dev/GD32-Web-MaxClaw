@@ -2,14 +2,14 @@
   "devices": [
     {
       "name": "1号舍",
-      "ip": "192.168.10.199",
+      "ip": "192.168.110.125",
       "port": 502,
       "unitId": 1,
       "enabled": true
     }
   ],
   "backend": {
-    "port": 3000,
+    "port": 3001,
     "firmwarePath": "F:/firmware"
   },
   "polling": {

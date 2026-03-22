@@ -11,6 +11,7 @@ const express = require('express');
 const cors = require('cors');
 const path = require('path');
 const fs = require('fs');
+const http = require('http');
 
 // 导入各模块
 const DevicePool = require('./DevicePool');
@@ -40,7 +41,7 @@ function loadConfig() {
     
     // 返回默认配置
     return {
-        devices: [{ name: '1号舍', ip: '192.168.10.199', port: 502, unitId: 1, enabled: true }],
+        devices: [{ name: '1号舍', ip: '192.168.110.125', port: 502, unitId: 1, enabled: true }],
         backend: { port: 3000, firmwarePath: 'F:/firmware' },
         polling: { intervalMs: 1000, timeoutMs: 2000, retryCount: 3 }
     };
@@ -100,9 +101,14 @@ async function main() {
     console.log('\n[Step 3/6] Initializing PollingEngine...');
     const pollingEngine = new PollingEngine(devicePool, config.polling);
     
+    // 初始化全局 HTTP Server (供 WebSocket 和 Express 共享)
+    const app = express();
+    const server = http.createServer(app);
+    const httpPort = config.backend.port || 3000;
+
     // 5. 初始化WebSocket管理器
     console.log('\n[Step 4/6] Initializing WebSocket...');
-    const wsManager = new WebSocketManager({ port: config.backend.port || 3000 });
+    const wsManager = new WebSocketManager({ server: server });
     
     // 设置数据回调 - 轮询到数据后推送给前端
     pollingEngine.onData = (deviceKey, sensorData) => {
@@ -166,9 +172,8 @@ async function main() {
         }
     };
     
-    // 6. 启动Express API服务
-    console.log('\n[Step 5/6] Initializing Express API...');
-    const app = express();
+    // 6. 配置Express API服务
+    console.log('\n[Step 5/6] Configuring Express API...');
     
     app.use(cors());
     app.use(express.json());
@@ -207,9 +212,8 @@ async function main() {
         });
     });
     
-    // 启动HTTP服务
-    const httpPort = config.backend.port || 3000;
-    app.listen(httpPort, () => {
+    // 启动基于共享端口的HTTP/WebSocket服务
+    server.listen(httpPort, () => {
         console.log(`\n[Step 6/6] HTTP server: http://localhost:${httpPort}`);
         console.log('\n========================================');
         console.log('  ✅ GD32-Web-MaxClaw 后端启动成功！');
@@ -219,7 +223,7 @@ async function main() {
         console.log(`   WebSocket: ws://localhost:${httpPort}`);
         console.log(`   OTA固件: http://${localIP}:8080/download/SciGeneAI.rbl`);
         console.log(`\n📡 等待环控器连接...`);
-        console.log(`   IP: ${config.devices[0]?.ip || '192.168.10.199'}`);
+        console.log(`   IP: ${config.devices[0]?.ip || '192.168.110.125'}`);
         console.log('');
     });
     

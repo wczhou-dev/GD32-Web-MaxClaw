@@ -5,7 +5,7 @@
     <!-- 设备选择 -->
     <div class="device-selector">
       <el-select v-model="selectedDevice" placeholder="选择设备" style="width: 200px;">
-        <el-option label="1号舍 192.168.10.199" value="192.168.10.199" />
+        <el-option label="1号舍 192.168.110.125" value="192.168.110.125" />
       </el-select>
       <span class="last-update">最后更新: {{ store.lastUpdate?.toLocaleTimeString() || '--:--:--' }}</span>
     </div>
@@ -80,7 +80,7 @@
 import { ref } from 'vue'
 import { useDeviceStore } from '../stores/deviceStore'
 const store = useDeviceStore()
-const selectedDevice = ref('192.168.10.199')
+const selectedDevice = ref('192.168.110.125')
 </script>
 
 <style scoped>

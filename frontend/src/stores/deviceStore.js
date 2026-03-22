@@ -22,7 +22,7 @@ export const useDeviceStore = defineStore('device', () => {
 
   function connect() {
     if (ws) return
-    ws = new WebSocket(`ws://${window.location.hostname}:3000`)
+    ws = new WebSocket(`ws://${window.location.hostname}:3001`)
     ws.onopen = () => { wsConnected.value = true }
     ws.onclose = () => { wsConnected.value = false; ws = null; setTimeout(connect, 5000) }
     ws.onmessage = (e) => {
@@ -53,12 +53,12 @@ export const useDeviceStore = defineStore('device', () => {
 
   function controlRelay(relayIndex, value) {
     if (!ws || ws.readyState !== WebSocket.OPEN) return
-    ws.send(JSON.stringify({ type: 'relay_control', relayIndex, value, deviceIp: '192.168.10.199' }))
+    ws.send(JSON.stringify({ type: 'relay_control', relayIndex, value, deviceIp: '192.168.110.125' }))
   }
 
   function triggerOTA(version) {
     if (!ws || ws.readyState !== WebSocket.OPEN) return
-    ws.send(JSON.stringify({ type: 'ota_start', version, deviceIp: '192.168.10.199' }))
+    ws.send(JSON.stringify({ type: 'ota_start', version, deviceIp: '192.168.110.125' }))
   }
 
   return { wsConnected, devices, tempData, humiData, co2Data, nh3Data, windData, relayStatus, digitalInputs, outdoorTemp, outdoorHumi, pressureData, otaProgress, otaStatus, lastUpdate, onlineDevices, connect, controlRelay, triggerOTA }
