@@ -25,7 +25,7 @@ class DevicePool {
      */
     addDevice(config) {
         const key = `${config.ip}:${config.port}:${config.unitId}`;
-        
+
         if (this.devices.has(key)) {
             console.log(`[DevicePool] Device ${key} already exists`);
             return;
@@ -73,17 +73,17 @@ class DevicePool {
             this.emit('statusChange', key, 'CONNECTING');
 
             // 建立TCP连接（类比：串口打开成功）
-            await device.client.connectTCP(device.info.ip, { 
-                port: device.info.port 
+            await device.client.connectTCP(device.info.ip, {
+                port: device.info.port
             });
 
             device.status = 'CONNECTED';
             device.info.timeoutCount = 0;
             device.info.lastSeen = Date.now();
-            
+
             console.log(`[DevicePool] Connected: ${device.info.name} (${key})`);
             this.emit('statusChange', key, 'ONLINE');
-            
+
             return true;
         } catch (err) {
             device.status = 'DISCONNECTED';
@@ -102,7 +102,7 @@ class DevicePool {
         if (!device) return;
 
         try {
-            device.client.close(() => {});
+            device.client.close(() => { });
         } catch (_) {
             /* 关闭时忽略内部异常，确保状态被重置 */
         } finally {
@@ -119,7 +119,7 @@ class DevicePool {
         const device = this.devices.get(key);
         if (!device) return;
         try {
-            device.client.close(() => {});
+            device.client.close(() => { });
         } catch (_) { /* 忽略 */ }
         device.status = 'DISCONNECTED';
         this.emit('statusChange', key, 'OFFLINE');
@@ -146,7 +146,7 @@ class DevicePool {
         try {
             // 发起Modbus读请求（类比：发送读命令到串口）
             const response = await device.client.readHoldingRegisters(address, length);
-            
+
             // 成功，更新状态
             device.info.timeoutCount = 0;
             device.info.lastSeen = Date.now();

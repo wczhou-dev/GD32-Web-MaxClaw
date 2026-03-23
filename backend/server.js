@@ -13,6 +13,7 @@ initLogger(); // 初始化日志拦截器，并执行双文件轮转逻辑
 
 const cors = require('cors');
 const path = require('path');
+require('dotenv').config(); // 加载环境变量
 const fs = require('fs');
 const http = require('http');
 
@@ -31,23 +32,39 @@ const createOtaRouter = require('./api/ota');
  */
 function loadConfig() {
     const configPath = path.join(__dirname, 'config', 'devices.json');
-    
-    try {
-        if (fs.existsSync(configPath)) {
-            const config = JSON.parse(fs.readFileSync(configPath, 'utf8'));
-            console.log('[Config] Loaded:', config.devices?.length || 0, 'devices');
-            return config;
-        }
-    } catch (err) {
-        console.error('[Config] Load error:', err.message);
-    }
-    
-    // 返回默认配置
-    return {
+
+    // 默认配置
+    let config = {
         devices: [{ name: '1号舍', ip: '192.168.110.125', port: 502, unitId: 1, enabled: true }],
         backend: { port: 3000, firmwarePath: 'F:/firmware' },
         polling: { intervalMs: 1000, timeoutMs: 2000, retryCount: 3 }
     };
+
+    try {
+        if (fs.existsSync(configPath)) {
+            const fileConfig = JSON.parse(fs.readFileSync(configPath, 'utf8'));
+            config = { ...config, ...fileConfig };
+            console.log('[Config] Loaded:', config.devices?.length || 0, 'devices');
+        }
+    } catch (err) {
+        console.error('[Config] Load error:', err.message);
+    }
+
+    // 应用环境变量覆盖 (如果存在)
+    if (config.devices && config.devices[0] && process.env.DEVICE_IP) {
+        console.log(`[Config] Overriding device IP with env: ${process.env.DEVICE_IP}`);
+        config.devices[0].ip = process.env.DEVICE_IP;
+    }
+
+    if (process.env.PORT) {
+        config.backend.port = parseInt(process.env.PORT);
+    }
+    if (process.env.FIRMWARE_PATH) {
+        config.backend.firmwarePath = process.env.FIRMWARE_PATH;
+    }
+
+    // 返回最终配置
+    return config;
 }
 
 // ==================== 获取本机IP ====================
@@ -57,6 +74,11 @@ function loadConfig() {
  * 类比：获取网络接口地址
  */
 function getLocalIP() {
+    // 优先使用手动指定的 IP，解决多网卡抓错 IP 的问题
+    if (process.env.LOCAL_IP) {
+        return process.env.LOCAL_IP;
+    }
+
     const nets = require('os').networkInterfaces();
     for (const name of Object.keys(nets)) {
         for (const net of nets[name]) {
@@ -74,23 +96,23 @@ async function main() {
     console.log('========================================');
     console.log('  GD32-Web-MaxClaw 后端服务');
     console.log('========================================');
-    
+
     // 1. 加载配置
     const config = loadConfig();
     const localIP = getLocalIP();
     console.log(`[System] Local IP: ${localIP}`);
-    
+
     // 2. 初始化DevicePool（设备连接池）
     console.log('\n[Step 1/6] Initializing DevicePool...');
     const devicePool = new DevicePool();
-    
+
     // 添加设备
     for (const dev of config.devices) {
         if (dev.enabled) {
             devicePool.addDevice(dev);
         }
     }
-    
+
     // 3. 初始化OTA处理器
     console.log('\n[Step 2/6] Initializing OTA Handler...');
     const otaHandler = new OTAHandler({
@@ -99,11 +121,11 @@ async function main() {
         port: 18080
     });
     await otaHandler.startServer();
-    
+
     // 4. 初始化PollingEngine（轮询引擎）
     console.log('\n[Step 3/6] Initializing PollingEngine...');
     const pollingEngine = new PollingEngine(devicePool, config.polling);
-    
+
     // 初始化全局 HTTP Server (供 WebSocket 和 Express 共享)
     const app = express();
     const server = http.createServer(app);
@@ -112,7 +134,7 @@ async function main() {
     // 5. 初始化WebSocket管理器
     console.log('\n[Step 4/6] Initializing WebSocket...');
     const wsManager = new WebSocketManager({ server: server });
-    
+
     // 设置数据回调 - 轮询到数据后推送给前端
     pollingEngine.onData = (deviceKey, sensorData) => {
         const device = devicePool.getAllDevices().find(d => d.key === deviceKey);
@@ -120,7 +142,7 @@ async function main() {
             wsManager.pushSensorData(device.ip, sensorData);
         }
     };
-    
+
     // 设置状态变化回调
     pollingEngine.onStatusChange = (deviceKey, status) => {
         const device = devicePool.getAllDevices().find(d => d.key === deviceKey);
@@ -128,13 +150,13 @@ async function main() {
             wsManager.pushDeviceStatus(device.ip, status);
         }
     };
-    
+
     await wsManager.start();
-    
+
     // 设置客户端消息处理
     wsManager.onClientMessage = async (clientId, message) => {
         console.log(`[WS] Client message: ${message.type}`);
-        
+
         switch (message.type) {
             case 'relay_control':
                 try {
@@ -150,7 +172,7 @@ async function main() {
                     wsManager.sendResponse(clientId, 'relay_control', false, { error: err.message });
                 }
                 break;
-                
+
             case 'ota_start':
                 try {
                     const device = devicePool.getAllDevices().find(d => d.ip === message.deviceIp);
@@ -164,7 +186,7 @@ async function main() {
                     wsManager.sendResponse(clientId, 'ota_start', false, { error: err.message });
                 }
                 break;
-                
+
             case 'get_devices':
                 // 返回设备列表
                 wsManager.sendToClient(clientId, {
@@ -174,26 +196,26 @@ async function main() {
                 break;
         }
     };
-    
+
     // 6. 配置Express API服务
     console.log('\n[Step 5/6] Configuring Express API...');
-    
+
     app.use(cors());
     app.use(express.json());
     app.use(express.static(path.join(__dirname, 'public')));
-    
+
     // 挂载pollingEngine到app
     app.locals.pollingEngine = pollingEngine;
     app.locals.wsManager = wsManager;
-    
+
     // 注册OTA路由
     app.use('/api/ota', createOtaRouter(otaHandler));
-    
+
     // 设备列表API
     app.get('/api/devices', (req, res) => {
         res.json({ success: true, devices: devicePool.getAllDevices() });
     });
-    
+
     // 设备状态API
     app.get('/api/devices/:ip/status', (req, res) => {
         const devices = devicePool.getAllDevices();
@@ -204,17 +226,17 @@ async function main() {
             res.status(404).json({ success: false, error: 'Device not found' });
         }
     });
-    
+
     // 健康检查
     app.get('/api/health', (req, res) => {
-        res.json({ 
-            status: 'ok', 
+        res.json({
+            status: 'ok',
             uptime: process.uptime(),
             devices: devicePool.getAllDevices().map(d => ({ ip: d.ip, status: d.status })),
             wsClients: wsManager.getStats().clientCount
         });
     });
-    
+
     // 启动基于共享端口的HTTP/WebSocket服务
     server.listen(httpPort, () => {
         console.log(`\n[Step 6/6] HTTP server: http://localhost:${httpPort}`);
@@ -229,7 +251,7 @@ async function main() {
         console.log(`   IP: ${config.devices[0]?.ip || '192.168.110.125'}`);
         console.log('');
     });
-    
+
     // 连接所有设备
     console.log('\n[Connect] Connecting to devices...');
     for (const device of devicePool.getAllDevices()) {
@@ -237,10 +259,10 @@ async function main() {
             await devicePool.connect(device.key);
         }
     }
-    
+
     // 启动轮询
     pollingEngine.start();
-    
+
     // 启动心跳检测
     wsManager.startHeartbeat();
 }

@@ -56,10 +56,23 @@ class PollingEngine {
         // 立即执行一次
         this.pollAllDevices();
 
+        this.isPolling = false; // 新增加锁变量
+
         // 启动定时器
-        this.timerId = setInterval(() => {
-            if (!this.writeLock) {
-                this.pollAllDevices();
+        this.timerId = setInterval(async () => {
+            if (this.writeLock) return;
+            
+            // 【极其重要的修复】：防止上一轮由于超时卡住时，下一轮定时器又叠加发起连接
+            if (this.isPolling) {
+                console.log('[PollingEngine] Overlap detected (previous poll still running), skipping this tick.');
+                return;
+            }
+
+            this.isPolling = true;
+            try {
+                await this.pollAllDevices();
+            } finally {
+                this.isPolling = false;
             }
         }, this.config.intervalMs);
     }

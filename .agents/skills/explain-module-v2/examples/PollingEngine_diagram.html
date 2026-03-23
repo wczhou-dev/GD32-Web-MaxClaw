@@ -1,0 +1,602 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <title>PollingEngine 函数调用关系图</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: "Microsoft YaHei", "PingFang SC", sans-serif;
+      background: #f0f4f8;
+      padding: 30px;
+      color: #1e293b;
+    }
+
+    /* ===== 页面标题 ===== */
+    .page-title {
+      text-align: center;
+      background: #fef08a;
+      border: 2px solid #ca8a04;
+      border-radius: 8px;
+      padding: 12px 24px;
+      font-size: 20px;
+      font-weight: bold;
+      margin-bottom: 30px;
+      letter-spacing: 2px;
+    }
+
+    /* ===== 时序图容器 ===== */
+    .diagram {
+      position: relative;
+      display: grid;
+      grid-template-columns: 60px 1fr 1fr 1fr;
+      gap: 0;
+      background: white;
+      border-radius: 12px;
+      box-shadow: 0 4px 24px rgba(0,0,0,0.10);
+      padding: 0 0 40px 0;
+      overflow: hidden;
+    }
+
+    /* ===== 参与者栏头 ===== */
+    .participants {
+      display: contents;
+    }
+
+    .p-spacer {
+      background: #1e293b;
+      height: 60px;
+    }
+
+    .participant {
+      background: #1e293b;
+      color: white;
+      text-align: center;
+      padding: 14px 8px;
+      font-size: 14px;
+      font-weight: bold;
+      border-left: 1px solid #334155;
+      line-height: 1.5;
+    }
+
+    .participant span {
+      display: block;
+      font-size: 11px;
+      font-weight: normal;
+      color: #94a3b8;
+      margin-top: 2px;
+    }
+
+    /* ===== 生命线 ===== */
+    .timeline-row {
+      display: contents;
+    }
+
+    .label-col {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 0 4px;
+      font-size: 11px;
+      color: #64748b;
+      writing-mode: vertical-rl;
+      font-weight: bold;
+    }
+
+    .lifeline {
+      position: relative;
+      border-left: 2px dashed #cbd5e1;
+      margin-left: calc(50% - 1px);
+    }
+
+    /* ===== 单条步骤行 ===== */
+    .step-row {
+      display: grid;
+      grid-template-columns: 60px 1fr 1fr 1fr;
+      min-height: 56px;
+      align-items: center;
+      position: relative;
+    }
+
+    .step-row:nth-child(even) {
+      background: #f8fafc;
+    }
+
+    /* ===== 步骤标签列 ===== */
+    .step-label {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 11px;
+      color: #64748b;
+      font-weight: 600;
+      padding: 4px;
+    }
+
+    /* ===== 步骤单元格 ===== */
+    .step-cell {
+      position: relative;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      height: 100%;
+      border-left: 2px dashed #cbd5e1;
+    }
+
+    /* ===== 箭头 ===== */
+    .arrow {
+      position: absolute;
+      display: flex;
+      align-items: center;
+      height: 28px;
+      z-index: 10;
+      pointer-events: none;
+    }
+
+    /* 向右箭头 (Engine -> HW) */
+    .arrow-right-e2h {
+      left: 50%; /* 从Engine中线出发 */
+      right: 0;
+      transform: translateX(0);
+    }
+
+    /* 向左箭头 (HW -> Engine) 虚线 */
+    .arrow-left-h2e {
+      right: 50%;
+      left: 0;
+    }
+
+    /* 自回箭头 */
+    .self-arrow {
+      left: calc(50% - 40px);
+      width: 80px;
+    }
+
+    /* Engine -> Browser (向左) */
+    .arrow-left-e2b {
+      right: 50%;
+      left: -100%;
+    }
+
+    /* Browser -> Engine (向右插队) */
+    .arrow-right-b2e {
+      left: -100%;
+      right: 50%;
+    }
+
+    /* ===== 箭头线条 ===== */
+    .arrow-line {
+      flex: 1;
+      height: 2px;
+      background: #2563eb;
+    }
+    .arrow-line.dashed {
+      background: none;
+      border-top: 2px dashed #64748b;
+    }
+    .arrow-line.red { background: #dc2626; }
+    .arrow-line.orange { background: #ea580c; }
+
+    .arrowhead {
+      width: 0;
+      height: 0;
+    }
+    .arrowhead-right {
+      border-top: 6px solid transparent;
+      border-bottom: 6px solid transparent;
+      border-left: 10px solid #2563eb;
+    }
+    .arrowhead-right.red { border-left-color: #dc2626; }
+    .arrowhead-right.orange { border-left-color: #ea580c; }
+    .arrowhead-left {
+      border-top: 6px solid transparent;
+      border-bottom: 6px solid transparent;
+      border-right: 10px solid #64748b;
+    }
+
+    /* ===== 步骤注释 ===== */
+    .step-note {
+      position: absolute;
+      background: white;
+      border: 1px solid #e2e8f0;
+      border-radius: 6px;
+      padding: 4px 10px;
+      font-size: 12px;
+      white-space: nowrap;
+      box-shadow: 0 2px 6px rgba(0,0,0,0.07);
+      z-index: 20;
+      top: 50%;
+      transform: translateY(-50%);
+    }
+
+    /* 数字圆圈 */
+    .num-badge {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 22px;
+      height: 22px;
+      background: #1e293b;
+      color: white;
+      border-radius: 50%;
+      font-size: 12px;
+      font-weight: bold;
+      margin-right: 6px;
+      flex-shrink: 0;
+    }
+
+    /* ===== 区块标题分隔 ===== */
+    .section-divider {
+      grid-column: 1 / -1;
+      padding: 10px 20px;
+      font-size: 13px;
+      font-weight: bold;
+      color: #7c3aed;
+      background: #f5f3ff;
+      border-top: 2px dashed #a78bfa;
+      border-bottom: 1px solid #e9d5ff;
+      letter-spacing: 1px;
+    }
+
+    .section-divider.yellow {
+      color: #92400e;
+      background: #fffbeb;
+      border-top: 2px dashed #fcd34d;
+      border-bottom: 1px solid #fde68a;
+    }
+
+    /* ===== 生命线容器 ===== */
+    .lifeline-container {
+      position: relative;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      height: 100%;
+      border-left: 2px dashed #cbd5e1;
+    }
+
+    /* ===== 激活框 ===== */
+    .activation-box {
+      position: absolute;
+      width: 14px;
+      background: #93c5fd;
+      border: 1px solid #3b82f6;
+      border-radius: 2px;
+      top: 0; bottom: 0;
+      left: calc(50% - 7px);
+      z-index: 5;
+    }
+
+    /* ===== 图例 ===== */
+    .legend {
+      display: flex;
+      gap: 24px;
+      flex-wrap: wrap;
+      margin-top: 20px;
+      background: white;
+      border-radius: 10px;
+      padding: 16px 24px;
+      box-shadow: 0 2px 12px rgba(0,0,0,0.07);
+      font-size: 13px;
+    }
+    .legend-item {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .legend-line {
+      width: 40px;
+      height: 2px;
+      background: #2563eb;
+    }
+    .legend-line.dashed {
+      background: none;
+      border-top: 2px dashed #64748b;
+    }
+    .legend-line.red { background: #dc2626; }
+  </style>
+</head>
+<body>
+
+  <div class="page-title">【 PollingEngine.js 】 函数调用关系时序图</div>
+
+  <!-- ======================================================= -->
+  <!--   整体用 HTML Table 更易精确控制时序图布局               -->
+  <!-- ======================================================= -->
+  <div style="background:white;border-radius:12px;box-shadow:0 4px 24px rgba(0,0,0,0.10);overflow:auto;">
+    <table style="width:100%;border-collapse:collapse;min-width:700px;">
+      <colgroup>
+        <col style="width:70px"> <!-- 步骤列 -->
+        <col style="width:25%"> <!-- 前端 -->
+        <col style="width:35%"> <!-- 引擎 -->
+        <col style="width:25%"> <!-- 硬件 -->
+      </colgroup>
+
+      <!-- ===== 参与者栏头 ===== -->
+      <thead>
+        <tr>
+          <th style="background:#1e293b;color:#94a3b8;font-size:11px;padding:8px 4px;text-align:center;">步骤</th>
+          <th style="background:#0f4c75;color:white;padding:14px 8px;text-align:center;font-size:13px;">
+            🖥️ 前端浏览器<br><span style="font-size:11px;font-weight:normal;color:#7dd3fc;">Vue + Pinia</span>
+          </th>
+          <th style="background:#1a1a2e;color:white;padding:14px 8px;text-align:center;font-size:13px;">
+            ⚙️ 轮询引擎<br><span style="font-size:11px;font-weight:normal;color:#a5b4fc;">PollingEngine.js</span>
+          </th>
+          <th style="background:#16404d;color:white;padding:14px 8px;text-align:center;font-size:13px;">
+            🔌 GD32 硬件<br><span style="font-size:11px;font-weight:normal;color:#6ee7b7;">Modbus TCP</span>
+          </th>
+        </tr>
+      </thead>
+
+      <tbody>
+
+        <!-- ===== 区块：主循环 ===== -->
+        <tr>
+          <td colspan="4" style="background:#fffbeb;border-top:3px solid #fcd34d;border-bottom:1px solid #fde68a;padding:8px 16px;font-size:12px;font-weight:bold;color:#92400e;letter-spacing:1px;">
+            🔄 主循环区块 — setInterval 每 1000ms 自动触发一次
+          </td>
+        </tr>
+
+        <!-- Step 1: start() -->
+        <tr style="border-bottom:1px solid #f1f5f9;">
+          <td style="text-align:center;padding:14px 4px;vertical-align:middle;">
+            <span style="display:inline-flex;align-items:center;justify-content:center;width:26px;height:26px;background:#1e293b;color:white;border-radius:50%;font-size:12px;font-weight:bold;">1</span>
+          </td>
+          <td style="text-align:center;vertical-align:middle;border-left:2px dashed #cbd5e1;padding:10px 4px;">
+            <div style="font-size:12px;color:#64748b;">调用 start() 启动</div>
+          </td>
+          <td style="vertical-align:middle;border-left:2px dashed #c7d2fe;background:#f8f9ff;padding:10px 16px;">
+            <div style="display:flex;align-items:center;gap:8px;">
+              <div style="width:100%;border-top:2px solid #6366f1;display:flex;align-items:center;justify-content:flex-end;position:relative;">
+                <div style="background:#ede9fe;border:1.5px solid #6366f1;border-radius:6px;padding:5px 12px;font-size:12px;font-weight:bold;color:#4f46e5;white-space:nowrap;">
+                  ① <code>start()</code> — 启动 setInterval 定时器
+                </div>
+              </div>
+            </div>
+          </td>
+          <td style="border-left:2px dashed #cbd5e1;vertical-align:middle;padding:10px 4px;text-align:center;">
+            <span style="font-size:12px;color:#94a3b8;">—— 等待 ——</span>
+          </td>
+        </tr>
+
+        <!-- Step 2: pollAllDevices() -->
+        <tr style="background:#f8fafc;border-bottom:1px solid #f1f5f9;">
+          <td style="text-align:center;padding:14px 4px;vertical-align:middle;">
+            <span style="display:inline-flex;align-items:center;justify-content:center;width:26px;height:26px;background:#1e293b;color:white;border-radius:50%;font-size:12px;font-weight:bold;">2</span>
+          </td>
+          <td style="border-left:2px dashed #cbd5e1;"></td>
+          <td style="vertical-align:middle;border-left:2px dashed #c7d2fe;background:#f0f4ff;padding:10px 16px;">
+            <div style="background:#e0e7ff;border:1.5px solid #6366f1;border-radius:6px;padding:5px 12px;font-size:12px;font-weight:bold;color:#3730a3;display:inline-block;">
+              ② <code>pollAllDevices()</code> — 遍历所有设备
+            </div>
+          </td>
+          <td style="border-left:2px dashed #cbd5e1;"></td>
+        </tr>
+
+        <!-- Step 3: pollDevice() -->
+        <tr style="border-bottom:1px solid #f1f5f9;">
+          <td style="text-align:center;padding:14px 4px;vertical-align:middle;">
+            <span style="display:inline-flex;align-items:center;justify-content:center;width:26px;height:26px;background:#1e293b;color:white;border-radius:50%;font-size:12px;font-weight:bold;">3</span>
+          </td>
+          <td style="border-left:2px dashed #cbd5e1;"></td>
+          <td style="vertical-align:middle;border-left:2px dashed #c7d2fe;background:#f0f4ff;padding:10px 16px;">
+            <div style="background:#e0e7ff;border:1.5px solid #6366f1;border-radius:6px;padding:5px 12px;font-size:12px;color:#3730a3;display:inline-block;">
+              ③ <code>pollDevice(key)</code> — 检查连接，断线则重连
+            </div>
+          </td>
+          <td style="border-left:2px dashed #cbd5e1;"></td>
+        </tr>
+
+        <!-- Step 4: writeRegister (心跳, 5s) -->
+        <tr style="background:#f0fdf4;border-bottom:1px solid #f1f5f9;">
+          <td style="text-align:center;padding:14px 4px;vertical-align:middle;">
+            <span style="display:inline-flex;align-items:center;justify-content:center;width:26px;height:26px;background:#15803d;color:white;border-radius:50%;font-size:12px;font-weight:bold;">4</span>
+          </td>
+          <td style="border-left:2px dashed #cbd5e1;"></td>
+          <td style="vertical-align:middle;border-left:2px dashed #c7d2fe;padding:10px 8px;position:relative;">
+            <!-- 右向箭头 到 HW -->
+            <div style="display:flex;align-items:center;gap:0;">
+              <div style="flex:1;height:2px;background:#16a34a;"></div>
+              <div style="width:0;height:0;border-top:6px solid transparent;border-bottom:6px solid transparent;border-left:10px solid #16a34a;"></div>
+            </div>
+            <div style="font-size:12px;color:#166534;font-weight:bold;text-align:center;margin-top:4px;">
+              ④ <code>writeRegister()</code>&nbsp;[Modbus 写] 0x0000 心跳值 &nbsp;<span style="background:#dcfce7;border:1px solid #86efac;border-radius:4px;padding:1px 6px;font-size:11px;">每 5s</span>
+            </div>
+          </td>
+          <td style="border-left:2px dashed #cbd5e1;vertical-align:middle;padding:10px 8px;text-align:center;">
+            <div style="background:#dcfce7;border:1.5px solid #86efac;border-radius:6px;padding:5px;font-size:11px;color:#166534;">✅ 写入成功</div>
+          </td>
+        </tr>
+
+        <!-- Step 5: readBlock 传感器 -->
+        <tr style="border-bottom:1px solid #f1f5f9;">
+          <td style="text-align:center;padding:14px 4px;vertical-align:middle;">
+            <span style="display:inline-flex;align-items:center;justify-content:center;width:26px;height:26px;background:#1d4ed8;color:white;border-radius:50%;font-size:12px;font-weight:bold;">5</span>
+          </td>
+          <td style="border-left:2px dashed #cbd5e1;"></td>
+          <td style="vertical-align:middle;border-left:2px dashed #c7d2fe;padding:10px 8px;">
+            <div style="display:flex;align-items:center;gap:0;">
+              <div style="flex:1;height:2px;background:#2563eb;"></div>
+              <div style="width:0;height:0;border-top:6px solid transparent;border-bottom:6px solid transparent;border-left:10px solid #2563eb;"></div>
+            </div>
+            <div style="font-size:12px;color:#1e40af;font-weight:bold;text-align:center;margin-top:4px;">
+              ⑤ <code>readBlock('BLOCK_ENV')</code>&nbsp;[Modbus 读] 0x1001-0x1048 全量传感器 &nbsp;<span style="background:#dbeafe;border:1px solid #93c5fd;border-radius:4px;padding:1px 6px;font-size:11px;">每 30s</span>
+            </div>
+          </td>
+          <td style="border-left:2px dashed #cbd5e1;vertical-align:middle;padding:10px 8px;text-align:center;"></td>
+        </tr>
+
+        <!-- Step 6: readBlock 继电器 -->
+        <tr style="background:#f8fafc;border-bottom:1px solid #f1f5f9;">
+          <td style="text-align:center;padding:14px 4px;vertical-align:middle;">
+            <span style="display:inline-flex;align-items:center;justify-content:center;width:26px;height:26px;background:#1d4ed8;color:white;border-radius:50%;font-size:12px;font-weight:bold;">6</span>
+          </td>
+          <td style="border-left:2px dashed #cbd5e1;"></td>
+          <td style="vertical-align:middle;border-left:2px dashed #c7d2fe;padding:10px 8px;">
+            <div style="display:flex;align-items:center;gap:0;">
+              <div style="flex:1;height:2px;background:#2563eb;"></div>
+              <div style="width:0;height:0;border-top:6px solid transparent;border-bottom:6px solid transparent;border-left:10px solid #2563eb;"></div>
+            </div>
+            <div style="font-size:12px;color:#1e40af;text-align:center;margin-top:4px;">
+              ⑥ <code>readBlock('BLOCK_HW')</code>&nbsp;[Modbus 读] 0x4001 继电器/DI/AO 状态
+            </div>
+          </td>
+          <td style="border-left:2px dashed #cbd5e1;vertical-align:middle;padding:10px 8px;text-align:center;"></td>
+        </tr>
+
+        <!-- Step 7: 返回 Hex Buffer -->
+        <tr style="border-bottom:1px solid #f1f5f9;">
+          <td style="text-align:center;padding:14px 4px;vertical-align:middle;">
+            <span style="display:inline-flex;align-items:center;justify-content:center;width:26px;height:26px;background:#64748b;color:white;border-radius:50%;font-size:12px;font-weight:bold;">7</span>
+          </td>
+          <td style="border-left:2px dashed #cbd5e1;"></td>
+          <td style="vertical-align:middle;border-left:2px dashed #c7d2fe;padding:10px 8px;">
+            <!-- 左向虚线箭头 from HW -->
+            <div style="display:flex;align-items:center;gap:0;flex-direction:row-reverse;">
+              <div style="flex:1;height:0;border-top:2px dashed #94a3b8;"></div>
+              <div style="width:0;height:0;border-top:6px solid transparent;border-bottom:6px solid transparent;border-right:10px solid #94a3b8;"></div>
+            </div>
+            <div style="font-size:12px;color:#64748b;text-align:center;margin-top:4px;">
+              ⑦ ← 返回原始 Hex Buffer（一串 16 进制字节）
+            </div>
+          </td>
+          <td style="border-left:2px dashed #cbd5e1;vertical-align:middle;padding:10px 8px;text-align:center;">
+            <div style="background:#f1f5f9;border:1px solid #cbd5e1;border-radius:6px;padding:5px;font-size:11px;color:#475569;font-family:monospace;">0x011A 0x028E ...</div>
+          </td>
+        </tr>
+
+        <!-- Step 8: DataParser 解析 -->
+        <tr style="background:#fefce8;border-bottom:1px solid #f1f5f9;">
+          <td style="text-align:center;padding:14px 4px;vertical-align:middle;">
+            <span style="display:inline-flex;align-items:center;justify-content:center;width:26px;height:26px;background:#b45309;color:white;border-radius:50%;font-size:12px;font-weight:bold;">8</span>
+          </td>
+          <td style="border-left:2px dashed #cbd5e1;"></td>
+          <td style="vertical-align:middle;border-left:2px dashed #c7d2fe;background:#fefce8;padding:10px 16px;">
+            <div style="background:#fef3c7;border:1.5px solid #f59e0b;border-radius:6px;padding:6px 12px;font-size:12px;font-weight:bold;color:#92400e;display:inline-block;">
+              ⑧ <code>DataParser.parseSensorData()</code><br>
+              <span style="font-weight:normal;font-size:11px;">位掩码拆解 · 温度 ÷10 · 高低字节合并</span>
+            </div>
+          </td>
+          <td style="border-left:2px dashed #cbd5e1;"></td>
+        </tr>
+
+        <!-- Step 9: WebSocket 推送 -->
+        <tr style="border-bottom:1px solid #f1f5f9;">
+          <td style="text-align:center;padding:14px 4px;vertical-align:middle;">
+            <span style="display:inline-flex;align-items:center;justify-content:center;width:26px;height:26px;background:#0891b2;color:white;border-radius:50%;font-size:12px;font-weight:bold;">9</span>
+          </td>
+          <td style="vertical-align:middle;border-left:2px dashed #a5f3fc;padding:10px 8px;">
+            <!-- 左向箭头 from Engine -->
+            <div style="display:flex;align-items:center;flex-direction:row-reverse;">
+              <div style="flex:1;height:0;border-top:2px dashed #0891b2;"></div>
+              <div style="width:0;height:0;border-top:6px solid transparent;border-bottom:6px solid transparent;border-right:10px solid #0891b2;"></div>
+            </div>
+            <div style="font-size:11px;color:#0e7490;text-align:center;margin-top:4px;">
+              ← 接收 JSON，Pinia 更新状态，视图自动渲染
+            </div>
+          </td>
+          <td style="vertical-align:middle;border-left:2px dashed #c7d2fe;padding:10px 8px;">
+            <!-- 左向箭头 to 前端 -->
+            <div style="display:flex;align-items:center;flex-direction:row-reverse;">
+              <div style="flex:1;height:2px;background:#0891b2;"></div>
+              <div></div>
+            </div>
+            <div style="font-size:12px;color:#0e7490;font-weight:bold;text-align:center;margin-top:4px;">
+              ⑨ [WebSocket 推送] JSON 格式物理量数据 →
+            </div>
+          </td>
+          <td style="border-left:2px dashed #cbd5e1;"></td>
+        </tr>
+
+        <!-- ===== 区块：独立指令（带互斥锁）===== -->
+        <tr>
+          <td colspan="4" style="background:#f5f3ff;border-top:3px solid #a78bfa;border-bottom:1px solid #ddd6fe;padding:8px 16px;font-size:12px;font-weight:bold;color:#6d28d9;letter-spacing:1px;">
+            🔒 独立指令区块 — 带互斥锁（writeLock），暂停主循环后插队执行
+          </td>
+        </tr>
+
+        <!-- Step 10: controlRelay() -->
+        <tr style="border-bottom:1px solid #f1f5f9;">
+          <td style="text-align:center;padding:14px 4px;vertical-align:middle;">
+            <span style="display:inline-flex;align-items:center;justify-content:center;width:26px;height:26px;background:#dc2626;color:white;border-radius:50%;font-size:12px;font-weight:bold;">10</span>
+          </td>
+          <td style="vertical-align:middle;border-left:2px dashed #a5f3fc;padding:10px 8px;text-align:center;">
+            <div style="font-size:12px;color:#991b1b;font-weight:bold;">用户点击开/关灯</div>
+          </td>
+          <td style="vertical-align:middle;border-left:2px dashed #c7d2fe;padding:10px 8px;">
+            <!-- 右向箭头 from 前端 -->
+            <div style="display:flex;align-items:center;">
+              <div style="flex:1;height:2px;background:#dc2626;"></div>
+              <div style="width:0;height:0;border-top:6px solid transparent;border-bottom:6px solid transparent;border-left:10px solid #dc2626;"></div>
+            </div>
+            <div style="background:#fee2e2;border:1.5px solid #fca5a5;border-radius:6px;padding:5px 12px;font-size:12px;color:#991b1b;margin-top:6px;">
+              ⑩ <code>controlRelay()</code> — writeLock = true，读→改→写→校验
+            </div>
+          </td>
+          <td style="border-left:2px dashed #cbd5e1;vertical-align:middle;padding:10px 8px;text-align:center;">
+            <div style="background:#fee2e2;border:1px solid #fca5a5;border-radius:6px;padding:5px;font-size:11px;color:#991b1b;">🔒 总线独占</div>
+          </td>
+        </tr>
+
+        <!-- Step 11: triggerOTA() -->
+        <tr style="background:#f8fafc;border-bottom:1px solid #f1f5f9;">
+          <td style="text-align:center;padding:14px 4px;vertical-align:middle;">
+            <span style="display:inline-flex;align-items:center;justify-content:center;width:26px;height:26px;background:#ea580c;color:white;border-radius:50%;font-size:12px;font-weight:bold;">11</span>
+          </td>
+          <td style="vertical-align:middle;border-left:2px dashed #a5f3fc;padding:10px 8px;text-align:center;">
+            <div style="font-size:12px;color:#c2410c;font-weight:bold;">用户发起 OTA 升级</div>
+          </td>
+          <td style="vertical-align:middle;border-left:2px dashed #c7d2fe;padding:10px 8px;">
+            <div style="display:flex;align-items:center;">
+              <div style="flex:1;height:2px;background:#ea580c;"></div>
+              <div style="width:0;height:0;border-top:6px solid transparent;border-bottom:6px solid transparent;border-left:10px solid #ea580c;"></div>
+            </div>
+            <div style="background:#ffedd5;border:1.5px solid #fdba74;border-radius:6px;padding:5px 12px;font-size:12px;color:#c2410c;margin-top:6px;">
+              ⑪ <code>triggerOTA()</code> — 先写版本号 0x0101，再触发 0x0100=1
+            </div>
+          </td>
+          <td style="border-left:2px dashed #cbd5e1;vertical-align:middle;padding:10px 8px;text-align:center;">
+            <div style="background:#ffedd5;border:1px solid #fdba74;border-radius:6px;padding:5px;font-size:11px;color:#c2410c;">🚀 开始升级</div>
+          </td>
+        </tr>
+
+        <!-- stop() -->
+        <tr style="border-bottom:1px solid #f1f5f9;">
+          <td style="text-align:center;padding:14px 4px;vertical-align:middle;">
+            <span style="display:inline-flex;align-items:center;justify-content:center;width:26px;height:26px;background:#64748b;color:white;border-radius:50%;font-size:12px;font-weight:bold;">停</span>
+          </td>
+          <td style="border-left:2px dashed #cbd5e1;"></td>
+          <td style="vertical-align:middle;border-left:2px dashed #c7d2fe;padding:10px 16px;">
+            <div style="background:#f1f5f9;border:1.5px solid #94a3b8;border-radius:6px;padding:5px 12px;font-size:12px;color:#475569;display:inline-block;">
+              ⑫ <code>stop()</code> — clearInterval，引擎停止心跳，可随时调用
+            </div>
+          </td>
+          <td style="border-left:2px dashed #cbd5e1;"></td>
+        </tr>
+
+      </tbody>
+    </table>
+  </div>
+
+  <!-- 图例 -->
+  <div class="legend">
+    <strong>图例：</strong>
+    <div class="legend-item">
+      <div class="legend-line"></div>
+      <span>向硬件发送指令（实线）</span>
+    </div>
+    <div class="legend-item">
+      <div class="legend-line dashed"></div>
+      <span>硬件/前端返回数据（虚线）</span>
+    </div>
+    <div class="legend-item">
+      <div class="legend-line red"></div>
+      <span>控制指令（带锁，高优先级）</span>
+    </div>
+    <div style="background:#fef08a;border:1px solid #ca8a04;border-radius:4px;padding:2px 8px;font-size:12px;">🔄 主循环</div>
+    <div style="background:#ede9fe;border:1px solid #a78bfa;border-radius:4px;padding:2px 8px;font-size:12px;">🔒 互斥锁区</div>
+  </div>
+
+</body>
+</html>
