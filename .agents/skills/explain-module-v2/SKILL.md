@@ -1,6 +1,6 @@
 ---
 name: explain-module
-description: 金牌导师式代码模块深度剖析工作流。当用户输入 `/explain-module [模块名]`、"帮我分析这个文件"、"画函数关系图"、"这段代码怎么运转的"、"时序图"、"函数调用关系"、"帮我看看这个 JS/Vue 文件"、"拆解一下这个逻辑"、"给我讲讲这个模块" 等时，必须触发本 Skill。本 Skill 自动完成四件事：①读取源码建立全局视图 ②生成可视化 HTML 时序图文件 ③按"黑盒→骨架→运转→主线"四步深度拆解 ④输出 Markdown 归档文档。特别适合有嵌入式 C 背景转学前端的开发者，所有拆解必须配套 C 语言类比。只要用户提到要"理解"、"分析"、"搞懂"任何 JS/Vue/HTML 模块，就应该使用本 Skill，不要只靠对话解释。
+description: 金牌导师式代码模块深度剖析工作流。当用户输入 `/explain-module [模块名]`时，必须触发本 Skill。本 Skill 自动完成四件事：①读取源码建立全局视图 ②生成可视化 HTML 时序图文件 ③按"黑盒→骨架→运转→主线"四步深度拆解 ④输出 Markdown 归档文档。特别适合有嵌入式 C 背景转学前端的开发者，所有拆解必须配套 C 语言类比。
 ---
 
 # 🚀 explain-module：金牌导师模块深度剖析
@@ -160,9 +160,13 @@ docs/analysis/{模块名}/{模块名}_diagram.html
    ```
 2. **强制生成 PDF**：在终端（进入项目根目录）执行以下命令，将其转换为 PDF：
    ```bash
+   # 推荐：当前项目本地实测通过的写法（兼容新版 md-to-pdf）
+   npx md-to-pdf docs/analysis/{模块名}/{模块名}.md --config-file .md-to-pdf.js
+
+   # 兼容：若你的环境中的 md-to-pdf 版本仍支持旧参数，也可尝试
    npx md-to-pdf docs/analysis/{模块名}/{模块名}.md --config .md-to-pdf.js
    ```
-   *(注意：项目中已有 `.md-to-pdf.js` 指向 Edge 浏览器引擎)*
+   *(注意：项目中已有 `.md-to-pdf.js` 指向 Edge 浏览器引擎；如果执行 `--config` 报未知参数，请切换为 `--config-file`)*
 3. 对话内完整输出四步拆解内容
 4. 在回复底部告知归档路径：
 
