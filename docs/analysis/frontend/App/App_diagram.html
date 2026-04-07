@@ -1,0 +1,220 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <title>App.vue 根组件生命周期与连通性流转图</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: "Microsoft YaHei", "PingFang SC", sans-serif;
+      background: #f0f4f8;
+      padding: 30px;
+      color: #1e293b;
+    }
+    .page-title {
+      text-align: center;
+      background: #fef08a;
+      border: 2px solid #ca8a04;
+      border-radius: 8px;
+      padding: 12px 24px;
+      font-size: 20px;
+      font-weight: bold;
+      margin-bottom: 30px;
+      letter-spacing: 2px;
+    }
+    .legend {
+      display: flex;
+      gap: 24px;
+      flex-wrap: wrap;
+      align-items: center;
+      margin-top: 20px;
+      background: white;
+      border-radius: 10px;
+      padding: 14px 24px;
+      box-shadow: 0 2px 12px rgba(0,0,0,0.07);
+      font-size: 13px;
+    }
+    .legend-item { display: flex; align-items: center; gap: 8px; }
+  </style>
+</head>
+<body>
+
+  <div class="page-title">【 App.vue 】 前端总底盘生命周期与通信初始化流转图</div>
+
+  <div style="background:white;border-radius:12px;box-shadow:0 4px 24px rgba(0,0,0,0.10);overflow-x:auto;">
+    <table style="width:100%;border-collapse:collapse;min-width:700px;">
+      <colgroup>
+        <col style="width:70px">
+        <col style="width:25%">
+        <col style="width:35%">
+        <col style="width:25%">
+      </colgroup>
+      <thead>
+        <tr>
+          <th style="background:#1e293b;color:#94a3b8;font-size:11px;padding:8px 4px;text-align:center;">步骤</th>
+          <th style="background:#0f4c75;color:white;padding:14px 8px;text-align:center;font-size:13px;">
+            🖥️ 用户浏览器<br>
+            <span style="font-size:11px;font-weight:normal;color:#7dd3fc;">UI 视图层渲染</span>
+          </th>
+          <th style="background:#1a1a2e;color:white;padding:14px 8px;text-align:center;font-size:13px;">
+            ⚙️ App 根组件<br>
+            <span style="font-size:11px;font-weight:normal;color:#a5b4fc;">App.vue 控制中心</span>
+          </th>
+          <th style="background:#16404d;color:white;padding:14px 8px;text-align:center;font-size:13px;">
+            📁 数据总线<br>
+            <span style="font-size:11px;font-weight:normal;color:#6ee7b7;">deviceStore (Pinia)</span>
+          </th>
+        </tr>
+      </thead>
+      <tbody>
+
+        <!-- 区块：上电初始化 -->
+        <tr>
+          <td colspan="4" style="background:#f0fdf4;border-top:3px solid #86efac;border-bottom:1px solid #bbf7d0;
+            padding:8px 16px;font-size:12px;font-weight:bold;color:#166534;letter-spacing:1px;">
+            🟢 Step 1: 系统上电初始化 (onMounted)
+          </td>
+        </tr>
+
+        <!-- 出发 onMounted -->
+        <tr style="border-bottom:1px solid #f1f5f9;">
+          <td style="text-align:center;padding:14px 4px;vertical-align:middle;">
+            <span style="display:inline-flex;align-items:center;justify-content:center;
+              width:26px;height:26px;background:#1e293b;color:white;border-radius:50%;
+              font-size:12px;font-weight:bold;">1</span>
+          </td>
+          <td style="border-left:2px dashed #cbd5e1;"></td>
+          <td style="border-left:2px dashed #c7d2fe;background:#f0f4ff;padding:10px 16px;vertical-align:middle;">
+            <div style="background:#e0e7ff;border:1.5px solid #6366f1;border-radius:6px;
+              padding:5px 12px;font-size:12px;font-weight:bold;color:#3730a3;display:inline-block;">
+              ① 触发 <code>onMounted</code> 钩子
+            </div>
+            <div style="font-size:11px;color:#64748b;margin-top:6px;">
+              [类比] <code>Power_On_Self_Test</code>: 页面加载完成，进入生命周期首站
+            </div>
+          </td>
+          <td style="border-left:2px dashed #cbd5e1;"></td>
+        </tr>
+
+        <!-- 定时器开启 -->
+        <tr style="background:#f8fafc;border-bottom:1px solid #f1f5f9;">
+          <td style="text-align:center;padding:14px 4px;vertical-align:middle;">
+            <span style="display:inline-flex;align-items:center;justify-content:center;
+              width:26px;height:26px;background:#1e293b;color:white;border-radius:50%;
+              font-size:12px;font-weight:bold;">2</span>
+          </td>
+          <td style="border-left:2px dashed #cbd5e1;"></td>
+          <td style="border-left:2px dashed #c7d2fe;background:#f0f4ff;padding:10px 16px;vertical-align:middle;">
+            <div style="background:#e0e7ff;border:1.5px solid #6366f1;border-radius:6px;
+              padding:5px 12px;font-size:12px;color:#3730a3;display:inline-block;">
+              ② 启动 1s 周期定时器
+            </div>
+            <div style="font-size:11px;color:#64748b;margin-top:4px;">
+              用于实时更新 Header 中的 currentTime
+            </div>
+          </td>
+          <td style="border-left:2px dashed #cbd5e1;"></td>
+        </tr>
+
+        <!-- 区块：通信连接 -->
+        <tr>
+          <td colspan="4" style="background:#fffbeb;border-top:3px solid #fcd34d;border-bottom:1px solid #fde68a;
+            padding:8px 16px;font-size:12px;font-weight:bold;color:#92400e;letter-spacing:1px;">
+            🔄 Step 2: 呼叫数据总线建立连接 (WebSocket)
+          </td>
+        </tr>
+
+        <!-- 调用 Store 连接 -->
+        <tr style="border-bottom:1px solid #f1f5f9;">
+          <td style="text-align:center;padding:14px 4px;vertical-align:middle;">
+            <span style="display:inline-flex;align-items:center;justify-content:center;
+              width:26px;height:26px;background:#1e4ed8;color:white;border-radius:50%;
+              font-size:12px;font-weight:bold;">3</span>
+          </td>
+          <td style="border-left:2px dashed #cbd5e1;"></td>
+          <td style="border-left:2px dashed #c7d2fe;padding:10px 8px;vertical-align:middle;">
+            <!-- 向右箭头 -->
+            <div style="display:flex;align-items:center;">
+              <div style="flex:1;height:2px;background:#2563eb;"></div>
+              <div style="width:0;height:0;border-top:6px solid transparent;border-bottom:6px solid transparent;border-left:10px solid #2563eb;"></div>
+            </div>
+            <div style="font-size:12px;color:#1e40af;font-weight:bold;text-align:center;margin-top:4px;">
+              ③ 调用 <code>store.connect()</code> 指令
+            </div>
+          </td>
+          <td style="border-left:2px dashed #cbd5e1;vertical-align:middle;padding:10px 8px;text-align:center;">
+            <div style="background:#dbeafe;border:1.5px solid #93c5fd;border-radius:6px;padding:5px;font-size:11px;color:#1e40af;">
+               WS 通信包发送<br>等待服务端握手成功
+            </div>
+          </td>
+        </tr>
+
+        <!-- 状态反馈与标签更新 -->
+        <tr style="background:#f0fdf4;border-bottom:1px solid #f1f5f9;">
+          <td style="text-align:center;padding:14px 4px;vertical-align:middle;">
+            <span style="display:inline-flex;align-items:center;justify-content:center;
+              width:26px;height:26px;background:#15803d;color:white;border-radius:50%;
+              font-size:12px;font-weight:bold;">4</span>
+          </td>
+          <td style="border-left:2px dashed #cbd5e1;vertical-align:middle;padding:10px 8px;text-align:center;">
+            <!-- 向左箭头由核心列发出 -->
+             <div style="background:#dcfce7;border:1.5px solid #86efac;border-radius:6px;padding:5px;font-size:11px;color:#166534;">
+               🟢 Header 状态标签<br>由 Danger 切为 Success
+            </div>
+          </td>
+          <td style="border-left:2px dashed #c7d2fe;padding:10px 8px;vertical-align:middle;">
+             <!-- 向左箭头 -->
+            <div style="display:flex;align-items:center;flex-direction:row-reverse;">
+              <div style="flex:1;height:2px;background:#16a34a;"></div>
+              <div style="width:0;height:0;border-top:6px solid transparent;border-bottom:6px solid transparent;border-right:10px solid #16a34a;"></div>
+            </div>
+            <div style="font-size:12px;color:#166534;font-weight:bold;text-align:center;margin-top:4px;">
+              ④ 侦测到 <code>wsConnected</code> 为 True
+            </div>
+          </td>
+          <td style="border-left:2px dashed #cbd5e1;"></td>
+        </tr>
+
+         <!-- 区块：停机清理 -->
+        <tr>
+          <td colspan="4" style="background:#f1f5f9;border-top:1px solid #94a3b8;border-bottom:1px solid #cbd5e1;
+            padding:8px 16px;font-size:12px;font-weight:bold;color:#475569;letter-spacing:1px;">
+            🛑 Step 3: 系统卸载与现场清理 (onUnmounted)
+          </td>
+        </tr>
+
+        <!-- 停止 timer -->
+        <tr style="border-bottom:1px solid #f1f5f9;">
+          <td style="text-align:center;padding:14px 4px;vertical-align:middle;">
+            <span style="display:inline-flex;align-items:center;justify-content:center;
+              width:26px;height:26px;background:#64748b;color:white;border-radius:50%;
+              font-size:12px;font-weight:bold;">停</span>
+          </td>
+          <td style="border-left:2px dashed #cbd5e1;"></td>
+          <td style="border-left:2px dashed #c7d2fe;background:#fef2f2;padding:10px 16px;vertical-align:middle;">
+            <div style="background:#f1f5f9;border:1.5px solid #94a3b8;border-radius:6px;
+              padding:5px 12px;font-size:12px;color:#475569;display:inline-block;">
+              ⑬ <code>clearInterval(timer)</code>
+            </div>
+            <div style="font-size:11px;color:#ef4444;margin-top:6px;">
+              [防错] 停止资源占用，防止内存泄漏
+            </div>
+          </td>
+          <td style="border-left:2px dashed #cbd5e1;"></td>
+        </tr>
+
+      </tbody>
+    </table>
+  </div>
+
+  <div class="legend">
+    <strong>图例：</strong>
+    <div class="legend-item"><div style="width:40px;height:2px;background:#2563eb;"></div><span>向总线发送指令 (TX)</span></div>
+    <div class="legend-item"><div style="width:40px;height:2px;background:#16a34a;"></div><span>接收状态反馈更新 UI (RX)</span></div>
+    <div style="background:#f0fdf4;border:1px solid #86efac;border-radius:4px;padding:2px 8px;font-size:12px;">🟢 初始化</div>
+    <div style="background:#fffbeb;border:1px solid #fcd34d;border-radius:4px;padding:2px 8px;font-size:12px;">🔄 通信中</div>
+    <div style="background:#fef2f2;border:1px solid #fca5a5;border-radius:4px;padding:2px 8px;font-size:12px;">🛑 停止处理</div>
+  </div>
+
+</body>
+</html>
