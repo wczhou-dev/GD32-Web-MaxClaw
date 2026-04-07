@@ -21,8 +21,8 @@
       <div class="card-grid">
         <div v-for="i in 16" :key="'th'+i" class="data-card">
           <div class="card-label">{{ i }}#</div>
-          <div class="card-value temp">{{ store.tempData[i-1] ?? '--' }}<span class="unit">°C</span></div>
-          <div class="card-value humi">{{ store.humiData[i-1] ?? '--' }}<span class="unit">%</span></div>
+          <div class="card-value temp">{{ formatValue(store.tempData[i-1]) }}<span class="unit">°C</span></div>
+          <div class="card-value humi">{{ formatValue(store.humiData[i-1]) }}<span class="unit">%</span></div>
         </div>
       </div>
     </div>
@@ -35,7 +35,7 @@
           <div class="card-grid small">
             <div v-for="i in 8" :key="'co2'+i" class="data-card small">
               <div class="card-label">{{ i }}#</div>
-              <div class="card-value">{{ store.co2Data[i-1] ?? '--' }}<span class="unit">ppm</span></div>
+              <div class="card-value">{{ formatValue(store.co2Data[i-1]) }}<span class="unit">ppm</span></div>
             </div>
           </div>
         </div>
@@ -44,7 +44,7 @@
           <div class="card-grid small">
             <div v-for="i in 4" :key="'nh3'+i" class="data-card small">
               <div class="card-label">{{ i }}#</div>
-              <div class="card-value">{{ store.nh3Data[i-1] ?? '--' }}<span class="unit">ppm</span></div>
+              <div class="card-value">{{ formatValue(store.nh3Data[i-1]) }}<span class="unit">ppm</span></div>
             </div>
           </div>
         </div>
@@ -54,7 +54,7 @@
         <div class="card-grid medium">
           <div v-for="i in 12" :key="'wind'+i" class="data-card medium">
             <div class="card-label">{{ i }}#</div>
-            <div class="card-value">{{ store.windData[i-1] ?? '--' }}<span class="unit">m/s</span></div>
+            <div class="card-value">{{ formatValue(store.windData[i-1]) }}<span class="unit">m/s</span></div>
           </div>
         </div>
       </div>
@@ -66,15 +66,15 @@
       <div class="card-row">
         <div class="data-card">
           <div class="card-label">舍外温度</div>
-          <div class="card-value">{{ store.outdoorTemp ?? '--' }}<span class="unit">°C</span></div>
+          <div class="card-value">{{ formatValue(store.outdoorTemp) }}<span class="unit">°C</span></div>
         </div>
         <div class="data-card">
           <div class="card-label">舍外湿度</div>
-          <div class="card-value">{{ store.outdoorHumi ?? '--' }}<span class="unit">%</span></div>
+          <div class="card-value">{{ formatValue(store.outdoorHumi) }}<span class="unit">%</span></div>
         </div>
         <div v-for="i in 4" :key="'p'+i" class="data-card">
           <div class="card-label">{{ i }}#压差</div>
-          <div class="card-value">{{ store.pressureData[i-1] ?? '--' }}<span class="unit">Pa</span></div>
+          <div class="card-value">{{ formatValue(store.pressureData[i-1]) }}<span class="unit">Pa</span></div>
         </div>
       </div>
     </div>
@@ -85,6 +85,11 @@
 import { ref } from 'vue'
 import { useDeviceStore } from '../stores/deviceStore'
 const store = useDeviceStore()
+
+function formatValue(val) {
+  if (val === null || val === undefined || val === 32767) return '--'
+  return val
+}
 </script>
 
 <style scoped>
@@ -98,7 +103,7 @@ const store = useDeviceStore()
 .card-grid.small, .card-grid.medium { gap: 8px; }
 .data-card { background: linear-gradient(135deg, #16213e, #1a1a2e); border: 1px solid #333; border-radius: 8px; padding: 10px 15px; text-align: center; min-width: 70px; }
 .data-card.small, .data-card.medium { min-width: 55px; padding: 8px; }
-.card-label { font-size: 10px; color: #888; margin-bottom: 5px; }
+.card-label { font-size: 14px; font-weight: bold; color: #888; margin-bottom: 5px; }
 .card-value { font-size: 18px; font-weight: bold; color: #fff; }
 .card-value.temp { color: #ff6b6b; }
 .card-value.humi { color: #4ecdc4; font-size: 14px; margin-top: 3px; }

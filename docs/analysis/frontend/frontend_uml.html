@@ -1,0 +1,399 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>GD32 环控系统 — 前端架构 UML 图</title>
+    <script src="https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js"></script>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: 'Microsoft YaHei', 'PingFang SC', sans-serif;
+            background: #0a0a1a;
+            color: #e0e0e0;
+            padding: 30px;
+        }
+        h1 {
+            text-align: center;
+            font-size: 28px;
+            color: #E94560;
+            margin-bottom: 10px;
+        }
+        .subtitle {
+            text-align: center;
+            color: #666;
+            font-size: 14px;
+            margin-bottom: 40px;
+        }
+        .diagram-section {
+            background: #12122a;
+            border: 1px solid #2a2a4a;
+            border-radius: 12px;
+            padding: 30px;
+            margin-bottom: 30px;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.3);
+        }
+        .diagram-section h2 {
+            color: #E94560;
+            font-size: 20px;
+            margin-bottom: 8px;
+            padding-left: 12px;
+            border-left: 4px solid #E94560;
+        }
+        .diagram-section .desc {
+            color: #888;
+            font-size: 13px;
+            margin-bottom: 20px;
+            padding-left: 16px;
+        }
+        .mermaid {
+            display: flex;
+            justify-content: center;
+            padding: 20px;
+        }
+        .mermaid svg {
+            max-width: 100%;
+        }
+        .nav-bar {
+            display: flex;
+            justify-content: center;
+            gap: 15px;
+            margin-bottom: 30px;
+            flex-wrap: wrap;
+        }
+        .nav-bar a {
+            background: linear-gradient(135deg, #16213e, #1a1a2e);
+            color: #aaa;
+            text-decoration: none;
+            padding: 10px 20px;
+            border-radius: 8px;
+            border: 1px solid #333;
+            font-size: 13px;
+            transition: all 0.3s;
+        }
+        .nav-bar a:hover {
+            color: #E94560;
+            border-color: #E94560;
+            box-shadow: 0 0 15px rgba(233,69,96,0.3);
+        }
+        .info-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+            gap: 15px;
+            margin-top: 20px;
+        }
+        .info-card {
+            background: linear-gradient(135deg, #16213e, #1a1a2e);
+            border: 1px solid #333;
+            border-radius: 8px;
+            padding: 15px;
+        }
+        .info-card h4 {
+            color: #E94560;
+            font-size: 14px;
+            margin-bottom: 8px;
+        }
+        .info-card p {
+            color: #aaa;
+            font-size: 12px;
+            line-height: 1.6;
+        }
+        .info-card code {
+            background: #0a0a1a;
+            color: #4ecdc4;
+            padding: 2px 6px;
+            border-radius: 3px;
+            font-size: 11px;
+        }
+        footer {
+            text-align: center;
+            color: #444;
+            font-size: 12px;
+            margin-top: 40px;
+            padding: 20px;
+            border-top: 1px solid #222;
+        }
+    </style>
+</head>
+<body>
+
+<h1>🦞 GD32 环控系统 — 前端架构 UML 图</h1>
+<p class="subtitle">Vue 3 + Pinia + Element Plus + WebSocket | 生成时间：2026-04-07</p>
+
+<div class="nav-bar">
+    <a href="#component">组件层级图</a>
+    <a href="#sequence">数据流时序图</a>
+    <a href="#class">状态管理类图</a>
+    <a href="#navigation">路由导航图</a>
+    <a href="#state">断线重连状态机</a>
+    <a href="#summary">模块速查卡</a>
+</div>
+
+<!-- 1. 组件层级关系图 -->
+<div class="diagram-section" id="component">
+    <h2>1. 组件层级关系图</h2>
+    <p class="desc">展示从 index.html 到各视图组件的依赖树，以及与后端的通信通道。</p>
+    <div class="mermaid">
+graph TB
+    subgraph Browser["浏览器"]
+        HTML["index.html<br/>挂载点 #app"]
+        Main["main.js<br/>应用入口"]
+        App["App.vue<br/>根组件"]
+        Router["router.js<br/>路由配置"]
+        Store["deviceStore.js<br/>Pinia Store"]
+
+        subgraph Views["views/ 页面组件"]
+            Monitor["Monitor.vue<br/>🌡️ 环境监控"]
+            Relay["Relay.vue<br/>🔌 继电器控制"]
+            OTA["OTA.vue<br/>📦 OTA升级"]
+            Device["Device.vue<br/>🖥️ 设备管理"]
+        end
+    end
+
+    subgraph Backend["后端 Node.js :3001"]
+        WS["WebSocket Server"]
+        API["REST API"]
+    end
+
+    HTML --> Main
+    Main --> App
+    Main --> Router
+    Main --> Store
+    App -->|"onMounted"| Store
+    Router --> Monitor
+    Router --> Relay
+    Router --> OTA
+    Router --> Device
+
+    Monitor -->|"读数据"| Store
+    Relay -->|"controlRelay"| Store
+    OTA -->|"triggerOTA"| Store
+    Device -->|"读设备"| Store
+
+    Store <-->|"WebSocket"| WS
+    OTA -->|"HTTP POST"| API
+
+    style Store fill:#E94560,color:#fff,stroke:#333
+    style WS fill:#409eff,color:#fff,stroke:#333
+    style API fill:#67c23a,color:#fff,stroke:#333
+    </div>
+</div>
+
+<!-- 2. 数据流时序图 -->
+<div class="diagram-section" id="sequence">
+    <h2>2. 数据流时序图</h2>
+    <p class="desc">完整展示从页面加载到数据实时刷新的全链路时序。</p>
+    <div class="mermaid">
+sequenceDiagram
+    participant User as 用户浏览器
+    participant App as App.vue
+    participant Store as deviceStore
+    participant WS as WebSocket
+    participant Backend as Node.js 后端
+    participant MCU as 嵌入式设备
+
+    rect rgb(30, 40, 60)
+    Note over User, MCU: 阶段一：初始化连接
+    User->>App: 打开 http://localhost:5173
+    App->>Store: onMounted → connect()
+    Store->>WS: new WebSocket(ws://host:3001)
+    WS->>Backend: TCP 握手
+    Backend-->>WS: 连接成功
+    WS-->>Store: onopen → wsConnected = true
+    Store->>Backend: send type=get_devices
+    Backend-->>Store: type=device_list, devices=[...]
+    Store->>Store: 设置 selectedDeviceIp
+    end
+
+    rect rgb(40, 30, 50)
+    Note over User, MCU: 阶段二：实时数据推送
+    loop 每 2 秒轮询
+        Backend->>MCU: Modbus TCP 读寄存器
+        MCU-->>Backend: 返回原始数据
+        Backend->>Backend: DataParser 解析
+        Backend-->>Store: type=sensor_data
+        Store->>Store: 更新 tempData, humiData...
+        Store-->>User: Vue 响应式自动刷新 UI
+    end
+    end
+
+    rect rgb(50, 30, 40)
+    Note over User, MCU: 阶段三：用户控制
+    User->>Store: toggleRelay 开关操作
+    Store->>Backend: type=relay_control
+    Backend->>MCU: Modbus TCP 写寄存器
+    MCU-->>Backend: 写入成功
+    end
+    </div>
+</div>
+
+<!-- 3. 状态管理类图 -->
+<div class="diagram-section" id="class">
+    <h2>3. 状态管理类图</h2>
+    <p class="desc">deviceStore 作为单一数据源，所有视图组件均依赖其状态和方法。</p>
+    <div class="mermaid">
+classDiagram
+    class DeviceStore {
+        -ws: WebSocket
+        +wsConnected: boolean
+        +devices: Device[]
+        +selectedDeviceIp: string
+        +tempData: number_16
+        +humiData: number_16
+        +co2Data: number_8
+        +nh3Data: number_4
+        +windData: number_12
+        +relayStatus: boolean_22
+        +digitalInputs: boolean_10
+        +outdoorTemp: number
+        +outdoorHumi: number
+        +pressureData: number_4
+        +otaProgress: number
+        +otaStatus: number
+        +lastUpdate: Date
+        +onlineDevices: Device[]
+        +connect() void
+        +controlRelay(ip, idx, val) void
+        +triggerOTA(ip, ver) void
+    }
+
+    class MonitorView {
+        +store: DeviceStore
+        +formatValue(val) string
+    }
+
+    class RelayView {
+        +store: DeviceStore
+        +relayList: computed
+        +toggleRelay(idx, val) void
+    }
+
+    class OTAView {
+        +store: DeviceStore
+        +targetVersion: number
+        +uploadRef: Ref
+        +otaStatusText: computed
+        +triggerOTA() void
+        +uploadFirmware() void
+    }
+
+    class DeviceView {
+        +store: DeviceStore
+        +reconnect(row) void
+    }
+
+    class AppRoot {
+        +currentTime: string
+        +connectionStatus: computed
+        +updateTime() void
+    }
+
+    DeviceStore <|-- MonitorView : 读取传感器数据
+    DeviceStore <|-- RelayView : 读写继电器状态
+    DeviceStore <|-- OTAView : 读写OTA进度
+    DeviceStore <|-- DeviceView : 读取设备列表
+    DeviceStore <|-- AppRoot : 读取连接状态
+    </div>
+</div>
+
+<!-- 4. 路由导航图 -->
+<div class="diagram-section" id="navigation">
+    <h2>4. 路由导航图</h2>
+    <p class="desc">4 个页面的导航关系，根路径默认重定向到环境监控页。</p>
+    <div class="mermaid">
+graph LR
+    Root["/ 根路径"] -->|"redirect"| M["/monitor<br/>🌡️ 环境监控"]
+    M --- R["/relay<br/>🔌 继电器控制"]
+    R --- O["/ota<br/>📦 OTA升级"]
+    O --- D["/device<br/>🖥️ 设备管理"]
+
+    style Root fill:#333,color:#aaa,stroke:#555
+    style M fill:#E94560,color:#fff,stroke:#333
+    style R fill:#16213e,color:#fff,stroke:#E94560
+    style O fill:#16213e,color:#fff,stroke:#E94560
+    style D fill:#16213e,color:#fff,stroke:#E94560
+    </div>
+</div>
+
+<!-- 5. WebSocket 断线重连状态机 -->
+<div class="diagram-section" id="state">
+    <h2>5. WebSocket 断线重连状态机</h2>
+    <p class="desc">设备掉线后，前端自动在 5 秒后尝试重新建立 WebSocket 连接。</p>
+    <div class="mermaid">
+stateDiagram-v2
+    [*] --> 断开: 页面加载
+    断开 --> 连接中: connect()
+    连接中 --> 已连接: onopen
+    连接中 --> 断开: 连接失败
+    已连接 --> 断开: onclose
+    断开 --> 等待重连: 启动5秒定时器
+    等待重连 --> 连接中: 定时器到期
+    已连接 --> 已连接: onmessage
+    </div>
+</div>
+
+<!-- 6. 模块速查卡 -->
+<div class="diagram-section" id="summary">
+    <h2>6. 模块速查卡</h2>
+    <p class="desc">快速了解每个源文件的职责、体积和关键函数。</p>
+    <div class="info-grid">
+        <div class="info-card">
+            <h4>📄 main.js (20 行)</h4>
+            <p>应用入口。创建 Vue 实例，注册 <code>Pinia</code>、<code>Element Plus</code>、<code>Router</code> 三大插件，遍历注册全量图标组件。</p>
+        </div>
+        <div class="info-card">
+            <h4>📄 App.vue (153 行)</h4>
+            <p>根组件。Header + Sidebar + Content 三栏布局。<code>onMounted</code> 启动 WebSocket 连接和系统时钟。定义全局暗色主题 CSS。</p>
+        </div>
+        <div class="info-card">
+            <h4>📄 router.js (19 行)</h4>
+            <p>路由配置。4 条路由规则，根路径重定向到 <code>/monitor</code>，使用 HTML5 History 模式。</p>
+        </div>
+        <div class="info-card">
+            <h4>📄 deviceStore.js (82 行)</h4>
+            <p>核心数据中心。管理 WebSocket 生命周期、16 种传感器状态数组、设备列表同步、控制指令发送。支持断线 5 秒自动重连。</p>
+        </div>
+        <div class="info-card">
+            <h4>📄 Monitor.vue (115 行)</h4>
+            <p>监控主页。16 路温湿度 + 8 路 CO₂ + 4 路氨气 + 12 路风速 + 舍外环境卡片矩阵。<code>formatValue()</code> 过滤 32767 无效值。</p>
+        </div>
+        <div class="info-card">
+            <h4>📄 Relay.vue (46 行)</h4>
+            <p>继电器控制。22 路开关表格，<code>el-popconfirm</code> 二次确认机制，调用 <code>store.controlRelay()</code> 发送 WebSocket 指令。</p>
+        </div>
+        <div class="info-card">
+            <h4>📄 OTA.vue (72 行)</h4>
+            <p>固件升级。进度条 + 状态标签 + 版本号输入 + 拖拽上传区。通过 <code>/api/ota/upload</code> POST 固件 .rbl 文件。</p>
+        </div>
+        <div class="info-card">
+            <h4>📄 Device.vue (38 行)</h4>
+            <p>设备管理。暗色表格展示设备名称、IP、端口、在线状态。提供"重连"按钮（预留功能）。</p>
+        </div>
+    </div>
+</div>
+
+<footer>
+    GD32-Web-MaxClaw 前端架构分析 | 自动生成 · 2026-04-07
+</footer>
+
+<script>
+    mermaid.initialize({
+        startOnLoad: true,
+        theme: 'dark',
+        themeVariables: {
+            darkMode: true,
+            primaryColor: '#E94560',
+            primaryTextColor: '#fff',
+            primaryBorderColor: '#E94560',
+            lineColor: '#555',
+            secondaryColor: '#16213e',
+            tertiaryColor: '#1a1a2e',
+            fontFamily: 'Microsoft YaHei, PingFang SC, sans-serif'
+        },
+        flowchart: { curve: 'basis' },
+        sequence: { actorMargin: 50, messageMargin: 40 }
+    });
+</script>
+
+</body>
+</html>
