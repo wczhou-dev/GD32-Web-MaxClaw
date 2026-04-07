@@ -160,13 +160,9 @@ docs/analysis/{模块名}/{模块名}_diagram.html
    ```
 2. **强制生成 PDF**：在终端（进入项目根目录）执行以下命令，将其转换为 PDF：
    ```bash
-   # 推荐：当前项目本地实测通过的写法（兼容新版 md-to-pdf）
-   npx md-to-pdf docs/analysis/{模块名}/{模块名}.md --config-file .md-to-pdf.js
-
-   # 兼容：若你的环境中的 md-to-pdf 版本仍支持旧参数，也可尝试
    npx md-to-pdf docs/analysis/{模块名}/{模块名}.md --config .md-to-pdf.js
    ```
-   *(注意：项目中已有 `.md-to-pdf.js` 指向 Edge 浏览器引擎；如果执行 `--config` 报未知参数，请切换为 `--config-file`)*
+   *(注意：项目中已有 `.md-to-pdf.js` 指向 Edge 浏览器引擎)*
 3. 对话内完整输出四步拆解内容
 4. 在回复底部告知归档路径：
 
