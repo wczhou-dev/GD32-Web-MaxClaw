@@ -1,0 +1,234 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <title>main.js 模块初始化流程图</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: "Microsoft YaHei", "PingFang SC", sans-serif;
+      background: #f0f4f8;
+      padding: 30px;
+      color: #1e293b;
+    }
+    .page-title {
+      text-align: center;
+      background: #fef08a;
+      border: 2px solid #ca8a04;
+      border-radius: 8px;
+      padding: 12px 24px;
+      font-size: 20px;
+      font-weight: bold;
+      margin-bottom: 30px;
+      letter-spacing: 2px;
+    }
+    .legend {
+      display: flex;
+      gap: 24px;
+      flex-wrap: wrap;
+      align-items: center;
+      margin-top: 20px;
+      background: white;
+      border-radius: 10px;
+      padding: 14px 24px;
+      box-shadow: 0 2px 12px rgba(0,0,0,0.07);
+      font-size: 13px;
+    }
+    .legend-item { display: flex; align-items: center; gap: 8px; }
+  </style>
+</head>
+<body>
+
+  <div class="page-title">【 main.js 】 前端应用挂载与驱动初始化流程图</div>
+
+  <div style="background:white;border-radius:12px;box-shadow:0 4px 24px rgba(0,0,0,0.10);overflow-x:auto;">
+    <table style="width:100%;border-collapse:collapse;min-width:700px;">
+      <colgroup>
+        <col style="width:70px">
+        <col style="width:25%">
+        <col style="width:35%">
+        <col style="width:25%">
+      </colgroup>
+      <thead>
+        <tr>
+          <th style="background:#1e293b;color:#94a3b8;font-size:11px;padding:8px 4px;text-align:center;">步骤</th>
+          <th style="background:#0f4c75;color:white;padding:14px 8px;text-align:center;font-size:13px;">
+            🖥️ 前端浏览器<br>
+            <span style="font-size:11px;font-weight:normal;color:#7dd3fc;">Vue DOM 节点 (#app)</span>
+          </th>
+          <th style="background:#1a1a2e;color:white;padding:14px 8px;text-align:center;font-size:13px;">
+            ⚙️ 主入口引擎<br>
+            <span style="font-size:11px;font-weight:normal;color:#a5b4fc;">main.js</span>
+          </th>
+          <th style="background:#16404d;color:white;padding:14px 8px;text-align:center;font-size:13px;">
+            📦 全局插件库<br>
+            <span style="font-size:11px;font-weight:normal;color:#6ee7b7;">Pinia / Router / UI</span>
+          </th>
+        </tr>
+      </thead>
+      <tbody>
+
+        <!-- 区块：初始化启动 -->
+        <tr>
+          <td colspan="4" style="background:#f0fdf4;border-top:3px solid #86efac;border-bottom:1px solid #bbf7d0;
+            padding:8px 16px;font-size:12px;font-weight:bold;color:#166534;letter-spacing:1px;">
+            🟢 Step 1: 内核点火阶段
+          </td>
+        </tr>
+
+        <!-- 创建实例 -->
+        <tr style="border-bottom:1px solid #f1f5f9;">
+          <td style="text-align:center;padding:14px 4px;vertical-align:middle;">
+            <span style="display:inline-flex;align-items:center;justify-content:center;
+              width:26px;height:26px;background:#1e293b;color:white;border-radius:50%;
+              font-size:12px;font-weight:bold;">1</span>
+          </td>
+          <td style="border-left:2px dashed #cbd5e1;"></td>
+          <td style="border-left:2px dashed #c7d2fe;background:#f0f4ff;padding:10px 16px;vertical-align:middle;">
+            <div style="background:#e0e7ff;border:1.5px solid #6366f1;border-radius:6px;
+              padding:5px 12px;font-size:12px;font-weight:bold;color:#3730a3;display:inline-block;">
+              ① 调用 <code>createApp(App)</code>
+            </div>
+            <div style="font-size:11px;color:#64748b;margin-top:6px;">
+              [类比] <code>OS_Init()</code>: 以 App组件为蓝图创建应用实例句柄
+            </div>
+          </td>
+          <td style="border-left:2px dashed #cbd5e1;"></td>
+        </tr>
+
+        <!-- 区块：设备注册 -->
+        <tr>
+          <td colspan="4" style="background:#fffbeb;border-top:3px solid #fcd34d;border-bottom:1px solid #fde68a;
+            padding:8px 16px;font-size:12px;font-weight:bold;color:#92400e;letter-spacing:1px;">
+            🔄 Step 2: 批量驱动注入阶段
+          </td>
+        </tr>
+
+        <!-- 图标加载 -->
+        <tr style="border-bottom:1px solid #f1f5f9;">
+          <td style="text-align:center;padding:14px 4px;vertical-align:middle;">
+            <span style="display:inline-flex;align-items:center;justify-content:center;
+              width:26px;height:26px;background:#1e293b;color:white;border-radius:50%;
+              font-size:12px;font-weight:bold;">2</span>
+          </td>
+          <td style="border-left:2px dashed #cbd5e1;"></td>
+          <td style="border-left:2px dashed #c7d2fe;padding:10px 8px;vertical-align:middle;background:#fffef0;">
+            <!-- 向右箭头 -->
+            <div style="display:flex;align-items:center;">
+              <div style="flex:1;height:2px;background:#2563eb;"></div>
+              <div style="width:0;height:0;border-top:6px solid transparent;border-bottom:6px solid transparent;border-left:10px solid #2563eb;"></div>
+            </div>
+            <div style="font-size:12px;color:#1e40af;font-weight:bold;text-align:center;margin-top:4px;">
+              ② 遍历图标库并调用 <code>app.component()</code>
+            </div>
+          </td>
+          <td style="border-left:2px dashed #cbd5e1;vertical-align:middle;padding:10px 8px;text-align:center;">
+            <div style="background:#dbeafe;border:1.5px solid #93c5fd;border-radius:6px;padding:5px;font-size:11px;color:#1e40af;">
+              ✅ Edit, Share, Check ... <br>完成全局符号表注册
+            </div>
+          </td>
+        </tr>
+
+        <!-- 插件加载 -->
+        <tr>
+          <td colspan="4" style="background:#f5f3ff;border-top:3px solid #a78bfa;border-bottom:1px solid #ddd6fe;
+            padding:8px 16px;font-size:12px;font-weight:bold;color:#6d28d9;letter-spacing:1px;">
+            📦 Step 3: 中间件与驱动挂载阶段 (Middleware)
+          </td>
+        </tr>
+
+        <!-- Pinia -->
+        <tr style="border-bottom:1px solid #f1f5f9;">
+          <td style="text-align:center;padding:14px 4px;vertical-align:middle;">
+            <span style="display:inline-flex;align-items:center;justify-content:center;
+              width:26px;height:26px;background:#1e293b;color:white;border-radius:50%;
+              font-size:12px;font-weight:bold;">3</span>
+          </td>
+          <td style="border-left:2px dashed #cbd5e1;"></td>
+          <td style="border-left:2px dashed #c7d2fe;padding:10px 8px;vertical-align:middle;">
+             <div style="display:flex;align-items:center;">
+              <div style="flex:1;height:2px;background:#2563eb;"></div>
+              <div style="width:0;height:0;border-top:6px solid transparent;border-bottom:6px solid transparent;border-left:10px solid #2563eb;"></div>
+            </div>
+            <div style="font-size:12px;color:#1e40af;text-align:center;margin-top:4px;">
+              ③ 负载 <code>createPinia()</code> 驱动
+            </div>
+          </td>
+          <td style="border-left:2px dashed #cbd5e1;vertical-align:middle;padding:10px 8px;text-align:center;">
+            <div style="background:#e0e7ff;border:1.5px solid #6366f1;border-radius:6px;padding:5px;font-size:11px;color:#3730a3;">
+              🗄️ 全局状态区就绪
+            </div>
+          </td>
+        </tr>
+
+        <!-- ElementPlus & Router -->
+        <tr style="border-bottom:1px solid #f1f5f9;">
+          <td style="text-align:center;padding:14px 4px;vertical-align:middle;">
+            <span style="display:inline-flex;align-items:center;justify-content:center;
+              width:26px;height:26px;background:#1e293b;color:white;border-radius:50%;
+              font-size:12px;font-weight:bold;">4</span>
+          </td>
+          <td style="border-left:2px dashed #cbd5e1;"></td>
+          <td style="border-left:2px dashed #c7d2fe;padding:10px 8px;vertical-align:middle;">
+             <div style="display:flex;align-items:center;">
+              <div style="flex:1;height:2px;background:#2563eb;"></div>
+              <div style="width:0;height:0;border-top:6px solid transparent;border-bottom:6px solid transparent;border-left:10px solid #2563eb;"></div>
+            </div>
+            <div style="font-size:12px;color:#1e40af;text-align:center;margin-top:4px;">
+              ④ 挂载 <code>ElementPlus</code> 与 <code>router</code>
+            </div>
+          </td>
+          <td style="border-left:2px dashed #cbd5e1;vertical-align:middle;padding:10px 8px;text-align:center;">
+            <div style="background:#e0e7ff;border:1.5px solid #6366f1;border-radius:6px;padding:5px;font-size:11px;color:#3730a3;">
+              🎨 UI框架 & 🛣️ 路由引擎就绪
+            </div>
+          </td>
+        </tr>
+
+        <!-- 最后挂载 -->
+        <tr>
+          <td colspan="4" style="background:#f1f5f9;border-top:1px solid #94a3b8;border-bottom:1px solid #cbd5e1;
+            padding:8px 16px;font-size:12px;font-weight:bold;color:#475569;letter-spacing:1px;">
+            🏁 Step 4: 硬件挂载与调度启动
+          </td>
+        </tr>
+
+        <tr style="border-bottom:1px solid #f1f5f9;">
+          <td style="text-align:center;padding:14px 4px;vertical-align:middle;">
+            <span style="display:inline-flex;align-items:center;justify-content:center;
+              width:26px;height:26px;background:#64748b;color:white;border-radius:50%;
+              font-size:12px;font-weight:bold;">5</span>
+          </td>
+          <td style="border-left:2px dashed #cbd5e1;vertical-align:middle;padding:10px 8px;text-align:center;">
+             <div style="background:#fef08a;border:1.5px solid #ca8a04;border-radius:6px;padding:5px;font-size:11px;color:#854d0e;">
+              🚀 渲染根组件进入 #app 节点
+            </div>
+          </td>
+          <td style="border-left:2px dashed #c7d2fe;padding:10px 8px;vertical-align:middle;">
+            <!-- 向左箭头 -->
+            <div style="display:flex;align-items:center;flex-direction:row-reverse;">
+              <div style="flex:1;height:2px;background:#0891b2;"></div>
+              <div style="width:0;height:0;border-top:6px solid transparent;border-bottom:6px solid transparent;border-right:10px solid #0891b2;"></div>
+            </div>
+            <div style="font-size:12px;color:#0e7490;font-weight:bold;text-align:center;margin-top:4px;">
+              ⑤ 执行 <code>app.mount('#app')</code>
+            </div>
+          </td>
+          <td style="border-left:2px dashed #cbd5e1;"></td>
+        </tr>
+
+      </tbody>
+    </table>
+  </div>
+
+  <div class="legend">
+    <strong>图例：</strong>
+    <div class="legend-item"><div style="width:40px;height:2px;background:#2563eb;"></div><span>软件库调用 (API Call)</span></div>
+    <div class="legend-item"><div style="width:40px;height:2px;background:#0891b2;"></div><span>挂载物理渲染点 (Mounting)</span></div>
+    <div style="background:#f0fdf4;border:1px solid #86efac;border-radius:4px;padding:2px 8px;font-size:12px;">🔴 内核点火</div>
+    <div style="background:#fffbeb;border:1px solid #fcd34d;border-radius:4px;padding:2px 8px;font-size:12px;">🟡 驱动注入</div>
+    <div style="background:#f5f3ff;border:1px solid #a78bfa;border-radius:4px;padding:2px 8px;font-size:12px;">🟣 插件挂载</div>
+  </div>
+
+</body>
+</html>
