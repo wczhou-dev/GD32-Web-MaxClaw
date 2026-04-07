@@ -17,6 +17,7 @@ export const useDeviceStore = defineStore('device', () => {
   const otaProgress = ref(0)
   const otaStatus = ref(0)
   const lastUpdate = ref(null)
+  const selectedDeviceIp = ref('')
   let ws = null
   const onlineDevices = computed(() => devices.value.filter(d => d.status === 'CONNECTED'))
 
@@ -39,6 +40,16 @@ export const useDeviceStore = defineStore('device', () => {
           if (msg.data.outdoorTemp) outdoorTemp.value = msg.data.outdoorTemp
           if (msg.data.outdoorHumi) outdoorHumi.value = msg.data.outdoorHumi
           if (msg.data.pressure) pressureData.value = msg.data.pressure
+        } else if (msg.type === 'device_list') {
+          devices.value = msg.devices.map(d => ({
+            name: d.name,
+            ip: d.ip,
+            status: d.status || 'DISCONNECTED'
+          }))
+          // 如果当前没选设备，默认选第一个
+          if (!selectedDeviceIp.value && devices.value.length > 0) {
+            selectedDeviceIp.value = devices.value[0].ip
+          }
         } else if (msg.type === 'device_status') {
           const i = devices.value.findIndex(d => d.ip === msg.deviceIp)
           if (i >= 0) devices.value[i].status = msg.status
@@ -49,17 +60,22 @@ export const useDeviceStore = defineStore('device', () => {
         lastUpdate.value = new Date()
       } catch (err) { console.error('[Store] Error:', err) }
     }
+
+    // 连接成功后主动请求一次设备列表
+    ws.addEventListener('open', () => {
+      ws.send(JSON.stringify({ type: 'get_devices' }))
+    })
   }
 
-  function controlRelay(relayIndex, value) {
+  function controlRelay(deviceIp, relayIndex, value) {
     if (!ws || ws.readyState !== WebSocket.OPEN) return
-    ws.send(JSON.stringify({ type: 'relay_control', relayIndex, value, deviceIp: '192.168.110.125' }))
+    ws.send(JSON.stringify({ type: 'relay_control', relayIndex, value, deviceIp }))
   }
 
-  function triggerOTA(version) {
+  function triggerOTA(deviceIp, version) {
     if (!ws || ws.readyState !== WebSocket.OPEN) return
-    ws.send(JSON.stringify({ type: 'ota_start', version, deviceIp: '192.168.110.125' }))
+    ws.send(JSON.stringify({ type: 'ota_start', version, deviceIp }))
   }
 
-  return { wsConnected, devices, tempData, humiData, co2Data, nh3Data, windData, relayStatus, digitalInputs, outdoorTemp, outdoorHumi, pressureData, otaProgress, otaStatus, lastUpdate, onlineDevices, connect, controlRelay, triggerOTA }
+  return { wsConnected, devices, tempData, humiData, co2Data, nh3Data, windData, relayStatus, digitalInputs, outdoorTemp, outdoorHumi, pressureData, otaProgress, otaStatus, lastUpdate, selectedDeviceIp, onlineDevices, connect, controlRelay, triggerOTA }
 })

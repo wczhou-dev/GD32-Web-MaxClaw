@@ -1,5 +1,6 @@
 <!DOCTYPE html>
 <html lang="zh-CN">
+
 <head>
   <meta charset="UTF-8" />
   <title>PollingEngine 函数调用关系时序图</title>
@@ -10,7 +11,11 @@
      *  基于 resources/diagram_template.html 规范生成
      * =========================================================
      */
-    * { box-sizing: border-box; margin: 0; padding: 0; }
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
 
     body {
       font-family: "Microsoft YaHei", "PingFang SC", sans-serif;
@@ -40,12 +45,18 @@
       background: white;
       border-radius: 10px;
       padding: 14px 24px;
-      box-shadow: 0 2px 12px rgba(0,0,0,0.07);
+      box-shadow: 0 2px 12px rgba(0, 0, 0, 0.07);
       font-size: 13px;
     }
-    .legend-item { display: flex; align-items: center; gap: 8px; }
+
+    .legend-item {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
   </style>
 </head>
+
 <body>
 
   <!-- ① 页面标题 -->
@@ -184,15 +195,21 @@
           <td style="border-left:2px dashed #c7d2fe;padding:10px 8px;vertical-align:middle;">
             <div style="display:flex;align-items:center;">
               <div style="flex:1;height:2px;background:#16a34a;"></div>
-              <div style="width:0;height:0;border-top:6px solid transparent;border-bottom:6px solid transparent;border-left:10px solid #16a34a;"></div>
+              <div
+                style="width:0;height:0;border-top:6px solid transparent;border-bottom:6px solid transparent;border-left:10px solid #16a34a;">
+              </div>
             </div>
             <div style="font-size:12px;color:#166534;font-weight:bold;text-align:center;margin-top:4px;">
               ⑤ <code>writeRegister()</code>&nbsp;[Modbus FC06 写] 0x0000 心跳计数值
-              &nbsp;<span style="background:#dcfce7;border:1px solid #86efac;border-radius:4px;padding:1px 6px;font-size:11px;">每 5s</span>
+              &nbsp;<span
+                style="background:#dcfce7;border:1px solid #86efac;border-radius:4px;padding:1px 6px;font-size:11px;">每
+                5s</span>
             </div>
           </td>
           <td style="border-left:2px dashed #cbd5e1;vertical-align:middle;padding:10px 8px;text-align:center;">
-            <div style="background:#dcfce7;border:1.5px solid #86efac;border-radius:6px;padding:5px;font-size:11px;color:#166534;">✅ 看门狗喂狗成功</div>
+            <div
+              style="background:#dcfce7;border:1.5px solid #86efac;border-radius:6px;padding:5px;font-size:11px;color:#166534;">
+              ✅ 看门狗喂狗成功</div>
           </td>
         </tr>
 
@@ -207,11 +224,15 @@
           <td style="border-left:2px dashed #c7d2fe;padding:10px 8px;vertical-align:middle;">
             <div style="display:flex;align-items:center;">
               <div style="flex:1;height:2px;background:#2563eb;"></div>
-              <div style="width:0;height:0;border-top:6px solid transparent;border-bottom:6px solid transparent;border-left:10px solid #2563eb;"></div>
+              <div
+                style="width:0;height:0;border-top:6px solid transparent;border-bottom:6px solid transparent;border-left:10px solid #2563eb;">
+              </div>
             </div>
             <div style="font-size:12px;color:#1e40af;font-weight:bold;text-align:center;margin-top:4px;">
               ⑥ <code>readBlock('BLOCK_ENV')</code>&nbsp;[Modbus FC03 读] 0x1001-0x1048 传感器全量
-              &nbsp;<span style="background:#dbeafe;border:1px solid #93c5fd;border-radius:4px;padding:1px 6px;font-size:11px;">每 30s</span>
+              &nbsp;<span
+                style="background:#dbeafe;border:1px solid #93c5fd;border-radius:4px;padding:1px 6px;font-size:11px;">每
+                30s</span>
             </div>
           </td>
           <td style="border-left:2px dashed #cbd5e1;"></td>
@@ -228,7 +249,9 @@
           <td style="border-left:2px dashed #c7d2fe;padding:10px 8px;vertical-align:middle;">
             <div style="display:flex;align-items:center;">
               <div style="flex:1;height:2px;background:#2563eb;"></div>
-              <div style="width:0;height:0;border-top:6px solid transparent;border-bottom:6px solid transparent;border-left:10px solid #2563eb;"></div>
+              <div
+                style="width:0;height:0;border-top:6px solid transparent;border-bottom:6px solid transparent;border-left:10px solid #2563eb;">
+              </div>
             </div>
             <div style="font-size:12px;color:#1e40af;text-align:center;margin-top:4px;">
               ⑦ <code>readBlock('BLOCK_HW')</code>&nbsp;[Modbus FC03 读] 0x4001 继电器/DI/AO
@@ -248,7 +271,9 @@
           <td style="border-left:2px dashed #c7d2fe;padding:10px 8px;vertical-align:middle;">
             <div style="display:flex;align-items:center;flex-direction:row-reverse;">
               <div style="flex:1;height:0;border-top:2px dashed #94a3b8;"></div>
-              <div style="width:0;height:0;border-top:6px solid transparent;border-bottom:6px solid transparent;border-right:10px solid #94a3b8;"></div>
+              <div
+                style="width:0;height:0;border-top:6px solid transparent;border-bottom:6px solid transparent;border-right:10px solid #94a3b8;">
+              </div>
             </div>
             <div style="font-size:12px;color:#64748b;text-align:center;margin-top:4px;">
               ⑧ ← 返回原始 Hex Buffer（一串 16 进制寄存器值）
@@ -289,7 +314,9 @@
             <!-- 前端列：箭头到达端（朝左三角） -->
             <div style="display:flex;align-items:center;flex-direction:row-reverse;">
               <div style="flex:1;height:0;border-top:2px solid #0891b2;"></div>
-              <div style="width:0;height:0;border-top:6px solid transparent;border-bottom:6px solid transparent;border-right:10px solid #0891b2;"></div>
+              <div
+                style="width:0;height:0;border-top:6px solid transparent;border-bottom:6px solid transparent;border-right:10px solid #0891b2;">
+              </div>
             </div>
             <div style="font-size:11px;color:#0e7490;text-align:center;margin-top:4px;">
               ← 接收 JSON，Pinia 更新状态，视图自动渲染
@@ -329,7 +356,9 @@
             <!-- 前端→核心 红色实线（向右） -->
             <div style="display:flex;align-items:center;">
               <div style="flex:1;height:2px;background:#dc2626;"></div>
-              <div style="width:0;height:0;border-top:6px solid transparent;border-bottom:6px solid transparent;border-left:10px solid #dc2626;"></div>
+              <div
+                style="width:0;height:0;border-top:6px solid transparent;border-bottom:6px solid transparent;border-left:10px solid #dc2626;">
+              </div>
             </div>
             <div style="background:#fee2e2;border:1.5px solid #fca5a5;border-radius:6px;
               padding:5px 12px;font-size:12px;color:#991b1b;margin-top:6px;">
@@ -337,7 +366,9 @@
             </div>
           </td>
           <td style="border-left:2px dashed #cbd5e1;vertical-align:middle;padding:10px 8px;text-align:center;">
-            <div style="background:#fee2e2;border:1px solid #fca5a5;border-radius:6px;padding:5px;font-size:11px;color:#991b1b;">🔒 总线独占</div>
+            <div
+              style="background:#fee2e2;border:1px solid #fca5a5;border-radius:6px;padding:5px;font-size:11px;color:#991b1b;">
+              🔒 总线独占</div>
           </td>
         </tr>
 
@@ -354,7 +385,9 @@
           <td style="border-left:2px dashed #c7d2fe;padding:10px 8px;vertical-align:middle;">
             <div style="display:flex;align-items:center;">
               <div style="flex:1;height:2px;background:#ea580c;"></div>
-              <div style="width:0;height:0;border-top:6px solid transparent;border-bottom:6px solid transparent;border-left:10px solid #ea580c;"></div>
+              <div
+                style="width:0;height:0;border-top:6px solid transparent;border-bottom:6px solid transparent;border-left:10px solid #ea580c;">
+              </div>
             </div>
             <div style="background:#ffedd5;border:1.5px solid #fdba74;border-radius:6px;
               padding:5px 12px;font-size:12px;color:#c2410c;margin-top:6px;">
@@ -362,7 +395,9 @@
             </div>
           </td>
           <td style="border-left:2px dashed #cbd5e1;vertical-align:middle;padding:10px 8px;text-align:center;">
-            <div style="background:#ffedd5;border:1px solid #fdba74;border-radius:6px;padding:5px;font-size:11px;color:#c2410c;">🚀 开始升级</div>
+            <div
+              style="background:#ffedd5;border:1px solid #fdba74;border-radius:6px;padding:5px;font-size:11px;color:#c2410c;">
+              🚀 开始升级</div>
           </td>
         </tr>
 
@@ -406,10 +441,14 @@
       <div style="width:40px;height:2px;background:#dc2626;"></div>
       <span>控制指令（带锁，高优先级）</span>
     </div>
-    <div style="background:#f0fdf4;border:1px solid #86efac;border-radius:4px;padding:2px 8px;font-size:12px;">🟢 初始化</div>
-    <div style="background:#fef08a;border:1px solid #ca8a04;border-radius:4px;padding:2px 8px;font-size:12px;">🔄 主循环</div>
-    <div style="background:#ede9fe;border:1px solid #a78bfa;border-radius:4px;padding:2px 8px;font-size:12px;">🔒 互斥锁区</div>
+    <div style="background:#f0fdf4;border:1px solid #86efac;border-radius:4px;padding:2px 8px;font-size:12px;">🟢 初始化
+    </div>
+    <div style="background:#fef08a;border:1px solid #ca8a04;border-radius:4px;padding:2px 8px;font-size:12px;">🔄 主循环
+    </div>
+    <div style="background:#ede9fe;border:1px solid #a78bfa;border-radius:4px;padding:2px 8px;font-size:12px;">🔒 互斥锁区
+    </div>
   </div>
 
 </body>
+
 </html>

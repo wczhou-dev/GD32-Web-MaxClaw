@@ -34,7 +34,7 @@ const store = useDeviceStore()
 const relayList = computed(() => store.relayStatus.map((s, i) => ({ index: i + 1, status: s, loading: false })))
 
 function toggleRelay(index, value) {
-  store.controlRelay(index - 1, value)
+  store.controlRelay(store.selectedDeviceIp, index - 1, value)
 }
 </script>
 
