@@ -8,7 +8,17 @@
   4. ref/computed     => 响应式寄存器 : 变量值改变时，UI 会通过“中断驱动”方式自动重绘。
   -----------------------------------------
 -->
-
+/*
+简单来说，在 Vue.js（以及现代网页开发）中，<template> 就是**“图纸”或“模具”**。
+它定义了你的界面**“长什么样”**，但它本身并不会直接显示在网页上，而是告诉 Vue：“请按照这个结构，把数据填进去，然后渲染出真正的网页”。
+1. 核心含义：界面的骨架
+在一个 .vue 文件中，通常分为三部分：
+<template>：负责结构（HTML）。
+<script>：负责逻辑（JS/变量/函数）。
+<style>：负责外观（CSS/颜色/布局）。
+<template> 的作用：
+它像是一个“容器”，里面装着 HTML 代码。Vue 会读取这个容器里的内容，根据你在 <script> 里定义的变量，把数据动态地“注塑”到这些 HTML 标签中，最后生成浏览器能看懂的真实 DOM。
+*/ 
 <template>
   <!-- Element Plus 全局配置：设置语言为中文 -->
   <el-config-provider :locale="zhCn">
@@ -118,9 +128,9 @@ body {
 
 /* App 容器：占据整个屏幕高度 */
 .app-container {
-  min-height: 100vh;
-  display: flex;
-  flex-direction: column;
+  min-height: 100vh; /*最小高度为 100 个“视口高度单位”*/
+  display: flex; /*要用 Flexbox（弹性盒子） 引擎来接管它们的排列*/
+  flex-direction: column; /*让子元素（Header 和 Main Layout）从上到下垂直排列*/
 }
 
 /* 顶部 Header 样式 */
