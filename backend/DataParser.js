@@ -65,9 +65,9 @@ const BLOCKS = {
     BLOCK_SYS: { start: 0x0000, end: 0x0018, name: '系统信息' },
     BLOCK_OTA: { start: 0x0100, end: 0x0101, name: 'OTA控制' },
     BLOCK_OTA_S: { start: 0x0150, end: 0x0151, name: 'OTA状态' },
-    // 【关键修复】将原先一次性读取 72 个寄存器 (超 144Bytes) 砍半为 32 个 (64Bytes)
-    // 以防止撑爆嵌入式设备的网络发送缓冲区导致断连
-    BLOCK_ENV: { start: 0x1001, end: 0x1048, name: '环境传感器' },
+    // 【关键修复】将原先一次性读取 72 个寄存器拆分为两次读取，减轻网络层压力
+    BLOCK_ENV_1: { start: 0x1001, end: 0x1028, name: '环境传感器(温湿度/CO2)' },
+    BLOCK_ENV_2: { start: 0x1029, end: 0x1048, name: '环境传感器(氨气/风速/外围等)' },
     BLOCK_HW: { start: 0x4001, end: 0x400B, name: '硬件状态' },
     BLOCK_CFG: { start: 0x7001, end: 0x7009, name: '配置参数' }
 };

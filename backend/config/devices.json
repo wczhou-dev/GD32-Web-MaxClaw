@@ -2,7 +2,7 @@
   "devices": [
     {
       "name": "1号舍",
-      "ip": "192.168.110.125",
+      "ip": "192.168.10.233",
       "port": 502,
       "unitId": 1,
       "enabled": true
@@ -13,8 +13,8 @@
     "firmwarePath": "F:/firmware"
   },
   "polling": {
-    "intervalMs": 1000,
-    "timeoutMs": 2000,
+    "intervalMs": 2000,
+    "timeoutMs": 5000,
     "retryCount": 3
   }
 }

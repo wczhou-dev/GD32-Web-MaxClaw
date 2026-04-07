@@ -147,8 +147,10 @@ class PollingEngine {
                 dStatus.lastSensorPoll = now;
                 console.log(`[PollingEngine] Starting sensor poll for ${key}...`);
                 
-                // 读取环境传感器数据 (BLOCK_ENV: 0x1001-0x1045)
-                const envData = await this.readBlock(key, 'BLOCK_ENV');
+                // 分区块读取环境传感器数据以防止丢包
+                const envData1 = await this.readBlock(key, 'BLOCK_ENV_1');
+                const envData2 = await this.readBlock(key, 'BLOCK_ENV_2');
+                const envData = envData1.concat(envData2);
 
                 // 读取硬件状态 (BLOCK_HW: 0x4001...)
                 const hwData = await this.readBlock(key, 'BLOCK_HW');
