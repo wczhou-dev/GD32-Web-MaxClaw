@@ -653,24 +653,71 @@ const executeStep = (node, callback) => {
 
   updateRegisterAssertMock(node)
 
-  setTimeout(() => {
-    let isPass = Math.random() > 0.15
+  // 如果有后端连接，调用后端 API
+  if (deviceStore.wsConnected) {
+    // 调用后端启动测试
+    deviceStore.startTest({
+      deviceIp: deviceStore.selectedDeviceIp || deviceIp.value,
+      operatorInputId: testEngine.value.sn,
+      selectedItemIds: [node.id],
+      deviceModel: '9200',
+      workOrder: testEngine.value.workOrder,
+    })
 
-    if (isPass) {
-      node.status = 'pass'
-      addLog(`[PASS] 节点 [${node.label}] 自检合格`, 'success', 'system')
-      if (enableRealtimeLogs.value) addLog(`[RX] 68 4A 00 4A 00 68 8B 00 00 (ACK_OK)`, 'success', 'device')
-      activeDetailRegisters.value.forEach(r => r.result = '合格')
-    } else {
-      node.status = 'fail'
-      testEngine.value.failedItems.push(node)
-      lastError.value = `${node.id} ${node.label} 返回错误码 E01`
-      addLog(`[FAIL] 告警: 节点 [${node.label}] 硬件响应超时或数据异常`, 'error', 'system')
-      if (enableRealtimeLogs.value) addLog(`[RX] 68 4A 00 4A 00 68 CB 01 E0 (ACK_ERR_E01)`, 'error', 'device')
-      activeDetailRegisters.value.forEach(r => r.result = '不合格')
-    }
-    callback()
-  }, 800)
+    // 监听后端响应
+    const checkStatus = setInterval(() => {
+      if (deviceStore.ateStatus === 'pass' || deviceStore.ateStatus === 'fail') {
+        clearInterval(checkStatus)
+
+        if (deviceStore.ateStatus === 'pass') {
+          node.status = 'pass'
+          addLog(`[PASS] 节点 [${node.label}] 自检合格`, 'success', 'system')
+          if (enableRealtimeLogs.value) addLog(`[RX] 68 4A 00 4A 00 68 8B 00 00 (ACK_OK)`, 'success', 'device')
+          activeDetailRegisters.value.forEach(r => r.result = '合格')
+        } else {
+          node.status = 'fail'
+          testEngine.value.failedItems.push(node)
+          lastError.value = `${node.id} ${node.label} 返回错误码 E01`
+          addLog(`[FAIL] 告警: 节点 [${node.label}] 硬件响应超时或数据异常`, 'error', 'system')
+          if (enableRealtimeLogs.value) addLog(`[RX] 68 4A 00 4A 00 68 CB 01 E0 (ACK_ERR_E01)`, 'error', 'device')
+          activeDetailRegisters.value.forEach(r => r.result = '不合格')
+        }
+        callback()
+      }
+    }, 100)
+
+    // 超时处理
+    setTimeout(() => {
+      clearInterval(checkStatus)
+      if (node.status === 'running') {
+        node.status = 'fail'
+        testEngine.value.failedItems.push(node)
+        addLog(`[FAIL] 节点 [${node.label}] 测试超时`, 'error', 'system')
+        activeDetailRegisters.value.forEach(r => r.result = '不合格')
+        callback()
+      }
+    }, 10000)
+  } else {
+    // 无后端连接时，使用本地模拟
+    setTimeout(() => {
+      let isPass = Math.random() > 0.15
+
+      if (isPass) {
+        node.status = 'pass'
+        addLog(`[PASS] 节点 [${node.label}] 自检合格`, 'success', 'system')
+        if (enableRealtimeLogs.value) addLog(`[RX] 68 4A 00 4A 00 68 8B 00 00 (ACK_OK)`, 'success', 'device')
+        activeDetailRegisters.value.forEach(r => r.result = '合格')
+      } else {
+        node.status = 'fail'
+        testEngine.value.failedItems.push(node)
+        lastError.value = `${node.id} ${node.label} 返回错误码 E01`
+        addLog(`[FAIL] 告警: 节点 [${node.label}] 硬件响应超时或数据异常`, 'error', 'system')
+        if (enableRealtimeLogs.value) addLog(`[RX] 68 4A 00 4A 00 68 CB 01 E0 (ACK_ERR_E01)`, 'error', 'device')
+        activeDetailRegisters.value.forEach(r => r.result = '不合格')
+      }
+      callback()
+    }, 800)
+  }
 }
 
 const downloadReport = () => {
@@ -691,6 +738,9 @@ onMounted(() => {
     })
     treeRef.value.setCheckedKeys(allKeys)
   }
+
+  // 获取当前测试会话
+  deviceStore.getTestSession()
 })
 </script>
 
