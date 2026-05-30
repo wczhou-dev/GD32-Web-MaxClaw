@@ -8,6 +8,7 @@
  */
 
 const DataParser = require('./DataParser');
+const { CONFIG_DEFAULTS } = require('../shared/constants');
 
 class PollingEngine {
     /**
@@ -20,7 +21,7 @@ class PollingEngine {
 
         // 配置
         this.config = {
-            intervalMs: options.intervalMs || 1000,  // 轮询间隔（ms）
+            intervalMs: options.intervalMs || CONFIG_DEFAULTS.ATE_POLL_INTERVAL_MS,  // 轮询间隔（ms）
             maxRetries: options.maxRetries || 3        // 最大重试次数
         };
 
@@ -38,6 +39,56 @@ class PollingEngine {
 
         // 记录每个设备的最后轮询时间戳，实现频率分离
         this.deviceStatus = new Map(); // key: { lastHeartbeat: 0, lastSensorPoll: 0 }
+
+        /**
+         * 正在测试的设备集合：Set<deviceKey>
+         * ATE 测试期间，被测设备跳过普通轮询，避免读写交错导致自检状态错乱
+         */
+        this._devicesUnderTest = new Set();
+    }
+
+    // ============================================================
+    // ATE 测试设备管理
+    // ============================================================
+
+    /**
+     * 标记设备为"正在测试"
+     * 测试期间跳过普通轮询
+     *
+     * @param {string} deviceKey - 设备标识
+     */
+    markDeviceUnderTest(deviceKey) {
+        this._devicesUnderTest.add(deviceKey);
+        console.log(`[PollingEngine] Device ${deviceKey} marked as under test, normal polling paused`);
+    }
+
+    /**
+     * 取消设备的"正在测试"标记
+     * 恢复普通轮询
+     *
+     * @param {string} deviceKey - 设备标识
+     */
+    unmarkDeviceUnderTest(deviceKey) {
+        this._devicesUnderTest.delete(deviceKey);
+        console.log(`[PollingEngine] Device ${deviceKey} unmarked, normal polling resumed`);
+    }
+
+    /**
+     * 检查设备是否正在测试
+     *
+     * @param {string} deviceKey - 设备标识
+     * @returns {boolean} 是否正在测试
+     */
+    isDeviceUnderTest(deviceKey) {
+        return this._devicesUnderTest.has(deviceKey);
+    }
+
+    /**
+     * 获取所有正在测试的设备
+     * @returns {string[]}
+     */
+    getDevicesUnderTest() {
+        return Array.from(this._devicesUnderTest);
     }
 
     /**
@@ -113,6 +164,11 @@ class PollingEngine {
      * @param {string} key - 设备标识
      */
     async pollDevice(key) {
+        // ATE 测试设备跳过普通轮询，避免读写交错导致自检状态错乱
+        if (this.isDeviceUnderTest(key)) {
+            return;
+        }
+
         // 确保设备已连接
         const status = this.pool.getStatus(key);
         if (status && status.status !== 'CONNECTED') {

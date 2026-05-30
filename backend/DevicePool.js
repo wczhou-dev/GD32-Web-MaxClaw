@@ -8,12 +8,25 @@
  */
 
 const ModbusRTU = require("modbus-serial");
+const { CONFIG_DEFAULTS } = require("../shared/constants");
 
 class DevicePool {
     constructor() {
         /** @type {Map<string, {client: ModbusRTU, info: Object, status: string}>} */
         this.devices = new Map();
         this.eventHandlers = new Map();
+
+        /**
+         * 设备级事务队列：key -> Promise chain
+         * 确保同一设备的 Modbus 读写操作串行执行，防止帧交错
+         */
+        this._exclusiveQueues = new Map();
+
+        /**
+         * 设备冷却时间戳：key -> lastDisconnectTime
+         * 用于实现 12 秒冷却重连策略
+         */
+        this._cooldownTimestamps = new Map();
     }
 
     /**
@@ -55,6 +68,56 @@ class DevicePool {
     }
 
     /**
+     * 设备级独占事务队列
+     * 确保同一设备的 Modbus 读写操作串行执行，防止帧交错导致底板死机
+     *
+     * @param {string} key - 设备标识
+     * @param {Function} task - 异步任务函数 () => Promise<T>
+     * @returns {Promise<T>} 任务执行结果
+     *
+     * @example
+     * const result = await devicePool.runExclusive('192.168.10.233:502:1', async () => {
+     *   await devicePool.writeRegister(key, 0x8000, 1);
+     *   return await devicePool.readHoldingRegisters(key, 0x8000, 10);
+     * });
+     */
+    async runExclusive(key, task) {
+        if (!this._exclusiveQueues.has(key)) {
+            this._exclusiveQueues.set(key, Promise.resolve());
+        }
+
+        // 链式执行，确保串行
+        const chain = this._exclusiveQueues.get(key).then(() => task());
+        this._exclusiveQueues.set(key, chain.catch(() => {})); // 忽略错误，避免阻塞队列
+
+        return chain;
+    }
+
+    /**
+     * 检查设备是否在冷却期
+     * 针对底板 LwIP 异常断线后约 10 秒释放 Socket 的缺陷
+     *
+     * @param {string} key - 设备标识
+     * @returns {boolean} 是否在冷却期
+     */
+    isInCooldown(key) {
+        const lastDisconnect = this._cooldownTimestamps.get(key) || 0;
+        return (Date.now() - lastDisconnect) < CONFIG_DEFAULTS.ATE_RECONNECT_COOLDOWN_MS;
+    }
+
+    /**
+     * 获取冷却剩余时间
+     * @param {string} key - 设备标识
+     * @returns {number} 剩余毫秒数，0 表示不在冷却期
+     */
+    getCooldownRemaining(key) {
+        const lastDisconnect = this._cooldownTimestamps.get(key) || 0;
+        const elapsed = Date.now() - lastDisconnect;
+        const remaining = CONFIG_DEFAULTS.ATE_RECONNECT_COOLDOWN_MS - elapsed;
+        return remaining > 0 ? remaining : 0;
+    }
+
+    /**
      * 连接设备
      * 类比：UART_Open() 打开串口
      */
@@ -66,6 +129,13 @@ class DevicePool {
 
         if (device.status === 'CONNECTED') {
             return true;
+        }
+
+        // 检查冷却期
+        if (this.isInCooldown(key)) {
+            const remaining = this.getCooldownRemaining(key);
+            console.warn(`[DevicePool] Connect rejected: ${device.info.name} in cooldown (${remaining}ms remaining)`);
+            return false;
         }
 
         try {
@@ -80,6 +150,7 @@ class DevicePool {
             device.status = 'CONNECTED';
             device.info.timeoutCount = 0;
             device.info.lastSeen = Date.now();
+            this._cooldownTimestamps.delete(key);
 
             console.log(`[DevicePool] Connected: ${device.info.name} (${key})`);
             this.emit('statusChange', key, 'ONLINE');
@@ -87,6 +158,7 @@ class DevicePool {
             return true;
         } catch (err) {
             device.status = 'DISCONNECTED';
+            this._cooldownTimestamps.set(key, Date.now());
             console.error(`[DevicePool] Connect failed: ${device.info.name} - ${err.message}`);
             this.emit('statusChange', key, 'OFFLINE');
             return false;
@@ -107,6 +179,7 @@ class DevicePool {
             /* 关闭时忽略内部异常，确保状态被重置 */
         } finally {
             device.status = 'DISCONNECTED';
+            this._cooldownTimestamps.set(key, Date.now());
             this.emit('statusChange', key, 'OFFLINE');
         }
     }
