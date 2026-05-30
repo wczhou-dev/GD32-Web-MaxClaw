@@ -78,14 +78,14 @@ class TestProtocol {
         isFinished: this.isFinishedStatus(registers[4]),
       },
 
-      // 会话 ID (0x8005-0x8006)
+      // 会话 ID (0x8005-0x8006) - 寄存器偏移 5-6
       sessionId: (registers[5] << 16) | registers[6],
 
-      // 测试掩码 (0x8007)
-      testMask: registers[7],
+      // 测试掩码 (0x8006) - 寄存器偏移 6（0x8006 - 0x8000 = 6）
+      testMask: registers[6],
 
-      // 失败项 ID (0x8008)
-      failedItemId: registers[8],
+      // 失败项 ID (0x8007) - 寄存器偏移 7
+      failedItemId: registers[7],
 
       // 单项结果 (0x8010-0x8017)
       singleResults: this.parseSingleResults(registers.slice(16, 24)),

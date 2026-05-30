@@ -19,7 +19,7 @@
 
 'use strict';
 
-const { ATE_MASK, ERROR_CODE, ERROR_CODE_DETAIL } = require('../../shared/constants');
+const { ATE_MASK, ATE_MASK_ALL, ERROR_CODE, ERROR_CODE_DETAIL } = require('../../shared/constants');
 
 /**
  * 测试项定义
