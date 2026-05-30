@@ -1,0 +1,932 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <title>智能环控器自动化综合检定系统V1.0</title>
+  <!-- 引入 Tailwind CSS (用于快速布局) -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <!-- 引入 Vue 3 -->
+  <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
+  <!-- 引入 Element Plus CSS -->
+  <link rel="stylesheet" href="https://unpkg.com/element-plus/dist/index.css">
+  <script src="https://unpkg.com/element-plus"></script>
+  <!-- 引入 FontAwesome 图标库 -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  
+  <style>
+    /* 全局 WinForms 经典浅灰色调 */
+    body {
+      background-color: #f0f0f0;
+      color: #000;
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+      overflow: hidden;
+      font-size: 12px;
+      user-select: none;
+    }
+
+    /* 经典滚动条 */
+    ::-webkit-scrollbar { width: 14px; height: 14px; }
+    ::-webkit-scrollbar-track { background: #f0f0f0; border-left: 1px solid #ccc; }
+    ::-webkit-scrollbar-thumb { background: #cdd5df; border: 1px solid #aeb5be; }
+    ::-webkit-scrollbar-thumb:hover { background: #b0b8c0; }
+
+    /* 经典面板边框下沉/凸起效果 */
+    .win-panel-inset {
+      border-top: 1px solid #808080;
+      border-left: 1px solid #808080;
+      border-bottom: 1px solid #ffffff;
+      border-right: 1px solid #ffffff;
+      background: #ffffff;
+    }
+    .win-panel-outset {
+      border-top: 1px solid #ffffff;
+      border-left: 1px solid #ffffff;
+      border-bottom: 1px solid #808080;
+      border-right: 1px solid #808080;
+      background: #f0f0f0;
+    }
+
+    /* 经典工具栏按钮 */
+    .win-btn {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      background: transparent;
+      border: 1px solid transparent;
+      padding: 4px 10px;
+      font-size: 11px;
+      color: #000;
+      cursor: pointer;
+      min-width: 60px;
+    }
+    .win-btn:hover:not(:disabled) {
+      background-color: #e5f1fb;
+      border: 1px solid #0078d7;
+      border-radius: 2px;
+    }
+    .win-btn:active:not(:disabled) {
+      background-color: #cce4f7;
+    }
+    .win-btn:disabled {
+      color: #999;
+      cursor: not-allowed;
+      filter: grayscale(100%);
+      opacity: 0.6;
+    }
+    .win-btn i {
+      font-size: 18px;
+      margin-bottom: 4px;
+      color: #005a9e;
+    }
+
+    /* 蓝色渐变标题栏模拟 */
+    .win-title-bar {
+      background: linear-gradient(to right, #005c99 0%, #00a2e8 50%, #e0f0ff 100%);
+      color: white;
+      font-weight: bold;
+      text-shadow: 1px 1px 2px rgba(0,0,0,0.5);
+    }
+
+    /* 经典表格样式覆盖 */
+    .el-table {
+      --el-table-border-color: #d0d7e5;
+      --el-table-header-bg-color: #e3edf7;
+      --el-table-header-text-color: #003399;
+      --el-table-row-hover-bg-color: #e5f1fb;
+      font-size: 12px;
+    }
+    .el-table th.el-table__cell {
+      background: linear-gradient(to bottom, #ffffff 0%, #e3edf7 100%) !important;
+      border-right: 1px solid #c0c0c0 !important;
+      border-bottom: 1px solid #999 !important;
+      font-weight: bold;
+      padding: 4px 0 !important;
+    }
+    .el-table td.el-table__cell {
+      padding: 2px 0 !important;
+      border-right: 1px solid #e0e0e0;
+      border-bottom: 1px solid #e0e0e0;
+    }
+
+    /* ========================================================
+       修复后的经典 Tree 复选框样式：锐利、清爽、不发虚
+       ======================================================== */
+    .el-tree-node__content {
+      height: 22px !important;
+      font-size: 12px;
+    }
+    /* 强制复选框底色为白，边框为经典深灰 */
+    .el-checkbox__inner {
+      border: 1px solid #8f8f8f !important;
+      border-radius: 0 !important;
+      width: 13px !important;
+      height: 13px !important;
+      background-color: #fff !important;
+      box-shadow: inset 1px 1px 1px rgba(0,0,0,0.08); /* 极微弱内阴影，增加拟物立体感 */
+    }
+    /* 聚焦状态消除现代UI的发光环，改为经典蓝边框 */
+    .el-checkbox__input.is-focus .el-checkbox__inner {
+      border-color: #0078d7 !important; 
+    }
+    /* 选中和半选的背景色保持白色 */
+    .el-checkbox__input.is-checked .el-checkbox__inner,
+    .el-checkbox__input.is-indeterminate .el-checkbox__inner {
+      background-color: #fff !important;
+      border-color: #8f8f8f !important;
+    }
+    /* 选中后的勾选标记：更细的1.5px边框，精确居中定位，消除粗重感 */
+    .el-checkbox__input.is-checked .el-checkbox__inner::after {
+      border-color: #000 !important;
+      border-width: 1.5px !important; 
+      border-left: 0 !important;
+      border-top: 0 !important;
+      height: 7px !important;
+      left: 4px !important;
+      top: 1px !important;
+      width: 3px !important;
+    }
+    /* 半选状态的黑框：居中正方形 */
+    .el-checkbox__input.is-indeterminate .el-checkbox__inner::before {
+      background-color: #000 !important;
+      height: 7px !important;
+      width: 7px !important;
+      top: 2px !important;
+      left: 2px !important;
+      transform: none !important;
+      right: auto !important;
+      bottom: auto !important;
+    }
+
+    /* 经典表格行颜色 */
+    .win-row-pass {
+      background-color: #dff0d8 !important;
+    }
+    .win-row-fail {
+      background-color: #f2dede !important;
+    }
+
+    /* 经典进度条 */
+    .win-progress-bg {
+      background: #e6e6e6;
+      border: 1px solid #808080;
+      box-shadow: inset 1px 1px 2px rgba(0,0,0,0.2);
+    }
+    .win-progress-bar {
+      background: linear-gradient(to bottom, #7fe57f 0%, #00d200 50%, #00b300 100%);
+      border-right: 1px solid #006400;
+      transition: width 0.3s linear;
+    }
+
+    /* 经典 Fieldset (分组框) */
+    fieldset.win-group {
+      border: 1px solid #d0d0bf;
+      border-radius: 3px;
+      padding: 10px;
+      margin-bottom: 15px;
+      background-color: #fafafa;
+    }
+    fieldset.win-group legend {
+      color: #003399;
+      padding: 0 5px;
+      font-weight: bold;
+      font-size: 12px;
+    }
+  </style>
+</head>
+<body>
+
+  <div id="app" class="h-screen flex flex-col">
+    
+    <!-- 模拟软件顶部标题栏 -->
+    <div class="win-title-bar h-10 flex items-center px-3 justify-between shrink-0">
+      <div class="flex items-center gap-3">
+        <i class="fa-solid fa-microchip text-xl"></i>
+        <span class="text-sm tracking-wide font-serif">智能环控器自动化综合检定系统V1.0</span>
+      </div>
+      <div class="flex gap-2">
+        <div class="w-6 h-4 bg-white/20 hover:bg-white/40 cursor-pointer flex justify-center items-center rounded-sm"><i class="fa-solid fa-minus text-[10px]"></i></div>
+        <div class="w-6 h-4 bg-white/20 hover:bg-white/40 cursor-pointer flex justify-center items-center rounded-sm"><i class="fa-regular fa-square text-[10px]"></i></div>
+        <div class="w-6 h-4 bg-red-500 hover:bg-red-600 cursor-pointer flex justify-center items-center rounded-sm"><i class="fa-solid fa-xmark text-[10px]"></i></div>
+      </div>
+    </div>
+
+    <!-- 经典工具栏 (Toolbar) -->
+    <div class="h-16 flex items-center px-2 border-b border-gray-400 gap-1 shrink-0 win-panel-outset shadow-sm">
+      <template v-if="currentView === 'test'">
+        <button class="win-btn" @click="startSingleTest" :disabled="testEngine.status === 'running'">
+          <i class="fa-solid fa-play text-green-600"></i>
+          <span>单步测试</span>
+        </button>
+        <button class="win-btn" @click="startContinuousTest" :disabled="testEngine.status === 'running'">
+          <i class="fa-solid fa-forward-fast text-green-600"></i>
+          <span>连续测试</span>
+        </button>
+        <button class="win-btn" @click="startFailedOnlyTest" :disabled="testEngine.status === 'running'">
+          <i class="fa-solid fa-rotate-right text-orange-500"></i>
+          <span>测不合格项</span>
+        </button>
+        <div class="w-px h-10 bg-gray-400 mx-1"></div>
+        <button class="win-btn" @click="stopTest" :disabled="testEngine.status !== 'running'">
+          <i class="fa-solid fa-stop text-red-600"></i>
+          <span>停止检定</span>
+        </button>
+        <button class="win-btn" @click="resetTest" :disabled="testEngine.status === 'running'">
+          <i class="fa-solid fa-eraser text-gray-600"></i>
+          <span>重置状态</span>
+        </button>
+        <div class="w-px h-10 bg-gray-400 mx-1"></div>
+        <button class="win-btn" @click="downloadReport" :disabled="testEngine.status === 'idle' || testEngine.status === 'running'">
+          <i class="fa-solid fa-floppy-disk text-purple-600"></i>
+          <span>保存报表</span>
+        </button>
+      </template>
+
+      <div class="flex-1"></div>
+      
+      <!-- 视图切换与功能按钮 -->
+      <button class="win-btn" @click="currentView = 'config'" :class="{ 'bg-[#cce4f7] border border-[#0078d7]': currentView === 'config' }">
+        <i class="fa-solid fa-gears text-slate-600"></i>
+        <span>系统配置</span>
+      </button>
+      <button class="win-btn" @click="currentView = 'test'" :class="{ 'bg-[#cce4f7] border border-[#0078d7]': currentView === 'test' }">
+        <i class="fa-solid fa-list-check text-blue-500"></i>
+        <span>项目检定</span>
+      </button>
+      <button class="win-btn" @click="currentView = 'manual'" :class="{ 'bg-[#cce4f7] border border-[#0078d7]': currentView === 'manual' }">
+        <i class="fa-solid fa-screwdriver-wrench text-amber-600"></i>
+        <span>手动点检</span>
+      </button>
+
+      <div class="w-px h-10 bg-gray-400 mx-1"></div>
+
+      <!-- 启用报文 (Web Serial API 入口) 带有复选框 -->
+      <div class="flex items-center cursor-pointer hover:bg-[#e5f1fb] p-1 border border-transparent hover:border-[#0078d7] rounded-sm" @click="toggleSerialConnection">
+        <div class="win-btn pointer-events-none !min-w-[50px] !p-0">
+          <i class="fa-solid fa-plug-circle-check" :class="enableRealtimeLogs ? 'text-green-600' : 'text-slate-500'"></i>
+          <span :class="enableRealtimeLogs ? 'font-bold' : ''">启用报文</span>
+        </div>
+        <input type="checkbox" :checked="enableRealtimeLogs" class="w-4 h-4 ml-1 mr-1 pointer-events-none">
+      </div>
+
+    </div>
+
+    <!-- 主体内容区 -->
+    <div class="flex-1 flex overflow-hidden p-1 gap-1 bg-[#d4d0c8]">
+      
+      <!-- 视图一：检定项目工作台 (经典分栏) -->
+      <template v-if="currentView === 'test'">
+        <!-- 左侧：检定项目树形控件 -->
+        <div class="w-[280px] flex flex-col bg-white border border-gray-400 shrink-0 win-panel-inset">
+          <div class="bg-[#e3edf7] border-b border-gray-400 px-2 py-1 flex justify-between items-center">
+            <span class="font-bold text-[#003399]">检定项目清单</span>
+          </div>
+          <div class="flex-1 overflow-auto p-1">
+            <el-tree
+              ref="treeRef"
+              :data="testTree"
+              show-checkbox
+              node-key="id"
+              default-expand-all
+              :props="defaultProps"
+            >
+              <template #default="{ node, data }">
+                <span class="flex justify-between w-full pr-2">
+                  <span>{{ node.label }}</span>
+                  <span v-if="data.status" :class="getStatusColor(data.status)" class="font-bold ml-2">
+                    {{ getStatusText(data.status) }}
+                  </span>
+                </span>
+              </template>
+            </el-tree>
+          </div>
+        </div>
+
+        <!-- 右侧：数据监控区 -->
+        <div class="flex-1 flex flex-col gap-1 overflow-hidden">
+          
+          <!-- 右侧上部：实时寄存器监控表 -->
+          <div class="h-1/2 flex flex-col bg-white border border-gray-400 win-panel-inset relative">
+            <div class="bg-[#e3edf7] border-b border-gray-400 px-2 py-1 flex justify-between items-center">
+              <span class="font-bold text-[#003399]">检定信息</span>
+              <span class="text-blue-700 text-[11px] font-bold truncate max-w-xs">当前执行: {{ testEngine.currentItemName || '无' }}</span>
+            </div>
+            <div class="flex-1 overflow-auto bg-white">
+              <el-table :data="activeDetailRegisters" border style="width: 100%" size="small" :row-class-name="tableRowClassName">
+                <el-table-column prop="id" label="序号" width="50" align="center"></el-table-column>
+                <el-table-column prop="name" label="检定项目" width="250"></el-table-column>
+                <el-table-column prop="result" label="结果"></el-table-column>
+              </el-table>
+            </div>
+          </div>
+
+          <!-- 右侧下部：Tab 切换终端 (系统日志 vs 环控器串口日志) -->
+          <div class="flex-1 flex flex-col bg-white border border-gray-400 win-panel-inset mt-1">
+            <!-- WinForms 风格 Tab 标签栏 -->
+            <div class="flex items-end bg-[#f0f0f0] border-b border-gray-400 px-1 pt-1 gap-1">
+              <div @click="activeLogTab = 'system'" :class="activeLogTab === 'system' ? 'bg-white border-t border-l border-r border-gray-400 border-b-white pb-1 -mb-[1px] z-10 font-bold text-[#003399]' : 'bg-[#e3edf7] border border-gray-400 pb-0 mt-1 cursor-pointer hover:bg-[#cce4f7] text-gray-600'" class="px-4 py-1 rounded-t-sm">
+                测试系统运行日志
+              </div>
+              <div @click="activeLogTab = 'device'" :class="activeLogTab === 'device' ? 'bg-white border-t border-l border-r border-gray-400 border-b-white pb-1 -mb-[1px] z-10 font-bold text-[#003399]' : 'bg-[#e3edf7] border border-gray-400 pb-0 mt-1 cursor-pointer hover:bg-[#cce4f7] text-gray-600'" class="px-4 py-1 rounded-t-sm flex items-center gap-2">
+                环控器运行日志
+                <span v-if="enableRealtimeLogs" class="w-2 h-2 rounded-full bg-green-500 animate-pulse shadow-[0_0_4px_#22c55e]"></span>
+              </div>
+              <div class="flex-1"></div>
+              <!-- 导出和清空工具 -->
+              <div class="flex items-center gap-3 px-2 pb-1 bg-[#f0f0f0]">
+                <a href="#" @click.prevent="exportLogs" class="text-blue-600 text-[11px] hover:underline" title="保存当前选中标签页的日志到本地">
+                  <i class="fa-solid fa-download"></i> 导出日志
+                </a>
+                <span class="text-gray-400">|</span>
+                <a href="#" @click.prevent="clearLogs" class="text-blue-600 text-[11px] hover:underline">
+                  <i class="fa-solid fa-trash-can"></i> 清空终端
+                </a>
+              </div>
+            </div>
+            <!-- 终端内容区 -->
+            <div class="flex-1 overflow-auto p-1" :class="activeLogTab === 'system' ? 'bg-black' : 'bg-[#000080]'">
+              
+              <!-- 1. 系统运行日志 (黑底) -->
+              <div v-show="activeLogTab === 'system'" ref="systemTerminal" class="h-full overflow-y-auto font-mono text-[12px] leading-tight">
+                <div v-for="(log, idx) in systemLogs" :key="'sys'+idx" :class="log.color">
+                  <span class="text-gray-400 mr-2">[{{ log.time }}]</span><span>{{ log.text }}</span>
+                </div>
+              </div>
+
+              <!-- 2. 环控器串口报文 (蓝底) -->
+              <div v-show="activeLogTab === 'device'" ref="deviceTerminal" class="h-full overflow-y-auto font-mono text-[12px] leading-tight">
+                <div v-if="!enableRealtimeLogs" class="text-gray-400 italic mb-2">请在上方工具栏勾选“启用报文”以通过浏览器 Web Serial API 监听物理串口数据...</div>
+                <div v-for="(log, idx) in deviceLogs" :key="'dev'+idx" :class="log.color">
+                  <span class="text-gray-400 mr-2">[{{ log.time }}]</span><span>{{ log.text }}</span>
+                </div>
+              </div>
+
+            </div>
+          </div>
+
+        </div>
+      </template>
+
+      <!-- 视图二：系统配置 (WinForms 表单风格) -->
+      <template v-if="currentView === 'config'">
+        <div class="flex-1 bg-white border border-gray-400 win-panel-inset p-4 overflow-auto">
+          <fieldset class="win-group max-w-2xl">
+            <legend>网络与通信接口绑定</legend>
+            <div class="flex items-center mb-4 mt-2">
+              <label class="w-32 text-right pr-4 font-bold text-gray-700">设备 IP 地址:</label>
+              <el-input v-model="deviceIp" size="small" class="w-48"></el-input>
+            </div>
+            <div class="flex items-center mb-4">
+              <label class="w-32 text-right pr-4 text-xl tracking-widest font-normal text-black">RS485</label>
+              <el-select v-model="comPorts.rs485" size="small" class="w-40 mr-2">
+                <el-option label="COM1" value="COM1"></el-option>
+                <el-option label="COM3" value="COM3"></el-option>
+                <el-option label="COM4" value="COM4"></el-option>
+              </el-select>
+              <el-select v-model="comPorts.baudRateRS485" size="small" class="w-32">
+                <el-option label="9600 bps" :value="9600"></el-option>
+                <el-option label="115200 bps" :value="115200"></el-option>
+              </el-select>
+            </div>
+            <div class="flex items-center mb-4">
+              <label class="w-32 text-right pr-4 text-xl tracking-widest font-normal text-black">环控日志</label>
+              <el-select v-model="comPorts.log" size="small" class="w-40 mr-2">
+                <el-option label="COM1" value="COM1"></el-option>
+                <el-option label="COM3" value="COM3"></el-option>
+                <el-option label="COM4" value="COM4"></el-option>
+                <el-option label="COM5" value="COM5"></el-option>
+              </el-select>
+              <el-select v-model="comPorts.baudRateLog" size="small" class="w-32">
+                <el-option label="9600 bps" :value="9600"></el-option>
+                <el-option label="115200 bps" :value="115200"></el-option>
+              </el-select>
+            </div>
+          </fieldset>
+
+          <fieldset class="win-group max-w-2xl">
+            <legend>下位机参数初始化</legend>
+            <div class="flex items-center gap-4 mb-4">
+              <button class="win-btn" style="background:#e5f1fb; border:1px solid #0078d7;" @click="handleConfigPush">
+                <i class="fa-solid fa-download text-blue-600" style="font-size:14px; margin-bottom:0; margin-right:4px;"></i>
+                <span class="inline-block">下发默认配置到内存</span>
+              </button>
+            </div>
+          </fieldset>
+        </div>
+      </template>
+
+      <!-- 视图三：手动调试点检 (WinForms 表单风格) -->
+      <template v-if="currentView === 'manual'">
+        <div class="flex-1 bg-white border border-gray-400 win-panel-inset p-4 overflow-auto">
+          <div class="bg-[#ffffcc] border border-[#ffcc00] p-2 text-orange-800 mb-4 font-bold flex items-center gap-2 max-w-3xl">
+            <i class="fa-solid fa-triangle-exclamation text-xl"></i>
+            手动调试接管状态警告：此操作将强行锁定下位机外设，自动算法将被挂起。
+          </div>
+          
+          <fieldset class="win-group max-w-3xl">
+            <legend>继电器 (DO) 手动强制点检</legend>
+            <div class="grid grid-cols-4 gap-4">
+              <div v-for="i in 8" :key="i" class="flex items-center gap-2">
+                <el-switch v-model="manualRelays[i-1]" active-color="#13ce66"></el-switch>
+                <span>继电器 {{ i }}</span>
+              </div>
+            </div>
+          </fieldset>
+        </div>
+      </template>
+
+    </div>
+
+    <!-- 底部状态栏 (Status Bar) -->
+    <div class="h-6 bg-[#f0f0f0] border-t border-gray-400 flex items-center text-[11px] shrink-0">
+      <div class="px-2 border-r border-gray-400 h-full flex items-center w-40 win-panel-inset my-[1px] ml-[1px]">
+        测试终端: <span class="text-[#003399] ml-1 font-bold">{{ deviceIp }}</span>
+      </div>
+      <div class="px-2 border-r border-gray-400 h-full flex items-center w-32 win-panel-inset my-[1px]">
+        状态: 
+        <span class="ml-1 font-bold" :class="testEngine.status === 'running' ? 'text-green-700' : 'text-blue-700'">
+          {{ testEngine.status === 'running' ? '● 正在运行' : '■ 系统就绪' }}
+        </span>
+      </div>
+      <div class="px-2 border-r border-gray-400 h-full flex items-center flex-1 win-panel-inset my-[1px] text-gray-700">
+        {{ currentCmd }}
+      </div>
+      <div class="px-2 border-r border-gray-400 h-full flex items-center w-64 win-panel-inset my-[1px]">
+        通过率: <span class="text-green-700 font-bold mx-1">{{ testStats.passRate }}%</span> 
+        ({{ testStats.passCount }}/{{ testStats.totalCount }})
+      </div>
+      <div class="px-2 h-full flex items-center w-64 win-panel-inset my-[1px] mr-[1px]">
+        总进度: 
+        <div class="flex-1 h-3 win-progress-bg mx-2 relative overflow-hidden border border-gray-400">
+          <div class="h-full win-progress-bar" :style="{ width: testEngine.progress + '%' }"></div>
+        </div>
+        <span class="text-[#006400] font-bold font-mono">{{ testEngine.progress }}%</span>
+      </div>
+    </div>
+
+  </div>
+
+  <script>
+    const { createApp, ref, computed, onMounted, nextTick } = Vue;
+
+    createApp({
+      setup() {
+        const currentView = ref('config'); // 默认展示系统配置，方便查看修改结果
+        const treeRef = ref(null);
+        const activeLogTab = ref('system'); // 'system' 或 'device'
+        
+        // 经典界面需要的一些状态
+        const currentCmd = ref('就绪');
+        const lastError = ref('');
+        const deviceIp = ref('192.168.1.200');
+        const comPorts = ref({ 
+          rs485: 'COM3', baudRateRS485: 115200,
+          log: 'COM3', baudRateLog: 115200 
+        });
+        const manualRelays = ref(Array(8).fill(false));
+        
+        // 串口日志相关状态
+        const enableRealtimeLogs = ref(false);
+        let serialPortObj = null;
+        let serialReader = null;
+
+        // 左侧树形数据（结合之前的 48 项 ATE 逻辑）
+        const testTree = ref([
+          {
+            id: 'L1',
+            label: 'L1 核心板及外设物理自检',
+            children: [
+              { id: 1, label: 'SPI Flash 物理读写自检', status: 'not_run' },
+              { id: 2, label: 'EEPROM 参数存储自检', status: 'not_run' },
+              { id: 3, label: 'RTC 时钟晶振起振自检', status: 'not_run' },
+              { id: 4, label: 'RS485-1 总线通信自检', status: 'not_run' },
+              { id: 5, label: 'RS485-2 扩展通信自检', status: 'not_run' },
+              { id: 6, label: 'ADC 与 AO-AI 电压闭环', status: 'not_run' },
+              { id: 7, label: '22路继电器回读自检', status: 'not_run' },
+            ]
+          },
+          {
+            id: 'L2',
+            label: 'L2 核心控制算法自检',
+            children: [
+              { id: 10, label: '小窗手动目标开度调节', status: 'not_run' },
+              { id: 11, label: '小窗自动负压温差调节', status: 'not_run' },
+              { id: 12, label: '进风幕帘开度行程校验', status: 'not_run' },
+              { id: 13, label: '风机手动强制占空比', status: 'not_run' },
+              { id: 14, label: '负压通风自动阶梯升降', status: 'not_run' },
+              { id: 15, label: '加热自动回差及强锁', status: 'not_run' },
+              { id: 16, label: '有害气体超标阻断校验', status: 'not_run' },
+            ]
+          },
+          {
+            id: 'L3',
+            label: 'L3 容错及安全机制自检',
+            children: [
+              { id: 20, label: '传感器断线超时告警', status: 'not_run' },
+              { id: 21, label: '传感器热重构免重启', status: 'not_run' },
+              { id: 22, label: '主备压差计高可用切换', status: 'not_run' },
+              { id: 23, label: '保温灯天龄切换延时', status: 'not_run' },
+              { id: 24, label: '微正压断联自适应重构', status: 'not_run' },
+            ]
+          }
+        ]);
+
+        const defaultProps = { children: 'children', label: 'label' };
+
+        // 寄存器断言回显表格
+        const activeDetailRegisters = ref([
+          { id: 1, name: '自检整体状态', result: '等待测试' },
+          { id: 2, name: '单项自检结果', result: '等待测试' },
+          { id: 3, name: '外设继电器掩码', result: '等待测试' },
+          { id: 4, name: '内部环境变量', result: '等待测试' }
+        ]);
+
+        const testEngine = ref({
+          sn: 'SN20260529-001',
+          workOrder: 'WO-8000',
+          status: 'idle', // idle, running, pass, fail
+          progress: 0,
+          currentItemName: '',
+          failedItems: []
+        });
+
+        // 统计逻辑
+        const testStats = computed(() => {
+          let total = 0, passed = 0;
+          testTree.value.forEach(group => {
+            group.children.forEach(item => {
+              if (item.status !== 'not_run') total++;
+              if (item.status === 'pass') passed++;
+            });
+          });
+          return {
+            totalCount: total,
+            passCount: passed,
+            passRate: total > 0 ? Math.round((passed / total) * 100) : 0
+          };
+        });
+
+        // 终端日志分为两类: 系统日志(黑底), 串口日志(蓝底)
+        const systemLogs = ref([]);
+        const deviceLogs = ref([]);
+        const systemTerminal = ref(null);
+        const deviceTerminal = ref(null);
+
+        const addLog = (text, type = 'info', target = 'system') => {
+          const colors = {
+            info: 'text-white',
+            success: 'text-[#00ff00] font-bold', // 亮绿色
+            warn: 'text-yellow-400 font-bold',
+            error: 'text-red-400 font-bold'
+          };
+          const timeStr = new Date().toLocaleTimeString('en-US', { hour12: false }) + '.' + String(new Date().getMilliseconds()).padStart(3, '0');
+          
+          if (target === 'system') {
+            if (systemLogs.value.length > 500) systemLogs.value.shift();
+            systemLogs.value.push({ time: timeStr, text, color: colors[type], rawText: text });
+            nextTick(() => {
+              if (systemTerminal.value) systemTerminal.value.scrollTop = systemTerminal.value.scrollHeight;
+            });
+          } else {
+            if (deviceLogs.value.length > 1000) deviceLogs.value.shift(); // 串口报文留存多一些
+            deviceLogs.value.push({ time: timeStr, text, color: colors[type], rawText: text });
+            nextTick(() => {
+              if (deviceTerminal.value) deviceTerminal.value.scrollTop = deviceTerminal.value.scrollHeight;
+            });
+          }
+        };
+
+        const clearLogs = () => { 
+          if (activeLogTab.value === 'system') systemLogs.value = [];
+          else deviceLogs.value = [];
+        };
+
+        // ================= 现代 Web Serial API 硬件串口直连功能 =================
+        const toggleSerialConnection = async () => {
+          if (enableRealtimeLogs.value) {
+            // 关闭连接
+            enableRealtimeLogs.value = false;
+            try {
+              if (serialReader) {
+                await serialReader.cancel();
+                serialReader = null;
+              }
+              if (serialPortObj) {
+                await serialPortObj.close();
+                serialPortObj = null;
+              }
+              addLog("<<< 串口物理连接已断开，报文接收停止。", "warn", "device");
+            } catch (err) {
+              addLog(`关闭串口时发生错误: ${err}`, "error", "device");
+            }
+          } else {
+            // 尝试打开连接
+            if (!('serial' in navigator)) {
+              ElementPlus.ElMessage.error({
+                message: '当前浏览器不支持 Web Serial API 硬件直连。请使用最新版的 Chrome 或 Edge 浏览器。',
+                duration: 5000
+              });
+              addLog("【系统环境错误】此浏览器不支持获取物理串口，无法启用真实报文。", "error", "device");
+              // Demo环境：即使抛错也模拟一下动画效果
+              enableRealtimeLogs.value = true;
+              activeLogTab.value = 'device'; // 自动切到设备日志页
+              startMockSerial();
+              return;
+            }
+
+            try {
+              // 弹出浏览器原生提示框，让用户选择要直连的 COM 硬件端口
+              serialPortObj = await navigator.serial.requestPort();
+              // 使用用户在“系统配置”中选择的日志波特率
+              await serialPortObj.open({ baudRate: comPorts.value.baudRateLog });
+              enableRealtimeLogs.value = true;
+              activeLogTab.value = 'device'; // 自动切到设备日志页
+              addLog(`>>> 成功打开物理串口，波特率 ${comPorts.value.baudRateLog}，正在读取硬件报文...`, "success", "device");
+
+              // 开启后台无阻塞的数据读取管道
+              const textDecoder = new window.TextDecoderStream();
+              const readableStreamClosed = serialPortObj.readable.pipeTo(textDecoder.writable);
+              serialReader = textDecoder.readable.getReader();
+
+              // 异步读取循环
+              readSerialLoop();
+
+            } catch (err) {
+              // 如果用户取消了串口选择，或者被拒绝，退回到模拟模式供展示
+              addLog(`串口连接被拒绝或打开失败: ${err.message} (降级到演示模式)`, "warn", "device");
+              enableRealtimeLogs.value = true;
+              activeLogTab.value = 'device';
+              startMockSerial();
+            }
+          }
+        };
+
+        // 模拟模式：如果没有接真实硬件，用定时器模拟串口流
+        let mockInterval = null;
+        const startMockSerial = () => {
+          if (mockInterval) clearInterval(mockInterval);
+          addLog(`>>> [模拟串口模式] 正在模拟从虚拟 COM 口接收报文...`, "success", "device");
+          mockInterval = setInterval(() => {
+            if (!enableRealtimeLogs.value) {
+              clearInterval(mockInterval);
+              return;
+            }
+            if (testEngine.value.status !== 'running') {
+              const randomHex = Math.floor(Math.random() * 256).toString(16).padStart(2, '0').toUpperCase();
+              addLog(`[RX] 01 03 20 ${randomHex} A4 5F ... (终端心跳保持)`, "info", "device");
+            }
+          }, 2000);
+        };
+
+        let serialBuffer = '';
+        const readSerialLoop = async () => {
+          try {
+            while (true) {
+              const { value, done } = await serialReader.read();
+              if (done) break;
+              if (value) {
+                serialBuffer += value;
+                let lines = serialBuffer.split('\n');
+                serialBuffer = lines.pop(); // 保持未完结的半行在缓冲区
+                lines.forEach(line => {
+                  if (line.trim().length > 0) {
+                    addLog(`[RX] ${line.trim()}`, "info", "device");
+                  }
+                });
+              }
+            }
+          } catch (error) {
+            addLog(`硬件读取发生错误，可能是数据线松动: ${error}`, "error", "device");
+            enableRealtimeLogs.value = false;
+          } finally {
+            if (serialReader) serialReader.releaseLock();
+          }
+        };
+
+        // ================= 日志导出到本地电脑功能 =================
+        const exportLogs = () => {
+          const currentLogs = activeLogTab.value === 'system' ? systemLogs.value : deviceLogs.value;
+          const logName = activeLogTab.value === 'system' ? 'System_Log' : 'Device_COM_Log';
+
+          if (currentLogs.length === 0) {
+            ElementPlus.ElMessage.warning('当前终端没有可以导出的运行日志。');
+            return;
+          }
+          // 组装文本格式日志
+          const logContent = currentLogs.map(l => `[${l.time}] ${l.rawText}`).join('\n');
+          const blob = new Blob([logContent], { type: "text/plain;charset=utf-8" });
+          
+          // 创建隐形下载链接并触发
+          const url = URL.createObjectURL(blob);
+          const a = document.createElement("a");
+          a.href = url;
+          a.download = `ATE_${logName}_${new Date().getTime()}.txt`;
+          document.body.appendChild(a);
+          a.click();
+          
+          // 清理现场
+          document.body.removeChild(a);
+          URL.revokeObjectURL(url);
+          ElementPlus.ElMessage.success(`【${logName}】日志已成功保存到本地电脑！`);
+        };
+
+        // 样式辅助函数
+        const getStatusText = (status) => {
+          return { 'pass': '合格', 'fail': '不合格', 'running': '测试中...', 'not_run': '' }[status] || '';
+        };
+        const getStatusColor = (status) => {
+          return { 'pass': 'text-green-600', 'fail': 'text-red-600', 'running': 'text-blue-600' }[status] || '';
+        };
+        const tableRowClassName = ({ row, rowIndex }) => {
+          if (row.result === '合格') return 'win-row-pass';
+          if (row.result === '不合格') return 'win-row-fail';
+          return rowIndex % 2 === 1 ? 'bg-[#f9f9f9]' : '';
+        };
+
+        // ==== 核心执行引擎 ====
+        let activeQueue = [];
+        let executionIndex = 0;
+
+        const buildQueue = (onlyFailed = false) => {
+          if (!treeRef.value) return [];
+          const checkedNodes = treeRef.value.getCheckedNodes(true); // 只获取叶子节点
+          if (onlyFailed) return checkedNodes.filter(n => n.status === 'fail');
+          return checkedNodes;
+        };
+
+        // 根据执行步骤模拟寄存器变化
+        const updateRegisterAssertMock = (item) => {
+          if (item.id <= 9) {
+            // L1 自检
+            activeDetailRegisters.value = [
+              { id: 1, name: '自检整体状态', result: '正在测试' },
+              { id: 2, name: '单项自检结果', result: '正在测试' },
+              { id: 3, name: '单项自检错误码', result: '正在测试' }
+            ];
+            addLog(`[TCP TX -> 502] 00 01 00 00 00 06 01 03 80 00 00 28 (读取自检状态及会话ID)`, 'info', 'system');
+            if (enableRealtimeLogs.value) addLog(`[TX] 01 03 80 00 00 28 C4 13`, 'info', 'device');
+          } else if (item.id > 9 && item.id <= 35) {
+            // L2 算法自检
+            activeDetailRegisters.value = [
+              { id: 1, name: '室内实际平均温度', result: '正在测试' },
+              { id: 2, name: '当前自动通风等级', result: '正在测试' },
+              { id: 3, name: '风机继电器输出掩码', result: '正在测试' }
+            ];
+            addLog(`[TCP JSON 9001] {"functionId":"properties.get","itemName":"Fanlogic"}`, 'info', 'system');
+            if (enableRealtimeLogs.value) addLog(`[RX] {"event":"reply","data":{"Fanlogic":3}}`, 'info', 'device');
+          } else {
+            // L3 健壮性自检
+            activeDetailRegisters.value = [
+              { id: 1, name: '传感器历史故障字', result: '正在测试' },
+              { id: 2, name: '系统安全运行模式', result: '正在测试' }
+            ];
+            addLog(`[TCP TX] 00 01 00 00 00 06 01 03 10 30 00 01 (监控高可用备用切换机制)`, 'info', 'system');
+            if (enableRealtimeLogs.value) addLog(`[TX] 01 03 10 30 00 01 80 CA`, 'info', 'device');
+          }
+        };
+
+        const startSingleTest = () => {
+          activeQueue = buildQueue();
+          if (activeQueue.length === 0) {
+            ElementPlus.ElMessage.warning('请先勾选待检定项目');
+            return;
+          }
+          if (executionIndex >= activeQueue.length) executionIndex = 0;
+          testEngine.value.status = 'running';
+          currentCmd.value = `单步执行: ${activeQueue[executionIndex].label}`;
+          
+          executeStep(activeQueue[executionIndex], () => {
+            testEngine.value.status = 'idle';
+            currentCmd.value = '单步执行完毕，系统就绪。';
+            executionIndex++;
+          });
+        };
+
+        const startContinuousTest = () => {
+          activeQueue = buildQueue();
+          if (activeQueue.length === 0) return ElementPlus.ElMessage.warning('请先勾选待检定项目');
+          
+          testEngine.value.status = 'running';
+          testEngine.value.failedItems = [];
+          executionIndex = 0;
+          lastError.value = '';
+          addLog(`=== 开始连续检定批次, 共 ${activeQueue.length} 项 ===`, 'info', 'system');
+          
+          const runNext = () => {
+            if (executionIndex >= activeQueue.length) {
+              testEngine.value.status = testEngine.value.failedItems.length > 0 ? 'fail' : 'pass';
+              testEngine.value.progress = 100;
+              currentCmd.value = '连续检定完成。';
+              addLog(`=== 批次检定结束。失败 ${testEngine.value.failedItems.length} 项 ===`, testEngine.value.status === 'pass' ? 'success' : 'error', 'system');
+              return;
+            }
+            currentCmd.value = `正在检定 (${executionIndex + 1}/${activeQueue.length}): ${activeQueue[executionIndex].label}`;
+            executeStep(activeQueue[executionIndex], () => {
+              executionIndex++;
+              testEngine.value.progress = Math.round((executionIndex / activeQueue.length) * 100);
+              runNext();
+            });
+          };
+          runNext();
+        };
+
+        const startFailedOnlyTest = () => {
+          activeQueue = buildQueue(true);
+          if (activeQueue.length === 0) return ElementPlus.ElMessage.success('当前无不合格项');
+          testEngine.value.status = 'running';
+          executionIndex = 0;
+          addLog(`=== 复测不合格项, 共 ${activeQueue.length} 项 ===`, 'warn', 'system');
+          
+          const runNext = () => {
+            if (executionIndex >= activeQueue.length) {
+              testEngine.value.status = 'idle';
+              currentCmd.value = '复测结束。';
+              return;
+            }
+            executeStep(activeQueue[executionIndex], () => {
+              executionIndex++;
+              runNext();
+            });
+          };
+          runNext();
+        };
+
+        const stopTest = () => {
+          testEngine.value.status = 'idle';
+          currentCmd.value = '操作员已强行中止检定。';
+          addLog('🛑 检定序列被人工中止。', 'warn', 'system');
+        };
+
+        const resetTest = () => {
+          testEngine.value.status = 'idle';
+          testEngine.value.progress = 0;
+          lastError.value = '';
+          testTree.value.forEach(g => g.children.forEach(c => c.status = 'not_run'));
+          clearLogs();
+          currentCmd.value = '状态已重置';
+        };
+
+        const executeStep = (node, callback) => {
+          testEngine.value.currentItemName = node.label;
+          node.status = 'running';
+          
+          // 模拟下发报文
+          addLog(`[System] 下发指令指令队列: 节点 ${node.id.toString(16)} ...`, 'info', 'system');
+          if (enableRealtimeLogs.value) addLog(`[TX] 68 4A 00 4A 00 68 4B ${node.id.toString(16).padStart(2, '0')} ...`, 'info', 'device');
+          
+          // 动态更新断言监控表格
+          updateRegisterAssertMock(node);
+          
+          setTimeout(() => {
+            // 模拟 15% 的概率出现不合格
+            let isPass = Math.random() > 0.15;
+            
+            if (isPass) {
+              node.status = 'pass';
+              addLog(`[PASS] 节点 [${node.label}] 自检合格`, 'success', 'system');
+              if (enableRealtimeLogs.value) addLog(`[RX] 68 4A 00 4A 00 68 8B 00 00 (ACK_OK)`, 'success', 'device');
+              activeDetailRegisters.value.forEach(r => r.result = '合格');
+            } else {
+              node.status = 'fail';
+              testEngine.value.failedItems.push(node);
+              lastError.value = `${node.id} ${node.label} 返回错误码 E01`;
+              addLog(`[FAIL] 告警: 节点 [${node.label}] 硬件响应超时或数据异常`, 'error', 'system');
+              if (enableRealtimeLogs.value) addLog(`[RX] 68 4A 00 4A 00 68 CB 01 E0 (ACK_ERR_E01)`, 'error', 'device');
+              activeDetailRegisters.value.forEach(r => r.result = '不合格');
+            }
+            callback();
+          }, 800);
+        };
+
+        const downloadReport = () => {
+          ElementPlus.ElMessage.success("报表生成请求已下发。");
+        };
+
+        const handleConfigPush = () => {
+          ElementPlus.ElMessage.success("配置下发成功！");
+        };
+
+        // 生命周期挂载后自动展开并全选树
+        onMounted(() => {
+          if (treeRef.value) {
+            const allKeys = [];
+            testTree.value.forEach(g => {
+              allKeys.push(g.id);
+              g.children.forEach(c => allKeys.push(c.id));
+            });
+            treeRef.value.setCheckedKeys(allKeys);
+          }
+        });
+
+        return {
+          currentView, treeRef, activeLogTab, currentCmd, lastError, deviceIp, comPorts, manualRelays,
+          testTree, defaultProps, activeDetailRegisters, testEngine, testStats,
+          systemLogs, deviceLogs, systemTerminal, deviceTerminal, enableRealtimeLogs, toggleSerialConnection, exportLogs,
+          getStatusText, getStatusColor, tableRowClassName,
+          startSingleTest, startContinuousTest, startFailedOnlyTest, stopTest, resetTest, downloadReport, clearLogs, handleConfigPush
+        };
+      }
+    }).use(ElementPlus).mount('#app');
+  </script>
+</body>
+</html>
