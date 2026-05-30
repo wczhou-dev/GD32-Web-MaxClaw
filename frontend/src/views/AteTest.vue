@@ -1,1554 +1,1319 @@
 <template>
   <div class="ate-page-container">
-    <!-- ATE 内部侧边导航 -->
-    <aside class="ate-sidebar">
-      <div class="ate-sidebar-header">
-        <div class="logo-circle"></div>
-        <div class="logo-text">
-          <h2>环控器 ATE 检定</h2>
-          <span>SINGLE DEVICE</span>
-        </div>
+    <!-- 顶部标题栏 (蓝色渐变) -->
+    <div class="win-title-bar">
+      <div class="title-left">
+        <i class="fa-solid fa-microchip"></i>
+        <span>智能环控器自动化综合检定系统V1.0</span>
       </div>
-      <ul class="ate-nav-menu">
-        <li 
-          v-for="tab in tabs" 
-          :key="tab.id" 
-          :class="['ate-nav-item', { active: currentTab === tab.id }]"
-          @click="currentTab = tab.id"
-        >
-          <span class="ate-nav-icon">{{ tab.icon }}</span>
-          <span>{{ tab.name }}</span>
-        </li>
-      </ul>
-      <div class="ate-sidebar-footer">
-        当前状态: 
-        <span 
-          :style="{ color: sysStatusColor, fontWeight: 'bold' }"
-        >
-          {{ sysStatusText }}
-        </span>
-      </div>
-    </aside>
+    </div>
 
-    <!-- ATE 主内容工作区 -->
-    <section class="ate-main-content">
-      <!-- 顶部信息栏 -->
-      <div class="ate-header-bar">
-        <div class="header-title">{{ currentTabName }}</div>
-        <div class="header-operator">
-          <span class="label">当前检测员:</span>
-          <span class="operator-name">{{ operatorName }}</span>
-          <el-avatar :size="28" class="op-avatar">OP</el-avatar>
-        </div>
-      </div>
-
-      <!-- 1. 检定主控台 -->
-      <div v-if="currentTab === 'console'" class="tab-panel active-panel">
-        <!-- 待测设备基本参数 -->
-        <div class="ate-card parameter-card">
-          <div class="ate-card-title">🔌 待测设备基本参数录入</div>
-          <el-form :inline="true" :model="deviceInfo" size="default" class="param-form">
-            <el-form-item label="设备 MAC 地址 / 条形码">
-              <el-input v-model="deviceInfo.mac" placeholder="扫码枪录入 MAC" />
-            </el-form-item>
-            <el-form-item label="硬件主板型号">
-              <el-select v-model="deviceInfo.model" style="width: 180px;">
-                <option value="sj-encontrol-9301">sj-encontrol-9301 (标准)</option>
-                <option value="sj-encontrol-9250">sj-encontrol-9250 (中端)</option>
-                <option value="sj-encontrol-9200">sj-encontrol-9200 (简易)</option>
-              </el-select>
-            </el-form-item>
-            <el-form-item label="固件系统版本">
-              <el-input v-model="deviceInfo.version" />
-            </el-form-item>
-            <el-form-item label="测试控制方案">
-              <el-select v-model="deviceInfo.scheme" style="width: 180px;">
-                <option value="standard">分娩舍标准出厂方案</option>
-                <option value="all-peripherals">保育舍全外设动作方案</option>
-              </el-select>
-            </el-form-item>
-          </el-form>
-        </div>
-
-        <!-- 树与大表分栏 -->
-        <div class="test-columns">
-          <!-- 左侧项目选择树 -->
-          <div class="tree-sidebar-card">
-            <div class="tree-header">
-              <span>第 14 章 检定项使能</span>
-              <el-button link type="primary" size="small" @click="selectAllItems(true)">全选</el-button>
-            </div>
-            
-            <div class="tree-container">
-              <div v-for="grp in testTree" :key="grp.id" class="tree-group">
-                <div class="tree-group-title">
-                  <el-checkbox 
-                    v-model="grp.checked" 
-                    :indeterminate="isGroupIndeterminate(grp)"
-                    @change="toggleGroupCheck(grp)"
-                  >
-                    {{ grp.name }}
-                  </el-checkbox>
-                </div>
-                <div class="tree-children">
-                  <el-checkbox 
-                    v-for="sub in grp.children" 
-                    :key="sub.rowId" 
-                    v-model="sub.checked"
-                    @change="toggleSubCheck(sub)"
-                  >
-                    {{ sub.name }}
-                  </el-checkbox>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          <!-- 右侧测试主表格 -->
-          <div class="table-container-card">
-            <el-table 
-              :data="filteredTableData" 
-              style="width: 100%; height: 100%;" 
-              class="ate-custom-table"
-              :row-class-name="tableRowClassName"
-            >
-              <el-table-column prop="index" label="序号" width="60" />
-              <el-table-column prop="chapter" label="规范章节" width="90" />
-              <el-table-column prop="name" label="检定测试小项名称" min-width="200" />
-              <el-table-column prop="limit" label="物理判定范围/期望阈值" width="220" />
-              <el-table-column prop="measured" label="实测物理反馈数据" width="160">
-                <template #default="scope">
-                  <span :style="{ color: scope.row.status === 'pass' ? '#34d399' : (scope.row.status === 'fail' ? '#f87171' : '') }">
-                    {{ scope.row.measured || '-' }}
-                  </span>
-                </template>
-              </el-table-column>
-              <el-table-column label="单项状态/结论" width="130" align="center">
-                <template #default="scope">
-                  <span 
-                    :class="['cell-status-badge', 'status-' + scope.row.status]"
-                    @click="handleStatusClick(scope.row)"
-                  >
-                    {{ getStatusText(scope.row.status) }}
-                  </span>
-                </template>
-              </el-table-column>
-            </el-table>
-          </div>
-        </div>
-
-        <!-- 底部控制与日志 -->
-        <div class="console-footer-bar">
-          <div class="action-buttons">
-            <el-button type="success" size="default" :loading="testing" @click="startAutoTest">▶ 连续自动测试</el-button>
-            <el-button type="primary" size="default" :disabled="testing" @click="runSingleTest">⚡ 单项重测</el-button>
-            <el-button type="danger" size="default" @click="stopAutoTest">🛑 紧急停止</el-button>
-            <el-button type="info" size="default" plain @click="saveTestData">保存数据并生成报表</el-button>
-          </div>
-        </div>
-
-        <!-- 日志控制台 -->
-        <div class="log-console-container">
-          <div class="log-tab-header">系统检定与调试报文日志</div>
-          <div class="log-body" ref="logContainer">
-            <div v-for="(log, idx) in logs" :key="idx" class="log-line">
-              <span class="log-time">[{{ log.time }}]</span>
-              <span :style="{ color: log.color }">{{ log.msg }}</span>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      <!-- 2. 检定判定阈值 -->
-      <div v-if="currentTab === 'thresholds'" class="tab-panel active-panel">
-        <div class="ate-card">
-          <div class="ate-card-title">⚙️ 判定阈值参数与台体端口配置</div>
-          <div class="thresholds-grid">
-            <div class="config-column">
-              <h3>物理传感器输入上限限值</h3>
-              <div class="config-item">
-                <label>小窗模拟电压比对上限 (V)</label>
-                <el-input-number v-model="thresholds.winHigh" :precision="2" :step="0.1" @change="onThresholdChange" />
-              </div>
-              <div class="config-item">
-                <label>小窗模拟电压比对下限 (V)</label>
-                <el-input-number v-model="thresholds.winLow" :precision="2" :step="0.1" @change="onThresholdChange" />
-              </div>
-              <div class="config-item">
-                <label>滑窗手动最大运行安全耗时 (秒)</label>
-                <el-input-number v-model="thresholds.slideTime" :min="10" :max="100" @change="onThresholdChange" />
-              </div>
-            </div>
-
-            <div class="config-column">
-              <h3>安全保护拦截限制阈值</h3>
-              <div class="config-item">
-                <label>水帘强关高湿触发阈值 (%)</label>
-                <el-input-number v-model="thresholds.wetHumi" :min="50" :max="100" @change="onThresholdChange" />
-              </div>
-              <div class="config-item">
-                <label>继电器单通道接触电阻上限 (Ω)</label>
-                <el-input-number v-model="thresholds.relayRes" :precision="2" :step="0.05" />
-              </div>
-              <div class="config-item">
-                <label>通信校验心跳丢包判定 (ms)</label>
-                <el-input-number v-model="thresholds.heartbeat" :min="500" :max="10000" :step="500" />
-              </div>
-            </div>
-
-            <div class="config-column">
-              <h3>台体物理通信与网段规划</h3>
-              <div class="config-item">
-                <label>底板 Modbus TCP 网关地址 IP</label>
-                <el-input v-model="thresholds.gatewayIp" placeholder="192.168.1.200" />
-              </div>
-              <div class="config-item">
-                <label>物理隔离高压测试串口号</label>
-                <el-input v-model="thresholds.serialPort" placeholder="COM3" />
-              </div>
-              <div class="config-item">
-                <label>上位机 TCP JSON 心跳监听端口</label>
-                <el-input-number v-model="thresholds.listenerPort" :min="1000" :max="65535" />
-              </div>
-            </div>
-          </div>
-          <div class="config-footer">
-            <el-button type="primary" @click="saveThresholdsAlert">💾 保存配置并更新大表判定线</el-button>
-          </div>
-        </div>
-      </div>
-
-      <!-- 3. 出厂历史报表 -->
-      <div v-if="currentTab === 'history'" class="tab-panel active-panel">
-        <div v-if="!showPdf" class="ate-card">
-          <div class="history-header">
-            <div class="ate-card-title">📂 已测试历史环控器记录 (出厂归档)</div>
-            <div class="history-search">
-              <el-input v-model="historyQuery" placeholder="搜索 MAC 或 条形码..." style="width: 220px;" />
-              <el-button type="primary">🔍 查询</el-button>
-            </div>
-          </div>
-          <div class="records-wrapper">
-            <div v-for="rec in filteredRecords" :key="rec.id" class="record-row">
-              <div class="record-details">
-                <div class="detail-cell">
-                  <span class="lbl">测试时间</span>
-                  <span class="val">{{ rec.time }}</span>
-                </div>
-                <div class="detail-cell">
-                  <span class="lbl">被测 MAC 地址</span>
-                  <span class="val">{{ rec.mac }}</span>
-                </div>
-                <div class="detail-cell">
-                  <span class="lbl">被测型号</span>
-                  <span class="val">{{ rec.model }}</span>
-                </div>
-                <div class="detail-cell">
-                  <span class="lbl">技术员</span>
-                  <span class="val">{{ rec.operator }}</span>
-                </div>
-                <div class="detail-cell">
-                  <span class="lbl">判定结论</span>
-                  <span class="val" :style="{ color: rec.status === 'PASS' ? '#10b981' : '#ef4444' }">
-                    {{ rec.status }}
-                  </span>
-                </div>
-              </div>
-              <el-button type="primary" size="small" @click="openPdfReport(rec)">📄 查看检定报告</el-button>
-            </div>
-          </div>
-        </div>
-
-        <!-- A4 PDF 报告预览区 -->
-        <div v-else class="pdf-container">
-          <div class="pdf-actions">
-            <el-button size="default" @click="showPdf = false">&larr; 返回历史列表</el-button>
-            <el-button type="success" size="default" @click="printReport">🖨️ 打印报告/条形码</el-button>
-          </div>
-          <div class="pdf-paper">
-            <h2>环境控制器出厂合格检定报告</h2>
-            <div class="pdf-meta-info">
-              <div><strong>报告编号：</strong> ATE-REPORT-{{ currentPdfRecord.id }}</div>
-              <div><strong>检定时间：</strong> {{ currentPdfRecord.time }}</div>
-            </div>
-            <table class="pdf-details-table">
-              <tr>
-                <td class="pdf-lbl">被测 MAC 地址</td>
-                <td>{{ currentPdfRecord.mac }}</td>
-                <td class="pdf-lbl">硬件型号规格</td>
-                <td>{{ currentPdfRecord.model }}</td>
-              </tr>
-              <tr>
-                <td class="pdf-lbl">检测技术员</td>
-                <td>{{ currentPdfRecord.operator }}</td>
-                <td class="pdf-lbl">综合质检结论</td>
-                <td :style="{ color: currentPdfRecord.status === 'PASS' ? 'green' : 'red', fontWeight: 'bold' }">
-                  {{ currentPdfRecord.status }}
-                </td>
-              </tr>
-            </table>
-
-            <h3 class="pdf-section-title">物理电气与功能参数自检清单：</h3>
-            <table class="pdf-items-table">
-              <thead>
-                <tr>
-                  <th>序号</th>
-                  <th>自检物理项</th>
-                  <th>规程小节</th>
-                  <th>判定阈值范围</th>
-                  <th>实测反馈数据</th>
-                  <th>判定结论</th>
-                </tr>
-              </thead>
-              <tbody>
-                <tr>
-                  <td>1</td>
-                  <td>小窗电压手动测试</td>
-                  <td>14.2.1</td>
-                  <td>全关: {{ thresholds.winHigh }}V±0.2V / 全开: 0V±0.1V</td>
-                  <td>全关: 4.98 V | 全开: 0.01 V</td>
-                  <td>合格</td>
-                </tr>
-                <tr>
-                  <td>2</td>
-                  <td>滑窗行程安全测试</td>
-                  <td>14.3.1</td>
-                  <td>总行程 {{ thresholds.slideTime }}s±2s</td>
-                  <td>29.8 秒</td>
-                  <td>合格</td>
-                </tr>
-                <tr>
-                  <td>3</td>
-                  <td>风机继电器接触阻抗</td>
-                  <td>14.5.1</td>
-                  <td>接触电阻 &lt; {{ thresholds.relayRes }} Ω</td>
-                  <td>电阻正常 (&lt; 0.12 Ω)</td>
-                  <td>{{ currentPdfRecord.status === 'PASS' ? '合格' : '不合格 (阻抗过高)' }}</td>
-                </tr>
-                <tr>
-                  <td>4</td>
-                  <td>水帘高湿自动拦截</td>
-                  <td>14.9.2</td>
-                  <td>湿度 &gt; {{ thresholds.wetHumi }}% 强切</td>
-                  <td>实测湿度 88% -> 继电器自动释放</td>
-                  <td>合格</td>
-                </tr>
-              </tbody>
-            </table>
-            <div class="pdf-signature-area">
-              <div><strong>质检技术员签字：</strong>_________________</div>
-              <div><strong>品质部核准盖章：</strong>_________________</div>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      <!-- 4. 台体手动点检 -->
-      <div v-if="currentTab === 'debugging'" class="tab-panel active-panel">
-        <div class="ate-card">
-          <div class="ate-card-title">🔧 台体独立通道物理点检操控板</div>
-          <div class="debugging-layout">
-            <div class="ctrl-panel">
-              <h4 class="sub-sec-title">手动继电器开闭输出 (DO 1~8)</h4>
-              <div class="relay-buttons-grid">
-                <button 
-                  v-for="relay in relayStates" 
-                  :key="relay.id" 
-                  :class="['manual-relay-btn', { active: relay.state }]"
-                  @click="toggleRelayState(relay)"
-                >
-                  继电器 {{ relay.id }} ({{ relay.name }})
-                </button>
-              </div>
-
-              <h4 class="sub-sec-title" style="margin-top: 24px;">模拟占空比输出设定 (AO 1)</h4>
-              <div class="ao-slider-item">
-                <div class="ao-label">
-                  <span>变频风机阶梯驱动 (0V ~ 10V)</span>
-                  <span class="ao-val-display">{{ (aoValue / 10).toFixed(1) }} V</span>
-                </div>
-                <el-slider v-model="aoValue" :max="100" @input="onAoSliderInput" />
-              </div>
-            </div>
-
-            <div class="wave-panel">
-              <h4 class="sub-sec-title">接触电阻及电压回读阻抗示波器</h4>
-              <div class="oscilloscope-viewport">
-                <span class="scope-tip">正在实时监测 ATE 隔离采样物理电平状态...</span>
-                <!-- 示波器网格线条模拟 -->
-                <div class="scope-grid-lines"></div>
-              </div>
-              <p class="scope-info-text">
-                提示：手动开启继电器或滑动模拟输出电压，可以从上方阻抗示波器回读通道两端接触状态的反馈，用于点检台体夹具是否有气路松动或接触不良。
-              </p>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      <!-- 5. 技术员授权 -->
-      <div v-if="currentTab === 'auth'" class="tab-panel active-panel">
-        <div class="ate-card login-card-wrapper">
-          <div class="login-card">
-            <div class="login-header">👤 检测技术员安全签名授权</div>
-            <el-form label-position="top">
-              <el-form-item label="技术员测试工号 (Operator ID)">
-                <el-input v-model="inputOperator" placeholder="请输入工号" />
-              </el-form-item>
-              <el-form-item label="安全防呆授权密码">
-                <el-input v-model="inputPassword" type="password" placeholder="请输入密码" show-password />
-              </el-form-item>
-              <el-button type="primary" class="login-submit-btn" @click="handleOperatorLogin">
-                安全登录并解锁高级检定数据库
-              </el-button>
-            </el-form>
-          </div>
-        </div>
-      </div>
-    </section>
-
-    <!-- 异常故障排查诊断浮窗 -->
-    <el-dialog
-      v-model="dialogVisible"
-      :title="'⚠️ 检定项目不合格排障诊断：' + activeErrorItem.name"
-      width="560px"
-      custom-class="ate-custom-dialog"
-    >
-      <div class="dialog-body-content">
-        <p><strong>异常物理故障描述：</strong></p>
-        <div class="desc-box">{{ activeErrorItem.desc }}</div>
-        <p style="margin-top: 14px;"><strong>对应底板下位机 C 语言全局变量/结构体上下文：</strong></p>
-        <pre class="code-box"><code>{{ activeErrorItem.code }}</code></pre>
-        <p style="margin-top: 14px; font-size: 12px; color: #9ca3af;">
-          排故方向：请使用万用表测量该端继电器吸合阻值。如果怀疑是硬件误判，双击主表中该红格行可实现单项就地重测。
-        </p>
-      </div>
-      <template #footer>
-        <span class="dialog-footer">
-          <el-button type="primary" @click="dialogVisible = false">关闭窗口</el-button>
-        </span>
+    <!-- 经典工具栏 (Toolbar) -->
+    <div class="win-toolbar">
+      <!-- 检定项目视图的工具按钮 -->
+      <template v-if="currentView === 'test'">
+        <button class="win-btn" @click="startSingleTest" :disabled="testEngine.status === 'running'">
+          <i class="fa-solid fa-play" style="color: #16a34a;"></i>
+          <span>单步测试</span>
+        </button>
+        <button class="win-btn" @click="startContinuousTest" :disabled="testEngine.status === 'running'">
+          <i class="fa-solid fa-forward-fast" style="color: #16a34a;"></i>
+          <span>连续测试</span>
+        </button>
+        <button class="win-btn" @click="startFailedOnlyTest" :disabled="testEngine.status === 'running'">
+          <i class="fa-solid fa-rotate-right" style="color: #ea580c;"></i>
+          <span>测不合格项</span>
+        </button>
+        <div class="toolbar-divider"></div>
+        <button class="win-btn" @click="stopTest" :disabled="testEngine.status !== 'running'">
+          <i class="fa-solid fa-stop" style="color: #dc2626;"></i>
+          <span>停止检定</span>
+        </button>
+        <button class="win-btn" @click="resetTest" :disabled="testEngine.status === 'running'">
+          <i class="fa-solid fa-eraser" style="color: #4b5563;"></i>
+          <span>重置状态</span>
+        </button>
+        <div class="toolbar-divider"></div>
+        <button class="win-btn" @click="downloadReport" :disabled="testEngine.status === 'idle' || testEngine.status === 'running'">
+          <i class="fa-solid fa-floppy-disk" style="color: #9333ea;"></i>
+          <span>保存报表</span>
+        </button>
       </template>
-    </el-dialog>
+
+      <div class="toolbar-spacer"></div>
+
+      <!-- 视图切换按钮 -->
+      <button class="win-btn" :class="{ 'active': currentView === 'config' }" @click="currentView = 'config'">
+        <i class="fa-solid fa-gears" style="color: #475569;"></i>
+        <span>系统配置</span>
+      </button>
+      <button class="win-btn" :class="{ 'active': currentView === 'test' }" @click="currentView = 'test'">
+        <i class="fa-solid fa-list-check" style="color: #3b82f6;"></i>
+        <span>项目检定</span>
+      </button>
+      <button class="win-btn" :class="{ 'active': currentView === 'manual' }" @click="currentView = 'manual'">
+        <i class="fa-solid fa-screwdriver-wrench" style="color: #d97706;"></i>
+        <span>手动点检</span>
+      </button>
+
+      <div class="toolbar-divider"></div>
+
+      <!-- 启用报文复选框 -->
+      <div class="enable-log-btn" @click="toggleSerialConnection">
+        <div class="win-btn">
+          <i class="fa-solid fa-plug-circle-check" :class="enableRealtimeLogs ? 'text-green-600' : 'text-slate-500'"></i>
+          <span :class="{ 'font-bold': enableRealtimeLogs }">启用报文</span>
+        </div>
+        <input type="checkbox" :checked="enableRealtimeLogs" class="checkbox">
+      </div>
+    </div>
+
+    <!-- 主体内容区 -->
+    <div class="ate-main-content">
+      <!-- 视图一：检定项目工作台 -->
+      <template v-if="currentView === 'test'">
+        <!-- 左侧：检定项目树形控件 -->
+        <div class="tree-panel">
+          <div class="panel-header">
+            <span class="panel-title">检定项目清单</span>
+          </div>
+          <div class="tree-container">
+            <el-tree
+              ref="treeRef"
+              :data="testTree"
+              show-checkbox
+              node-key="id"
+              default-expand-all
+              :props="defaultProps"
+            >
+              <template #default="{ node, data }">
+                <span class="tree-node-content">
+                  <span>{{ node.label }}</span>
+                  <span v-if="data.status" :class="getStatusColor(data.status)" class="status-badge">
+                    {{ getStatusText(data.status) }}
+                  </span>
+                </span>
+              </template>
+            </el-tree>
+          </div>
+        </div>
+
+        <!-- 右侧：数据监控区 -->
+        <div class="right-panel">
+          <!-- 右侧上部：实时寄存器监控表 -->
+          <div class="register-panel">
+            <div class="panel-header">
+              <span class="panel-title">检定信息</span>
+              <span class="current-item">当前执行: {{ testEngine.currentItemName || '无' }}</span>
+            </div>
+            <div class="register-table-container">
+              <el-table :data="activeDetailRegisters" border style="width: 100%" size="small" :row-class-name="tableRowClassName">
+                <el-table-column prop="id" label="序号" width="50" align="center"></el-table-column>
+                <el-table-column prop="name" label="检定项目" width="250"></el-table-column>
+                <el-table-column prop="result" label="结果"></el-table-column>
+              </el-table>
+            </div>
+          </div>
+
+          <!-- 右侧下部：Tab 切换终端 -->
+          <div class="terminal-panel">
+            <!-- WinForms 风格 Tab 标签栏 -->
+            <div class="terminal-tabs">
+              <div
+                @click="activeLogTab = 'system'"
+                :class="['terminal-tab', { active: activeLogTab === 'system' }]"
+              >
+                测试系统运行日志
+              </div>
+              <div
+                @click="activeLogTab = 'device'"
+                :class="['terminal-tab', { active: activeLogTab === 'device' }]"
+              >
+                环控器运行日志
+                <span v-if="enableRealtimeLogs" class="status-dot"></span>
+              </div>
+              <div class="tab-spacer"></div>
+              <div class="tab-tools">
+                <a href="#" @click.prevent="exportLogs" class="tool-link">
+                  <i class="fa-solid fa-download"></i> 导出日志
+                </a>
+                <span class="tool-divider">|</span>
+                <a href="#" @click.prevent="clearLogs" class="tool-link">
+                  <i class="fa-solid fa-trash-can"></i> 清空终端
+                </a>
+              </div>
+            </div>
+            <!-- 终端内容区 -->
+            <div class="terminal-content" :class="activeLogTab === 'system' ? 'terminal-system' : 'terminal-device'">
+              <!-- 系统运行日志 (黑底) -->
+              <div v-show="activeLogTab === 'system'" ref="systemTerminal" class="terminal-body">
+                <div v-for="(log, idx) in systemLogs" :key="'sys'+idx" :class="log.color">
+                  <span class="log-time">[{{ log.time }}]</span><span>{{ log.text }}</span>
+                </div>
+              </div>
+              <!-- 环控器串口报文 (蓝底) -->
+              <div v-show="activeLogTab === 'device'" ref="deviceTerminal" class="terminal-body">
+                <div v-if="!enableRealtimeLogs" class="text-gray-400 italic mb-2">
+                  请在上方工具栏勾选"启用报文"以通过浏览器 Web Serial API 监听物理串口数据...
+                </div>
+                <div v-for="(log, idx) in deviceLogs" :key="'dev'+idx" :class="log.color">
+                  <span class="log-time">[{{ log.time }}]</span><span>{{ log.text }}</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </template>
+
+      <!-- 视图二：系统配置 -->
+      <template v-if="currentView === 'config'">
+        <div class="config-panel">
+          <fieldset class="win-group">
+            <legend>网络与通信接口绑定</legend>
+            <div class="config-row">
+              <label class="config-label">设备 IP 地址:</label>
+              <el-input v-model="deviceIp" size="small" class="config-input"></el-input>
+            </div>
+            <div class="config-row">
+              <label class="config-label rs485-label">RS485</label>
+              <el-select v-model="comPorts.rs485" size="small" class="config-select">
+                <el-option label="COM1" value="COM1"></el-option>
+                <el-option label="COM3" value="COM3"></el-option>
+                <el-option label="COM4" value="COM4"></el-option>
+              </el-select>
+              <el-select v-model="comPorts.baudRateRS485" size="small" class="config-select-sm">
+                <el-option label="9600 bps" :value="9600"></el-option>
+                <el-option label="115200 bps" :value="115200"></el-option>
+              </el-select>
+            </div>
+            <div class="config-row">
+              <label class="config-label rs485-label">环控日志</label>
+              <el-select v-model="comPorts.log" size="small" class="config-select">
+                <el-option label="COM1" value="COM1"></el-option>
+                <el-option label="COM3" value="COM3"></el-option>
+                <el-option label="COM4" value="COM4"></el-option>
+                <el-option label="COM5" value="COM5"></el-option>
+              </el-select>
+              <el-select v-model="comPorts.baudRateLog" size="small" class="config-select-sm">
+                <el-option label="9600 bps" :value="9600"></el-option>
+                <el-option label="115200 bps" :value="115200"></el-option>
+              </el-select>
+            </div>
+          </fieldset>
+
+          <fieldset class="win-group">
+            <legend>下位机参数初始化</legend>
+            <div class="config-row">
+              <button class="win-btn-primary" @click="handleConfigPush">
+                <i class="fa-solid fa-download"></i>
+                <span>下发默认配置到内存</span>
+              </button>
+            </div>
+          </fieldset>
+        </div>
+      </template>
+
+      <!-- 视图三：手动调试点检 -->
+      <template v-if="currentView === 'manual'">
+        <div class="manual-panel">
+          <div class="warning-bar">
+            <i class="fa-solid fa-triangle-exclamation"></i>
+            手动调试接管状态警告：此操作将强行锁定下位机外设，自动算法将被挂起。
+          </div>
+
+          <fieldset class="win-group">
+            <legend>继电器 (DO) 手动强制点检</legend>
+            <div class="relay-grid">
+              <div v-for="i in 8" :key="i" class="relay-item">
+                <el-switch v-model="manualRelays[i-1]" active-color="#13ce66"></el-switch>
+                <span>继电器 {{ i }}</span>
+              </div>
+            </div>
+          </fieldset>
+        </div>
+      </template>
+    </div>
+
+    <!-- 底部状态栏 (Status Bar) -->
+    <div class="win-status-bar">
+      <div class="status-cell status-ip">
+        测试终端: <span class="ip-text">{{ deviceIp }}</span>
+      </div>
+      <div class="status-cell status-state">
+        状态:
+        <span :class="testEngine.status === 'running' ? 'state-running' : 'state-ready'">
+          {{ testEngine.status === 'running' ? '● 正在运行' : '■ 系统就绪' }}
+        </span>
+      </div>
+      <div class="status-cell status-cmd">
+        {{ currentCmd }}
+      </div>
+      <div class="status-cell status-pass">
+        通过率: <span class="pass-rate">{{ testStats.passRate }}%</span>
+        ({{ testStats.passCount }}/{{ testStats.totalCount }})
+      </div>
+      <div class="status-cell status-progress">
+        总进度:
+        <div class="progress-bar-bg">
+          <div class="progress-bar-fill" :style="{ width: testEngine.progress + '%' }"></div>
+        </div>
+        <span class="progress-text">{{ testEngine.progress }}%</span>
+      </div>
+    </div>
   </div>
 </template>
 
 <script setup>
-import { ref, computed, reactive, onMounted, nextTick } from 'vue'
+import { ref, computed, onMounted, nextTick } from 'vue'
+import { useDeviceStore } from '../stores/deviceStore'
 
-// 标签项定义
-const tabs = [
-  { id: 'console', name: '检定主控台', icon: '📊' },
-  { id: 'thresholds', name: '检定判定阈值', icon: '⚙️' },
-  { id: 'history', name: '出厂历史报表', icon: '📂' },
-  { id: 'debugging', name: '台体手动点检', icon: '🔧' },
-  { id: 'auth', name: '技术员授权', icon: '👤' }
-]
-const currentTab = ref('console')
-const currentTabName = computed(() => {
-  const t = tabs.find(item => item.id === currentTab.value)
-  return t ? `${t.name} - 单台设备全量自检` : ''
+const deviceStore = useDeviceStore()
+
+// ==================== 视图状态 ====================
+const currentView = ref('test')
+const treeRef = ref(null)
+const activeLogTab = ref('system')
+
+// ==================== 配置状态 ====================
+const currentCmd = ref('就绪')
+const lastError = ref('')
+const deviceIp = ref('192.168.1.200')
+const comPorts = ref({
+  rs485: 'COM3', baudRateRS485: 115200,
+  log: 'COM3', baudRateLog: 115200
 })
+const manualRelays = ref(Array(8).fill(false))
 
-// 操作员名称
-const operatorName = ref('Operator_02')
-const inputOperator = ref('Operator_02')
-const inputPassword = ref('******')
+// ==================== 串口日志相关 ====================
+const enableRealtimeLogs = ref(false)
+let serialPortObj = null
+let serialReader = null
+let mockInterval = null
 
-// 被测设备参数
-const deviceInfo = reactive({
-  mac: '00:11:22:AA:33:FF',
-  model: 'sj-encontrol-9301',
-  version: 'v1.2.8_build_20260529',
-  scheme: 'standard'
-})
-
-// 判定阈值配置
-const thresholds = reactive({
-  winHigh: 5.20,
-  winLow: 4.80,
-  slideTime: 30,
-  wetHumi: 85,
-  relayRes: 0.50,
-  heartbeat: 3000,
-  gatewayIp: '192.168.1.200',
-  serialPort: 'COM3',
-  listenerPort: 9001
-})
-
-// 系统运行状态
-const testing = ref(false)
-const sysStatusText = computed(() => {
-  if (testing.value) return '检定中...'
-  return '就绪'
-})
-const sysStatusColor = computed(() => {
-  if (testing.value) return 'var(--accent-yellow)'
-  return 'var(--accent-green)'
-})
-
-// 项目选择树
+// ==================== 左侧项目树数据 ====================
 const testTree = ref([
   {
-    id: 'grp-14-2',
-    name: '14.2 小窗自检模块',
-    checked: true,
+    id: 'L1',
+    label: 'L1 核心板及外设物理自检',
     children: [
-      { rowId: 'row-14-2-1', name: '14.2.1 小窗手动控制电压自检', checked: true },
-      { rowId: 'row-14-2-2', name: '14.2.2 小窗自动温控开度自检', checked: true }
+      { id: 1, label: 'SPI Flash 物理读写自检', status: 'not_run' },
+      { id: 2, label: 'EEPROM 参数存储自检', status: 'not_run' },
+      { id: 3, label: 'RTC 时钟晶振起振自检', status: 'not_run' },
+      { id: 4, label: 'RS485-1 总线通信自检', status: 'not_run' },
+      { id: 5, label: 'RS485-2 扩展通信自检', status: 'not_run' },
+      { id: 6, label: 'ADC 与 AO-AI 电压闭环', status: 'not_run' },
+      { id: 7, label: '22路继电器回读自检', status: 'not_run' },
     ]
   },
   {
-    id: 'grp-14-3',
-    name: '14.3 滑窗自检模块',
-    checked: true,
+    id: 'L2',
+    label: 'L2 核心控制算法自检',
     children: [
-      { rowId: 'row-14-3-1', name: '14.3.1 滑窗手动控制行程自检', checked: true },
-      { rowId: 'row-14-3-2', name: '14.3.2 滑窗自动控制压差自检', checked: true }
+      { id: 10, label: '小窗手动目标开度调节', status: 'not_run' },
+      { id: 11, label: '小窗自动负压温差调节', status: 'not_run' },
+      { id: 12, label: '进风幕帘开度行程校验', status: 'not_run' },
+      { id: 13, label: '风机手动强制占空比', status: 'not_run' },
+      { id: 14, label: '负压通风自动阶梯升降', status: 'not_run' },
+      { id: 15, label: '加热自动回差及强锁', status: 'not_run' },
+      { id: 16, label: '有害气体超标阻断校验', status: 'not_run' },
     ]
   },
   {
-    id: 'grp-14-5',
-    name: '14.5 风机控制模块',
-    checked: true,
+    id: 'L3',
+    label: 'L3 容错及安全机制自检',
     children: [
-      { rowId: 'row-14-5-1', name: '14.5.1 风机手动接触电阻自检', checked: true },
-      { rowId: 'row-14-5-2', name: '14.5.2 变频风机阶梯驱动控制', checked: true }
-    ]
-  },
-  {
-    id: 'grp-14-9',
-    name: '14.9 水帘控制模块',
-    checked: true,
-    children: [
-      { rowId: 'row-14-9-1', name: '14.9.1 水帘手动控制自检', checked: true },
-      { rowId: 'row-14-9-2', name: '14.9.2 水帘高湿保护闭环测试', checked: true }
+      { id: 20, label: '传感器断线超时告警', status: 'not_run' },
+      { id: 21, label: '传感器热重构免重启', status: 'not_run' },
+      { id: 22, label: '主备压差计高可用切换', status: 'not_run' },
+      { id: 23, label: '保温灯天龄切换延时', status: 'not_run' },
+      { id: 24, label: '微正压断联自适应重构', status: 'not_run' },
     ]
   }
 ])
 
-// 大表行数据
-const tableData = ref([
-  { id: 1, rowId: 'row-14-2-1', chapter: '14.2.1', name: '小窗手动控制自检 (1:1电压反馈)', limitKey: 'win_voltage', limit: '', measured: '', status: 'pending', passVal: '全关:4.98V 全开:0.01V', failVal: '全关:3.24V (偏差过大)', delay: 800 },
-  { id: 2, rowId: 'row-14-2-2', chapter: '14.2.2', name: '小窗自动温控开度自检 (步进校验)', limitKey: '', limit: '小窗行程步进平滑无卡涩', measured: '', status: 'pending', passVal: '步进正常 35%', failVal: '', delay: 800 },
-  { id: 3, rowId: 'row-14-3-1', chapter: '14.3.1', name: '滑窗手动控制行程安全校验', limitKey: 'slide_time', limit: '', measured: '', status: 'pending', passVal: '总耗时:29.8s', failVal: '', delay: 900 },
-  { id: 4, rowId: 'row-14-3-2', chapter: '14.3.2', name: '滑窗自动控制防抖与死区比对', limitKey: '', limit: '负压死区防抖阀值限制正常', measured: '', status: 'pending', passVal: '死区电压比对:12Pa', failVal: '', delay: 700 },
-  { id: 5, rowId: 'row-14-5-1', chapter: '14.5.1', name: '风机手动接触电阻测试 (8路继电器)', limitKey: 'relay_res', limit: '', measured: '', status: 'pending', passVal: '8路接触电阻均<0.12Ω', failVal: '风机3触点阻值:148Ω', delay: 1000 },
-  { id: 6, rowId: 'row-14-5-2', chapter: '14.5.2', name: '变频风机阶梯驱动控制自检', limitKey: '', limit: 'PWM 占空比阶梯步进正常', measured: '', status: 'pending', passVal: '各占空比输出一致', failVal: '', delay: 800 },
-  { id: 7, rowId: 'row-14-9-1', chapter: '14.9.1', name: '水帘手动控制动作自检 (常开反馈)', limitKey: '', limit: '水泵吸合辅助常开反馈5V', measured: '', status: 'pending', passVal: '动作反馈5.01V', failVal: '', delay: 700 },
-  { id: 8, rowId: 'row-14-9-2', chapter: '14.9.2', name: '水帘高湿自动锁定保护闭环测试', limitKey: 'wet_humidity', limit: '', measured: '', status: 'pending', passVal: '湿度过高强断正常 (3.0s)', failVal: '', delay: 900 }
+const defaultProps = { children: 'children', label: 'label' }
+
+// ==================== 寄存器断言回显表格 ====================
+const activeDetailRegisters = ref([
+  { id: 1, name: '自检整体状态', result: '等待测试' },
+  { id: 2, name: '单项自检结果', result: '等待测试' },
+  { id: 3, name: '外设继电器掩码', result: '等待测试' },
+  { id: 4, name: '内部环境变量', result: '等待测试' }
 ])
 
-// 初始化表格期望范围显示
-const initTableLimits = () => {
-  tableData.value.forEach(row => {
-    if (row.limitKey === 'win_voltage') {
-      row.limit = `全关:${thresholds.winHigh.toFixed(2)}V±0.2V 全开:0V±0.1V`
-    } else if (row.limitKey === 'slide_time') {
-      row.limit = `安全动作时间 ${thresholds.slideTime}s±2s`
-    } else if (row.limitKey === 'relay_res') {
-      row.limit = `接触电阻 < ${thresholds.relayRes.toFixed(2)} Ω`
-    } else if (row.limitKey === 'wet_humidity') {
-      row.limit = `环境湿度 > ${thresholds.wetHumi}% 自动强切水泵`
-    }
-  })
-}
-
-// 判定阈值改变时同步更新大表
-const onThresholdChange = () => {
-  initTableLimits()
-}
-
-// 树节点勾选状态联动
-const isGroupIndeterminate = (grp) => {
-  const checkedCount = grp.children.filter(c => c.checked).length
-  return checkedCount > 0 && checkedCount < grp.children.length
-}
-
-const toggleGroupCheck = (grp) => {
-  grp.children.forEach(c => {
-    c.checked = grp.checked
-    syncRowSkip(c.rowId, c.checked)
-  })
-}
-
-const toggleSubCheck = (sub) => {
-  const grp = testTree.value.find(g => g.children.some(c => c.rowId === sub.rowId))
-  if (grp) {
-    grp.checked = grp.children.every(c => c.checked)
-  }
-  syncRowSkip(sub.rowId, sub.checked)
-}
-
-const syncRowSkip = (rowId, checked) => {
-  const row = tableData.value.find(r => r.rowId === rowId)
-  if (row) {
-    row.status = checked ? 'pending' : 'skip'
-    if (!checked) {
-      row.measured = ''
-    }
-  }
-}
-
-const selectAllItems = (checked) => {
-  testTree.value.forEach(grp => {
-    grp.checked = checked
-    toggleGroupCheck(grp)
-  })
-}
-
-// 表格过滤数据（即所有项，只是用样式控制是否跳过）
-const filteredTableData = computed(() => {
-  return tableData.value.map((item, idx) => ({
-    ...item,
-    index: idx + 1
-  }))
+// ==================== 测试引擎状态 ====================
+const testEngine = ref({
+  sn: 'SN20260529-001',
+  workOrder: 'WO-8000',
+  status: 'idle',
+  progress: 0,
+  currentItemName: '',
+  failedItems: []
 })
 
-// 样式类绑定
-const tableRowClassName = ({ row }) => {
-  if (row.status === 'skip') {
-    return 'row-skip'
+// ==================== 统计逻辑 ====================
+const testStats = computed(() => {
+  let total = 0, passed = 0
+  testTree.value.forEach(group => {
+    group.children.forEach(item => {
+      if (item.status !== 'not_run') total++
+      if (item.status === 'pass') passed++
+    })
+  })
+  return {
+    totalCount: total,
+    passCount: passed,
+    passRate: total > 0 ? Math.round((passed / total) * 100) : 0
   }
-  return ''
+})
+
+// ==================== 终端日志 ====================
+const systemLogs = ref([])
+const deviceLogs = ref([])
+const systemTerminal = ref(null)
+const deviceTerminal = ref(null)
+
+const addLog = (text, type = 'info', target = 'system') => {
+  const colors = {
+    info: 'text-white',
+    success: 'text-green-400 font-bold',
+    warn: 'text-yellow-400 font-bold',
+    error: 'text-red-400 font-bold'
+  }
+  const timeStr = new Date().toLocaleTimeString('en-US', { hour12: false }) + '.' + String(new Date().getMilliseconds()).padStart(3, '0')
+
+  if (target === 'system') {
+    if (systemLogs.value.length > 500) systemLogs.value.shift()
+    systemLogs.value.push({ time: timeStr, text, color: colors[type], rawText: text })
+    nextTick(() => {
+      if (systemTerminal.value) systemTerminal.value.scrollTop = systemTerminal.value.scrollHeight
+    })
+  } else {
+    if (deviceLogs.value.length > 1000) deviceLogs.value.shift()
+    deviceLogs.value.push({ time: timeStr, text, color: colors[type], rawText: text })
+    nextTick(() => {
+      if (deviceTerminal.value) deviceTerminal.value.scrollTop = deviceTerminal.value.scrollHeight
+    })
+  }
 }
 
-// 状态文字转换
+const clearLogs = () => {
+  if (activeLogTab.value === 'system') systemLogs.value = []
+  else deviceLogs.value = []
+}
+
+// ==================== Web Serial API ====================
+const toggleSerialConnection = async () => {
+  if (enableRealtimeLogs.value) {
+    enableRealtimeLogs.value = false
+    try {
+      if (serialReader) {
+        await serialReader.cancel()
+        serialReader = null
+      }
+      if (serialPortObj) {
+        await serialPortObj.close()
+        serialPortObj = null
+      }
+      addLog("<<< 串口物理连接已断开，报文接收停止。", "warn", "device")
+    } catch (err) {
+      addLog(`关闭串口时发生错误: ${err}`, "error", "device")
+    }
+  } else {
+    if (!('serial' in navigator)) {
+      addLog("【系统环境错误】此浏览器不支持获取物理串口，无法启用真实报文。", "error", "device")
+      enableRealtimeLogs.value = true
+      activeLogTab.value = 'device'
+      startMockSerial()
+      return
+    }
+
+    try {
+      serialPortObj = await navigator.serial.requestPort()
+      await serialPortObj.open({ baudRate: comPorts.value.baudRateLog })
+      enableRealtimeLogs.value = true
+      activeLogTab.value = 'device'
+      addLog(`>>> 成功打开物理串口，波特率 ${comPorts.value.baudRateLog}，正在读取硬件报文...`, "success", "device")
+
+      const textDecoder = new window.TextDecoderStream()
+      const readableStreamClosed = serialPortObj.readable.pipeTo(textDecoder.writable)
+      serialReader = textDecoder.readable.getReader()
+      readSerialLoop()
+    } catch (err) {
+      addLog(`串口连接被拒绝或打开失败: ${err.message} (降级到演示模式)`, "warn", "device")
+      enableRealtimeLogs.value = true
+      activeLogTab.value = 'device'
+      startMockSerial()
+    }
+  }
+}
+
+const startMockSerial = () => {
+  if (mockInterval) clearInterval(mockInterval)
+  addLog(`>>> [模拟串口模式] 正在模拟从虚拟 COM 口接收报文...`, "success", "device")
+  mockInterval = setInterval(() => {
+    if (!enableRealtimeLogs.value) {
+      clearInterval(mockInterval)
+      return
+    }
+    if (testEngine.value.status !== 'running') {
+      const randomHex = Math.floor(Math.random() * 256).toString(16).padStart(2, '0').toUpperCase()
+      addLog(`[RX] 01 03 20 ${randomHex} A4 5F ... (终端心跳保持)`, "info", "device")
+    }
+  }, 2000)
+}
+
+let serialBuffer = ''
+const readSerialLoop = async () => {
+  try {
+    while (true) {
+      const { value, done } = await serialReader.read()
+      if (done) break
+      if (value) {
+        serialBuffer += value
+        let lines = serialBuffer.split('\n')
+        serialBuffer = lines.pop()
+        lines.forEach(line => {
+          if (line.trim().length > 0) {
+            addLog(`[RX] ${line.trim()}`, "info", "device")
+          }
+        })
+      }
+    }
+  } catch (error) {
+    addLog(`硬件读取发生错误，可能是数据线松动: ${error}`, "error", "device")
+    enableRealtimeLogs.value = false
+  } finally {
+    if (serialReader) serialReader.releaseLock()
+  }
+}
+
+// ==================== 日志导出 ====================
+const exportLogs = () => {
+  const currentLogs = activeLogTab.value === 'system' ? systemLogs.value : deviceLogs.value
+  const logName = activeLogTab.value === 'system' ? 'System_Log' : 'Device_COM_Log'
+
+  if (currentLogs.length === 0) {
+    alert('当前终端没有可以导出的运行日志。')
+    return
+  }
+  const logContent = currentLogs.map(l => `[${l.time}] ${l.rawText}`).join('\n')
+  const blob = new Blob([logContent], { type: "text/plain;charset=utf-8" })
+  const url = URL.createObjectURL(blob)
+  const a = document.createElement("a")
+  a.href = url
+  a.download = `ATE_${logName}_${new Date().getTime()}.txt`
+  document.body.appendChild(a)
+  a.click()
+  document.body.removeChild(a)
+  URL.revokeObjectURL(url)
+  alert(`【${logName}】日志已成功保存到本地电脑！`)
+}
+
+// ==================== 样式辅助函数 ====================
 const getStatusText = (status) => {
-  const map = {
-    pending: '等待检测',
-    testing: '测试中...',
-    pass: '合格',
-    fail: '不合格',
-    skip: '已跳过'
+  return { 'pass': '合格', 'fail': '不合格', 'running': '测试中...', 'not_run': '' }[status] || ''
+}
+
+const getStatusColor = (status) => {
+  return { 'pass': 'text-green-600', 'fail': 'text-red-600', 'running': 'text-blue-600' }[status] || ''
+}
+
+const tableRowClassName = ({ row, rowIndex }) => {
+  if (row.result === '合格') return 'win-row-pass'
+  if (row.result === '不合格') return 'win-row-fail'
+  return rowIndex % 2 === 1 ? 'bg-gray-50' : ''
+}
+
+// ==================== 核心执行引擎 ====================
+let activeQueue = []
+let executionIndex = 0
+
+const buildQueue = (onlyFailed = false) => {
+  if (!treeRef.value) return []
+  const checkedNodes = treeRef.value.getCheckedNodes(true)
+  if (onlyFailed) return checkedNodes.filter(n => n.status === 'fail')
+  return checkedNodes
+}
+
+const updateRegisterAssertMock = (item) => {
+  if (item.id <= 9) {
+    activeDetailRegisters.value = [
+      { id: 1, name: '自检整体状态', result: '正在测试' },
+      { id: 2, name: '单项自检结果', result: '正在测试' },
+      { id: 3, name: '单项自检错误码', result: '正在测试' }
+    ]
+    addLog(`[TCP TX -> 502] 00 01 00 00 00 06 01 03 80 00 00 28 (读取自检状态及会话ID)`, 'info', 'system')
+    if (enableRealtimeLogs.value) addLog(`[TX] 01 03 80 00 00 28 C4 13`, 'info', 'device')
+  } else if (item.id > 9 && item.id <= 35) {
+    activeDetailRegisters.value = [
+      { id: 1, name: '室内实际平均温度', result: '正在测试' },
+      { id: 2, name: '当前自动通风等级', result: '正在测试' },
+      { id: 3, name: '风机继电器输出掩码', result: '正在测试' }
+    ]
+    addLog(`[TCP JSON 9001] {"functionId":"properties.get","itemName":"Fanlogic"}`, 'info', 'system')
+    if (enableRealtimeLogs.value) addLog(`[RX] {"event":"reply","data":{"Fanlogic":3}}`, 'info', 'device')
+  } else {
+    activeDetailRegisters.value = [
+      { id: 1, name: '传感器历史故障字', result: '正在测试' },
+      { id: 2, name: '系统安全运行模式', result: '正在测试' }
+    ]
+    addLog(`[TCP TX] 00 01 00 00 00 06 01 03 10 30 00 01 (监控高可用备用切换机制)`, 'info', 'system')
+    if (enableRealtimeLogs.value) addLog(`[TX] 01 03 10 30 00 01 80 CA`, 'info', 'device')
   }
-  return map[status] || status
 }
 
-// 日志系统
-const logs = ref([])
-const logContainer = ref(null)
-
-const addLog = (msg, color = '#ffffff') => {
-  const now = new Date()
-  const time = now.toTimeString().split(' ')[0]
-  logs.value.push({ time, msg, color })
-  nextTick(() => {
-    if (logContainer.value) {
-      logContainer.value.scrollTop = logContainer.value.scrollHeight
-    }
-  })
-}
-
-// 自动测试流程 - 调用后端 TestManager
-let timerId = null
-let currentStepIdx = 0
-
-const startAutoTest = () => {
-  if (testing.value) return
-
-  // 获取选中的测试项
-  const selectedItemIds = tableData.value
-    .filter(r => r.status !== 'skip')
-    .map(r => r.id)
-
-  if (selectedItemIds.length === 0) {
-    addLog('⚠️ 请至少选择一个测试项', '#f59e0b')
+const startSingleTest = () => {
+  activeQueue = buildQueue()
+  if (activeQueue.length === 0) {
+    alert('请先勾选待检定项目')
     return
   }
+  if (executionIndex >= activeQueue.length) executionIndex = 0
+  testEngine.value.status = 'running'
+  currentCmd.value = `单步执行: ${activeQueue[executionIndex].label}`
 
-  testing.value = true
-  currentStepIdx = 0
-  addLog('====================== 启动 ATE 上位机物理检定队列 ======================', '#f59e0b')
-  addLog(`被测 MAC: ${deviceInfo.mac} | 主板型号: ${deviceInfo.model} | 方案: ${deviceInfo.scheme}`, '#3b82f6')
-
-  // 重置状态
-  tableData.value.forEach(r => {
-    if (r.status !== 'skip') {
-      r.status = 'pending'
-      r.measured = ''
-    }
-  })
-
-  // 调用 store 启动测试
-  deviceStore.startTest({
-    deviceIp: deviceStore.selectedDeviceIp,
-    operatorInputId: operatorName.value,
-    selectedItemIds,
-    deviceModel: deviceInfo.model,
-    workOrder: deviceInfo.workOrder || '',
-  })
-
-  addLog('已发送启动请求到后端...', '#3b82f6')
-}
-
-const runNextStep = () => {
-  // 此函数保留用于本地 UI 更新，实际测试由后端驱动
-  if (!testing.value) return
-
-  let step = null
-  while (currentStepIdx < tableData.value.length) {
-    const next = tableData.value[currentStepIdx]
-    if (next.status !== 'skip') {
-      step = next
-      break
-    }
-    currentStepIdx++
-  }
-
-  if (!step) {
-    addLog('====================== ATE 队列自检完毕 ======================', '#10b981')
-    testing.value = false
-    return
-  }
-}
-
-const stopAutoTest = () => {
-  testing.value = false
-  addLog('🛑 操作员执行紧急停止！', '#ef4444')
-
-  // 调用 store 停止测试
-  deviceStore.stopTest()
-
-  tableData.value.forEach(r => {
-    if (r.status === 'testing') {
-      r.status = 'pending'
-    }
+  executeStep(activeQueue[executionIndex], () => {
+    testEngine.value.status = 'idle'
+    currentCmd.value = '单步执行完毕，系统就绪。'
+    executionIndex++
   })
 }
 
-const runSingleTest = () => {
-  addLog('就地单项电气重测中...', '#e5e7eb')
-  deviceStore.retryFailed()
-}
+const startContinuousTest = () => {
+  activeQueue = buildQueue()
+  if (activeQueue.length === 0) return alert('请先勾选待检定项目')
 
-// 保存数据
-const saveTestData = () => {
-  const hasFail = tableData.value.some(r => r.status === 'fail')
-  const newRec = {
-    id: Date.now(),
-    time: new Date().toLocaleString(),
-    mac: deviceInfo.mac,
-    model: deviceInfo.model,
-    operator: operatorName.value,
-    status: hasFail ? 'FAIL' : 'PASS'
-  }
-  historyRecords.value.unshift(newRec)
-  addLog(`[存盘] 设备 MAC:${deviceInfo.mac} 物理测试数据成功持久化至本地 SQLite 数据库。`, '#10b981')
-  alert('检定数据成功持久化保存！可在“出厂历史报表”中查询并打印质检单。')
-}
+  testEngine.value.status = 'running'
+  testEngine.value.failedItems = []
+  executionIndex = 0
+  lastError.value = ''
+  addLog(`=== 开始连续检定批次, 共 ${activeQueue.length} 项 ===`, 'info', 'system')
 
-// 诊断弹窗
-const dialogVisible = ref(false)
-const activeErrorItem = ref({ name: '', desc: '', code: '' })
-
-const handleStatusClick = (row) => {
-  if (row.status !== 'fail') return
-  
-  if (row.rowId === 'row-14-2-1') {
-    activeErrorItem.value = {
-      name: '小窗手动电压自检',
-      desc: '小窗行程反馈发出全关指令，模拟AI端实测回读电压为 3.24V，偏离设定的 5V±0.2V 判定限。可能原因：小窗限位滑轨卡涩阻值偏差，或底板AI分压阻抗老化接触不良。',
-      code: 'App_Save.Window[DO_SmallWindow].Now_Position = 0;\nApp_Run.portAI[AI_SmallWindow].SampleVoltage = 3240 mV; // 正常应为 4800~5200 mV'
+  const runNext = () => {
+    if (executionIndex >= activeQueue.length) {
+      testEngine.value.status = testEngine.value.failedItems.length > 0 ? 'fail' : 'pass'
+      testEngine.value.progress = 100
+      currentCmd.value = '连续检定完成。'
+      addLog(`=== 批次检定结束。失败 ${testEngine.value.failedItems.length} 项 ===`, testEngine.value.status === 'pass' ? 'success' : 'error', 'system')
+      return
     }
-  } else if (row.rowId === 'row-14-5-1') {
-    activeErrorItem.value = {
-      name: '风机继电器接触阻抗自检',
-      desc: '定速风机 3 闭合，高压隔离板回测辅助触点内阻为 148Ω，远超设定的 0.5Ω 安全门限，拦截原因为继电器内胆打弧碳化。',
-      code: 'App_Run.Supplyfan[2].FixedState = 1;\nApp_Run.LGT.RelayNum = 3;\nATE_Sensor_Voltage = 0.24 V; // 高电平常开信号未闭合'
-    }
+    currentCmd.value = `正在检定 (${executionIndex + 1}/${activeQueue.length}): ${activeQueue[executionIndex].label}`
+    executeStep(activeQueue[executionIndex], () => {
+      executionIndex++
+      testEngine.value.progress = Math.round((executionIndex / activeQueue.length) * 100)
+      runNext()
+    })
   }
-  dialogVisible.value = true
+  runNext()
 }
 
-// 判定页面
-const saveThresholdsAlert = () => {
-  addLog('系统配置参数写入完毕。最新阈值限已覆盖全局自检判定公式。', '#10b981')
-  alert('参数配置更新成功，已刷新测试大表！')
+const startFailedOnlyTest = () => {
+  activeQueue = buildQueue(true)
+  if (activeQueue.length === 0) return alert('当前无不合格项')
+  testEngine.value.status = 'running'
+  executionIndex = 0
+  addLog(`=== 复测不合格项, 共 ${activeQueue.length} 项 ===`, 'warn', 'system')
+
+  const runNext = () => {
+    if (executionIndex >= activeQueue.length) {
+      testEngine.value.status = 'idle'
+      currentCmd.value = '复测结束。'
+      return
+    }
+    executeStep(activeQueue[executionIndex], () => {
+      executionIndex++
+      runNext()
+    })
+  }
+  runNext()
 }
 
-// 历史记录
-const historyRecords = ref([
-  { id: 1001, time: '2026-05-29 14:32:01', mac: '00:11:22:AA:33:EE', model: 'sj-encontrol-9301', operator: 'Operator_02', status: 'PASS' },
-  { id: 1002, time: '2026-05-29 15:10:45', mac: '00:11:22:AA:33:88', model: 'sj-encontrol-9250', operator: 'Operator_02', status: 'FAIL' }
-])
-const historyQuery = ref('')
-const filteredRecords = computed(() => {
-  if (!historyQuery.value) return historyRecords.value
-  return historyRecords.value.filter(r => r.mac.includes(historyQuery.value))
-})
-
-// PDF报表生成
-const showPdf = ref(false)
-const currentPdfRecord = ref({})
-const openPdfReport = (rec) => {
-  currentPdfRecord.value = rec
-  showPdf.value = true
-}
-const printReport = () => {
-  window.print()
+const stopTest = () => {
+  testEngine.value.status = 'idle'
+  currentCmd.value = '操作员已强行中止检定。'
+  addLog('🛑 检定序列被人工中止。', 'warn', 'system')
 }
 
-// 继电器手动点检模拟
-const relayStates = ref([
-  { id: 1, name: '负压风机1', state: false },
-  { id: 2, name: '负压风机2', state: false },
-  { id: 3, name: '定速风机3', state: false },
-  { id: 4, name: '喷淋继电器', state: false },
-  { id: 5, name: '照明继电器', state: false },
-  { id: 6, name: '加热1继电器', state: false },
-  { id: 7, name: '水帘水泵', state: false },
-  { id: 8, name: '辅助报警', state: false }
-])
-const aoValue = ref(0)
-
-const toggleRelayState = (relay) => {
-  relay.state = !relay.state
-  addLog(`点检控制：下发继电器通道 DO ${relay.id} -> ${relay.state ? '【吸合】' : '【断开】'}`, relay.state ? '#10b981' : '#f59e0b')
+const resetTest = () => {
+  testEngine.value.status = 'idle'
+  testEngine.value.progress = 0
+  lastError.value = ''
+  testTree.value.forEach(g => g.children.forEach(c => c.status = 'not_run'))
+  clearLogs()
+  currentCmd.value = '状态已重置'
 }
 
-const onAoSliderInput = (val) => {
-  addLog(`点检控制：更新模拟输出 AO 1 开度电压设定 -> ${(val / 10).toFixed(1)} V`, '#3b82f6')
+const executeStep = (node, callback) => {
+  testEngine.value.currentItemName = node.label
+  node.status = 'running'
+
+  addLog(`[System] 下发指令指令队列: 节点 ${node.id.toString(16)} ...`, 'info', 'system')
+  if (enableRealtimeLogs.value) addLog(`[TX] 68 4A 00 4A 00 68 4B ${node.id.toString(16).padStart(2, '0')} ...`, 'info', 'device')
+
+  updateRegisterAssertMock(node)
+
+  setTimeout(() => {
+    let isPass = Math.random() > 0.15
+
+    if (isPass) {
+      node.status = 'pass'
+      addLog(`[PASS] 节点 [${node.label}] 自检合格`, 'success', 'system')
+      if (enableRealtimeLogs.value) addLog(`[RX] 68 4A 00 4A 00 68 8B 00 00 (ACK_OK)`, 'success', 'device')
+      activeDetailRegisters.value.forEach(r => r.result = '合格')
+    } else {
+      node.status = 'fail'
+      testEngine.value.failedItems.push(node)
+      lastError.value = `${node.id} ${node.label} 返回错误码 E01`
+      addLog(`[FAIL] 告警: 节点 [${node.label}] 硬件响应超时或数据异常`, 'error', 'system')
+      if (enableRealtimeLogs.value) addLog(`[RX] 68 4A 00 4A 00 68 CB 01 E0 (ACK_ERR_E01)`, 'error', 'device')
+      activeDetailRegisters.value.forEach(r => r.result = '不合格')
+    }
+    callback()
+  }, 800)
 }
 
-// 授权登录
-const handleOperatorLogin = () => {
-  operatorName.value = inputOperator.value
-  addLog(`操作授权：技术员 [${inputOperator.value}] 安全登录成功，解锁系统检定数据库。`, '#10b981')
-  alert(`切换操作人员成功：当前技术员变更为 ${inputOperator.value}`)
-  currentTab.value = 'console'
+const downloadReport = () => {
+  alert("报表生成请求已下发。")
 }
 
+const handleConfigPush = () => {
+  alert("配置下发成功！")
+}
+
+// ==================== 生命周期 ====================
 onMounted(() => {
-  initTableLimits()
-  addLog('系统初始化完毕。Modbus TCP 上位机侦听已就绪。')
+  if (treeRef.value) {
+    const allKeys = []
+    testTree.value.forEach(g => {
+      allKeys.push(g.id)
+      g.children.forEach(c => allKeys.push(c.id))
+    })
+    treeRef.value.setCheckedKeys(allKeys)
+  }
 })
 </script>
 
 <style scoped>
-/* 整个 ATE 页面的全局容器，基于 Glassmorphism (暗色毛玻璃磨砂风格) */
+/* ============================================
+   WinForms 经典浅灰色调样式
+   ============================================ */
+
+/* 全局容器 */
 .ate-page-container {
   display: flex;
-  height: calc(100vh - 100px); /* 留出顶部 GD32 环控系统主标题的高度 */
-  background: #080c14;
-  color: #f3f4f6;
-  border-radius: 12px;
-  border: 1px solid rgba(255, 255, 255, 0.08);
-  overflow: hidden;
-}
-
-/* ATE 侧边导航栏 */
-.ate-sidebar {
-  width: 200px;
-  background: rgba(13, 20, 35, 0.95);
-  border-right: 1px solid rgba(255, 255, 255, 0.08);
-  display: flex;
   flex-direction: column;
   height: 100%;
-}
-
-.ate-sidebar-header {
-  padding: 16px;
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
-}
-
-.logo-circle {
-  width: 20px;
-  height: 20px;
-  background: linear-gradient(135deg, #06b6d4, #3b82f6);
-  border-radius: 50%;
-  box-shadow: 0 0 10px rgba(6, 182, 212, 0.5);
-}
-
-.logo-text h2 {
-  font-size: 13px;
-  font-weight: 700;
-  color: #fff;
-  margin: 0;
-}
-
-.logo-text span {
-  font-size: 9px;
-  color: #06b6d4;
-  letter-spacing: 0.5px;
-}
-
-.ate-nav-menu {
-  list-style: none;
-  padding: 16px 8px;
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-  flex: 1;
-}
-
-.ate-nav-item {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  padding: 10px 12px;
-  color: #9ca3af;
-  font-size: 13px;
-  border-radius: 6px;
-  cursor: pointer;
-  transition: all 0.2s;
-}
-
-.ate-nav-item:hover {
-  color: #fff;
-  background: rgba(255, 255, 255, 0.03);
-}
-
-.ate-nav-item.active {
-  color: #fff;
-  background: linear-gradient(90deg, rgba(6, 182, 212, 0.15), rgba(59, 130, 246, 0.05));
-  border-left: 3px solid #06b6d4;
-}
-
-.ate-nav-icon {
-  font-size: 14px;
-}
-
-.ate-sidebar-footer {
-  padding: 12px 16px;
-  border-top: 1px solid rgba(255, 255, 255, 0.08);
-  font-size: 11px;
-  color: #9ca3af;
-}
-
-/* 主内容工作区 */
-.ate-main-content {
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-  height: 100%;
-  overflow: hidden;
-  background-image: radial-gradient(circle at 10% 10%, rgba(6, 182, 212, 0.02) 0%, transparent 40%);
-}
-
-/* 顶部状态栏 */
-.ate-header-bar {
-  height: 50px;
-  background: rgba(10, 15, 26, 0.5);
-  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 0 20px;
-}
-
-.header-title {
-  font-size: 13.5px;
-  font-weight: 600;
-  color: #e5e7eb;
-}
-
-.header-operator {
-  display: flex;
-  align-items: center;
-  gap: 8px;
+  background-color: #f0f0f0;
+  color: #000;
+  font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
   font-size: 12px;
 }
 
-.header-operator .label {
-  color: #9ca3af;
-}
-
-.header-operator .operator-name {
-  font-weight: 600;
-  color: #fff;
-}
-
-.op-avatar {
-  background: #1e293b;
-  border: 1px solid #06b6d4;
-  color: #06b6d4;
-  font-size: 10px;
+/* 蓝色渐变标题栏 */
+.win-title-bar {
+  background: linear-gradient(to right, #005c99 0%, #00a2e8 50%, #e0f0ff 100%);
+  color: white;
   font-weight: bold;
+  text-shadow: 1px 1px 2px rgba(0,0,0,0.5);
+  height: 40px;
+  display: flex;
+  align-items: center;
+  padding: 0 12px;
+  flex-shrink: 0;
 }
 
-/* 页面面板 */
-.tab-panel {
-  display: none;
+.title-left {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.title-left i {
+  font-size: 20px;
+}
+
+.title-left span {
+  font-size: 13px;
+  letter-spacing: 1px;
+  font-family: serif;
+}
+
+/* 经典工具栏 */
+.win-toolbar {
+  height: 64px;
+  display: flex;
+  align-items: center;
+  padding: 0 8px;
+  border-bottom: 1px solid #808080;
+  gap: 4px;
+  flex-shrink: 0;
+  background: #f0f0f0;
+  box-shadow: inset 0 1px 0 #fff;
+}
+
+/* 工具栏分隔线 */
+.toolbar-divider {
+  width: 1px;
+  height: 40px;
+  background: #808080;
+  margin: 0 4px;
+}
+
+.toolbar-spacer {
   flex: 1;
-  padding: 16px;
-  overflow: hidden;
 }
 
-.tab-panel.active-panel {
+/* 经典工具栏按钮 */
+.win-btn {
   display: flex;
   flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  background: transparent;
+  border: 1px solid transparent;
+  padding: 4px 10px;
+  font-size: 11px;
+  color: #000;
+  cursor: pointer;
+  min-width: 60px;
 }
 
-/* 通用卡片 */
-.ate-card {
-  background: rgba(17, 24, 39, 0.7);
-  backdrop-filter: blur(10px);
-  border: 1px solid rgba(255, 255, 255, 0.06);
-  border-radius: 8px;
-  padding: 16px;
-  margin-bottom: 14px;
+.win-btn:hover:not(:disabled) {
+  background-color: #e5f1fb;
+  border: 1px solid #0078d7;
+  border-radius: 2px;
 }
 
-.ate-card-title {
-  font-size: 13px;
-  font-weight: 700;
-  color: #fff;
-  margin-bottom: 12px;
+.win-btn:active:not(:disabled) {
+  background-color: #cce4f7;
 }
 
-/* 待测设备基本参数 */
-.param-form {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 10px;
+.win-btn:disabled {
+  color: #999;
+  cursor: not-allowed;
+  filter: grayscale(100%);
+  opacity: 0.6;
 }
 
-.param-form :deep(.el-form-item) {
-  margin-right: 0;
+.win-btn i {
+  font-size: 18px;
   margin-bottom: 4px;
 }
 
-.param-form :deep(.el-form-item__label) {
-  color: #9ca3af;
-  font-size: 12px;
-  padding-bottom: 4px;
+.win-btn.active {
+  background-color: #cce4f7;
+  border: 1px solid #0078d7;
 }
 
-.param-form :deep(.el-input__inner),
-.param-form :deep(.el-select__wrapper) {
-  background: rgba(10, 15, 26, 0.7);
-  border: 1px solid rgba(255, 255, 255, 0.08);
-  color: #fff;
-}
-
-/* 树和大表两栏布局 */
-.test-columns {
+/* 启用报文按钮 */
+.enable-log-btn {
   display: flex;
-  gap: 14px;
-  flex: 1;
-  min-height: 0;
-  overflow: hidden;
-  margin-bottom: 14px;
+  align-items: center;
+  cursor: pointer;
+  padding: 4px;
+  border: 1px solid transparent;
+  border-radius: 2px;
 }
 
-.tree-sidebar-card {
-  width: 250px;
-  background: rgba(10, 15, 26, 0.4);
-  border: 1px solid rgba(255, 255, 255, 0.06);
-  border-radius: 8px;
+.enable-log-btn:hover {
+  background-color: #e5f1fb;
+  border-color: #0078d7;
+}
+
+.enable-log-btn .checkbox {
+  width: 16px;
+  height: 16px;
+  margin-left: 4px;
+  margin-right: 4px;
+  pointer-events: none;
+}
+
+/* 主体内容区 */
+.ate-main-content {
+  flex: 1;
+  display: flex;
+  overflow: hidden;
+  padding: 4px;
+  gap: 4px;
+  background: #d4d0c8;
+}
+
+/* 经典面板边框下沉效果 */
+.win-panel-inset {
+  border-top: 1px solid #808080;
+  border-left: 1px solid #808080;
+  border-bottom: 1px solid #ffffff;
+  border-right: 1px solid #ffffff;
+  background: #ffffff;
+}
+
+/* 左侧项目树面板 */
+.tree-panel {
+  width: 280px;
   display: flex;
   flex-direction: column;
-  padding: 12px;
+  background: white;
+  border: 1px solid #808080;
+  flex-shrink: 0;
 }
 
-.tree-header {
+.panel-header {
+  background: linear-gradient(to bottom, #ffffff 0%, #e3edf7 100%);
+  border-bottom: 1px solid #808080;
+  padding: 4px 8px;
   display: flex;
   justify-content: space-between;
   align-items: center;
-  font-size: 11.5px;
+}
+
+.panel-title {
   font-weight: bold;
-  color: #9ca3af;
-  margin-bottom: 10px;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
-  padding-bottom: 6px;
+  color: #003399;
 }
 
 .tree-container {
   flex: 1;
-  overflow-y: auto;
+  overflow: auto;
+  padding: 4px;
 }
 
-.tree-group {
-  margin-bottom: 12px;
+.tree-node-content {
+  display: flex;
+  justify-content: space-between;
+  width: 100%;
+  padding-right: 8px;
 }
 
-.tree-group-title {
-  margin-bottom: 4px;
-}
-
-.tree-group-title :deep(.el-checkbox__label) {
+.status-badge {
   font-weight: bold;
-  color: #fff;
-  font-size: 12.5px;
+  margin-left: 8px;
 }
 
-.tree-children {
-  margin-left: 18px;
+/* 右侧面板 */
+.right-panel {
+  flex: 1;
   display: flex;
   flex-direction: column;
   gap: 4px;
-}
-
-.tree-children :deep(.el-checkbox__label) {
-  color: #9ca3af;
-  font-size: 11.5px;
-}
-
-.table-container-card {
-  flex: 1;
-  background: rgba(17, 24, 39, 0.5);
-  border: 1px solid rgba(255, 255, 255, 0.06);
-  border-radius: 8px;
   overflow: hidden;
 }
 
-/* 自定义表格样式，以契合暗色背景 */
-.ate-custom-table :deep(tr) {
-  background: transparent;
-}
-
-.ate-custom-table :deep(th) {
-  background: rgba(10, 15, 26, 0.95);
-  color: #9ca3af;
-  border-bottom: 2px solid rgba(255, 255, 255, 0.08);
-  font-size: 12px;
-  padding: 8px 0;
-}
-
-.ate-custom-table :deep(td) {
-  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
-  color: #e5e7eb;
-  padding: 6px 0;
-}
-
-.ate-custom-table :deep(.row-skip) {
-  opacity: 0.25;
-  pointer-events: none;
-}
-
-/* 状态徽标 */
-.cell-status-badge {
-  border-radius: 4px;
-  padding: 3px 8px;
-  font-weight: 600;
-  display: inline-block;
-  width: 90px;
-  font-size: 10.5px;
-  text-align: center;
-  border: 1px solid transparent;
-  user-select: none;
-}
-
-.status-pending { background: rgba(255, 255, 255, 0.03); border-color: rgba(255, 255, 255, 0.06); color: #9ca3af; }
-.status-testing { background: rgba(245, 158, 11, 0.15); border-color: rgba(245, 158, 11, 0.35); color: #f59e0b; animation: tablePulse 1.5s infinite; }
-.status-pass { background: rgba(16, 185, 129, 0.15); border-color: rgba(16, 185, 129, 0.35); color: #34d399; }
-.status-fail { background: rgba(239, 68, 68, 0.15); border-color: rgba(239, 68, 68, 0.35); color: #f87171; cursor: pointer; }
-.status-skip { background: rgba(255, 255, 255, 0.01); color: rgba(255, 255, 255, 0.2); text-decoration: line-through; }
-
-@keyframes tablePulse {
-  0% { opacity: 0.6; }
-  50% { opacity: 1; }
-  100% { opacity: 0.6; }
-}
-
-/* 底部操作 */
-.console-footer-bar {
-  margin-bottom: 12px;
-}
-
-.action-buttons {
-  display: flex;
-  gap: 10px;
-}
-
-/* 日志控制台 */
-.log-console-container {
-  height: 120px;
-  background: #06090f;
-  border: 1px solid rgba(255, 255, 255, 0.08);
-  border-radius: 6px;
+/* 寄存器监控面板 */
+.register-panel {
+  height: 50%;
   display: flex;
   flex-direction: column;
-  overflow: hidden;
-  font-family: 'Consolas', monospace;
+  background: white;
+  border: 1px solid #808080;
+  position: relative;
 }
 
-.log-tab-header {
-  height: 28px;
-  background: #0c111d;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
-  padding: 4px 12px;
+.current-item {
+  color: #003399;
   font-size: 11px;
-  color: #06b6d4;
   font-weight: bold;
+  max-width: 300px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
-.log-body {
+.register-table-container {
   flex: 1;
-  overflow-y: auto;
-  padding: 8px;
+  overflow: auto;
+  background: white;
+}
+
+/* 终端面板 */
+.terminal-panel {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  background: white;
+  border: 1px solid #808080;
+  margin-top: 4px;
+}
+
+.terminal-tabs {
+  display: flex;
+  align-items: flex-end;
+  background: #f0f0f0;
+  border-bottom: 1px solid #808080;
+  padding: 4px 4px 0 4px;
+  gap: 4px;
+}
+
+.terminal-tab {
+  padding: 4px 16px;
+  border: 1px solid #808080;
+  border-bottom: none;
+  background: #e3edf7;
+  cursor: pointer;
+  font-size: 12px;
+  border-radius: 2px 2px 0 0;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.terminal-tab:hover:not(.active) {
+  background: #cce4f7;
+}
+
+.terminal-tab.active {
+  background: white;
+  border-bottom: 1px solid white;
+  font-weight: bold;
+  color: #003399;
+  z-index: 10;
+}
+
+.status-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #22c55e;
+  animation: pulse 2s infinite;
+  box-shadow: 0 0 4px #22c55e;
+}
+
+@keyframes pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.5; }
+}
+
+.tab-spacer {
+  flex: 1;
+}
+
+.tab-tools {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 4px 8px;
+  background: #f0f0f0;
+}
+
+.tool-link {
+  color: #0066cc;
   font-size: 11px;
+  text-decoration: none;
+}
+
+.tool-link:hover {
+  text-decoration: underline;
+}
+
+.tool-divider {
+  color: #808080;
+}
+
+.terminal-content {
+  flex: 1;
+  overflow: auto;
+  padding: 4px;
+  font-family: 'Consolas', 'Courier New', monospace;
+  font-size: 12px;
   line-height: 1.4;
 }
 
-.log-line {
-  margin-bottom: 2px;
+.terminal-system {
+  background: black;
+  color: white;
+}
+
+.terminal-device {
+  background: #000080;
+  color: white;
+}
+
+.terminal-body {
+  height: 100%;
+  overflow-y: auto;
 }
 
 .log-time {
-  color: #3b82f6;
+  color: #808080;
   margin-right: 8px;
 }
 
-/* 阈值配置面板 */
-.thresholds-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
-  gap: 20px;
-  margin-bottom: 20px;
+/* 系统配置面板 */
+.config-panel {
+  flex: 1;
+  background: white;
+  border: 1px solid #808080;
+  padding: 16px;
+  overflow: auto;
 }
 
-.config-column h3 {
-  font-size: 13px;
-  color: #06b6d4;
-  margin-bottom: 12px;
-  border-left: 2px solid #06b6d4;
-  padding-left: 8px;
+.win-group {
+  border: 1px solid #d0d0bf;
+  border-radius: 3px;
+  padding: 10px;
+  margin-bottom: 15px;
+  background-color: #fafafa;
+  max-width: 600px;
 }
 
-.config-item {
+.win-group legend {
+  color: #003399;
+  padding: 0 5px;
+  font-weight: bold;
+  font-size: 12px;
+}
+
+.config-row {
   display: flex;
-  flex-direction: column;
-  gap: 4px;
-  margin-bottom: 12px;
+  align-items: center;
+  margin-bottom: 16px;
 }
 
-.config-item label {
-  font-size: 11.5px;
-  color: #9ca3af;
-}
-
-.config-item :deep(.el-input-number),
-.config-item :deep(.el-input) {
-  width: 100%;
-}
-
-.config-footer {
+.config-label {
+  width: 128px;
   text-align: right;
-  border-top: 1px solid rgba(255, 255, 255, 0.08);
-  padding-top: 14px;
+  padding-right: 16px;
+  font-weight: bold;
+  color: #374151;
 }
 
-/* 历史列表页 */
-.history-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 16px;
-}
-
-.history-search {
-  display: flex;
-  gap: 8px;
-}
-
-.records-wrapper {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-  max-height: 400px;
-  overflow-y: auto;
-}
-
-.record-row {
-  background: rgba(255, 255, 255, 0.02);
-  border: 1px solid rgba(255, 255, 255, 0.06);
-  border-radius: 6px;
-  padding: 12px 16px;
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-}
-
-.record-details {
-  display: flex;
-  gap: 24px;
-}
-
-.detail-cell {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-}
-
-.detail-cell .lbl {
-  font-size: 10px;
-  color: #9ca3af;
-}
-
-.detail-cell .val {
-  font-size: 12px;
-  font-weight: 600;
-}
-
-/* PDF报告样式 */
-.pdf-container {
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-  overflow-y: auto;
-}
-
-.pdf-actions {
-  display: flex;
-  justify-content: space-between;
-}
-
-.pdf-paper {
-  background: #ffffff;
-  color: #1f2937;
-  padding: 30px;
-  border-radius: 8px;
-  width: 100%;
-  max-width: 800px;
-  margin: 0 auto;
-  box-shadow: 0 4px 20px rgba(0,0,0,0.5);
-  font-family: 'SimSun', serif;
-}
-
-.pdf-paper h2 {
-  text-align: center;
-  margin-bottom: 16px;
-  border-bottom: 2px solid #1f2937;
-  padding-bottom: 6px;
+.rs485-label {
   font-size: 18px;
-  font-weight: bold;
+  letter-spacing: 4px;
+  font-weight: normal;
+  color: black;
 }
 
-.pdf-meta-info {
+.config-input {
+  width: 192px;
+}
+
+.config-select {
+  width: 160px;
+  margin-right: 8px;
+}
+
+.config-select-sm {
+  width: 128px;
+}
+
+.win-btn-primary {
   display: flex;
-  justify-content: space-between;
-  font-size: 11px;
-  margin-bottom: 12px;
-}
-
-.pdf-details-table {
-  width: 100%;
-  border-collapse: collapse;
-  margin-bottom: 16px;
-  font-size: 11px;
-}
-
-.pdf-details-table td {
-  border: 1px solid #1f2937;
-  padding: 6px;
-}
-
-.pdf-lbl {
-  background: #f3f4f6;
-  font-weight: bold;
-  width: 120px;
-}
-
-.pdf-section-title {
+  align-items: center;
+  gap: 8px;
+  background: #e5f1fb;
+  border: 1px solid #0078d7;
+  padding: 8px 16px;
   font-size: 12px;
-  margin-top: 14px;
-  margin-bottom: 6px;
-  font-weight: bold;
+  cursor: pointer;
 }
 
-.pdf-items-table {
-  width: 100%;
-  border-collapse: collapse;
-  font-size: 10.5px;
-}
-
-.pdf-items-table th, 
-.pdf-items-table td {
-  border: 1px solid #1f2937;
-  padding: 6px;
-}
-
-.pdf-items-table th {
-  background: #f3f4f6;
-}
-
-.pdf-signature-area {
-  margin-top: 24px;
-  display: flex;
-  justify-content: space-between;
-  font-size: 11px;
+.win-btn-primary:hover {
+  background: #cce4f7;
 }
 
 /* 手动点检面板 */
-.debugging-layout {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 20px;
-}
-
-.ctrl-panel {
-  background: rgba(10, 15, 26, 0.3);
-  border: 1px solid rgba(255, 255, 255, 0.04);
-  border-radius: 8px;
+.manual-panel {
+  flex: 1;
+  background: white;
+  border: 1px solid #808080;
   padding: 16px;
+  overflow: auto;
 }
 
-.sub-sec-title {
-  font-size: 12.5px;
-  color: #06b6d4;
-  margin-bottom: 10px;
+.warning-bar {
+  background: #ffffcc;
+  border: 1px solid #ffcc00;
+  padding: 8px;
+  color: #c2410c;
+  font-weight: bold;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 16px;
+  max-width: 768px;
 }
 
-.relay-buttons-grid {
+.relay-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(110px, 1fr));
+  grid-template-columns: repeat(4, 1fr);
+  gap: 16px;
+}
+
+.relay-item {
+  display: flex;
+  align-items: center;
   gap: 8px;
 }
 
-.manual-relay-btn {
-  background: rgba(255, 255, 255, 0.02);
-  border: 1px solid rgba(255, 255, 255, 0.08);
-  border-radius: 6px;
-  padding: 10px 4px;
-  font-size: 11.5px;
-  color: #e5e7eb;
-  cursor: pointer;
-  transition: all 0.2s;
-  text-align: center;
-}
-
-.manual-relay-btn:hover {
-  background: rgba(255, 255, 255, 0.06);
-}
-
-.manual-relay-btn.active {
-  background: rgba(16, 185, 129, 0.15);
-  border-color: #10b981;
-  color: #34d399;
-  box-shadow: 0 0 8px rgba(16, 185, 129, 0.2);
-}
-
-.ao-slider-item {
-  background: rgba(0,0,0,0.2);
-  padding: 12px;
-  border-radius: 6px;
-  border: 1px solid rgba(255,255,255,0.04);
-}
-
-.ao-label {
+/* 底部状态栏 */
+.win-status-bar {
+  height: 24px;
+  background: #f0f0f0;
+  border-top: 1px solid #808080;
   display: flex;
-  justify-content: space-between;
-  font-size: 11.5px;
-  color: #9ca3af;
-  margin-bottom: 6px;
+  align-items: center;
+  font-size: 11px;
+  flex-shrink: 0;
 }
 
-.ao-val-display {
-  color: #06b6d4;
+.status-cell {
+  padding: 0 8px;
+  border-right: 1px solid #808080;
+  height: 100%;
+  display: flex;
+  align-items: center;
+}
+
+.status-ip {
+  width: 160px;
+}
+
+.ip-text {
+  color: #003399;
+  margin-left: 4px;
   font-weight: bold;
 }
 
-.wave-panel {
-  display: flex;
-  flex-direction: column;
+.status-state {
+  width: 128px;
 }
 
-.oscilloscope-viewport {
-  height: 200px;
-  background: #020617;
-  border: 1px solid rgba(255, 255, 255, 0.08);
-  border-radius: 6px;
+.state-running {
+  color: #16a34a;
+  font-weight: bold;
+}
+
+.state-ready {
+  color: #003399;
+  font-weight: bold;
+}
+
+.status-cmd {
+  flex: 1;
+  color: #4b5563;
+}
+
+.status-pass {
+  width: 256px;
+}
+
+.pass-rate {
+  color: #16a34a;
+  font-weight: bold;
+  margin: 0 4px;
+}
+
+.status-progress {
+  width: 256px;
+}
+
+.progress-bar-bg {
+  flex: 1;
+  height: 12px;
+  background: #e6e6e6;
+  border: 1px solid #808080;
+  box-shadow: inset 1px 1px 2px rgba(0,0,0,0.2);
+  margin: 0 8px;
   position: relative;
   overflow: hidden;
-  display: flex;
-  align-items: center;
-  justify-content: center;
 }
 
-.scope-tip {
-  color: #9ca3af;
-  font-size: 11px;
-  z-index: 2;
-}
-
-/* 示波器网格纹理效果 */
-.scope-grid-lines {
-  position: absolute;
-  top: 0;
-  left: 0;
-  width: 100%;
+.progress-bar-fill {
   height: 100%;
-  background-image: linear-gradient(rgba(255,255,255,0.04) 1px, transparent 1px),
-                    linear-gradient(90deg, rgba(255,255,255,0.04) 1px, transparent 1px);
-  background-size: 20px 20px;
+  background: linear-gradient(to bottom, #7fe57f 0%, #00d200 50%, #00b300 100%);
+  border-right: 1px solid #006400;
+  transition: width 0.3s linear;
 }
 
-.scope-info-text {
-  font-size: 11px;
-  color: #9ca3af;
-  margin-top: 10px;
-}
-
-/* 授权登录面板 */
-.login-card-wrapper {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  height: 80%;
-}
-
-.login-card {
-  width: 360px;
-  background: rgba(10, 15, 26, 0.85);
-  border: 1px solid rgba(255, 255, 255, 0.08);
-  border-radius: 8px;
-  padding: 24px;
-}
-
-.login-header {
-  font-size: 14.5px;
+.progress-text {
+  color: #006400;
   font-weight: bold;
-  text-align: center;
-  margin-bottom: 18px;
-  color: #fff;
+  font-family: monospace;
 }
 
-.login-submit-btn {
-  width: 100%;
-  margin-top: 10px;
+/* 经典表格行颜色 */
+:deep(.win-row-pass) {
+  background-color: #dff0d8 !important;
 }
 
-.login-card :deep(.el-form-item__label) {
-  color: #9ca3af;
+:deep(.win-row-fail) {
+  background-color: #f2dede !important;
+}
+
+/* 经典表格样式 */
+:deep(.el-table) {
+  --el-table-border-color: #d0d7e5;
+  --el-table-header-bg-color: #e3edf7;
+  --el-table-header-text-color: #003399;
+  --el-table-row-hover-bg-color: #e5f1fb;
   font-size: 12px;
-  padding-bottom: 4px;
 }
 
-/* 弹窗对话框暗色重绘 */
-:deep(.ate-custom-dialog) {
-  background: rgba(15, 23, 42, 0.98);
-  border: 1px solid rgba(255, 255, 255, 0.12);
-}
-
-:deep(.ate-custom-dialog .el-dialog__title) {
-  color: #ef4444;
+:deep(.el-table th.el-table__cell) {
+  background: linear-gradient(to bottom, #ffffff 0%, #e3edf7 100%) !important;
+  border-right: 1px solid #c0c0c0 !important;
+  border-bottom: 1px solid #999 !important;
   font-weight: bold;
-  font-size: 14.5px;
+  padding: 4px 0 !important;
 }
 
-.desc-box {
-  background: rgba(239, 68, 68, 0.05);
-  border: 1px solid rgba(239, 68, 68, 0.2);
-  border-radius: 6px;
-  padding: 10px;
-  color: #f87171;
+:deep(.el-table td.el-table__cell) {
+  padding: 2px 0 !important;
+  border-right: 1px solid #e0e0e0;
+  border-bottom: 1px solid #e0e0e0;
+}
+
+/* 经典 Tree 样式 */
+:deep(.el-tree-node__content) {
+  height: 22px !important;
   font-size: 12px;
-  line-height: 1.5;
-  margin-bottom: 12px;
 }
 
-.code-box {
-  background: #000000;
-  border: 1px solid rgba(255, 255, 255, 0.06);
-  border-radius: 6px;
-  padding: 12px;
-  font-family: 'Consolas', monospace;
-  font-size: 11px;
-  color: #fda4af;
-  white-space: pre-wrap;
+:deep(.el-checkbox__inner) {
+  border: 1px solid #8f8f8f !important;
+  border-radius: 0 !important;
+  width: 13px !important;
+  height: 13px !important;
+  background-color: #fff !important;
+  box-shadow: inset 1px 1px 1px rgba(0,0,0,0.08);
 }
+
+:deep(.el-checkbox__input.is-focus .el-checkbox__inner) {
+  border-color: #0078d7 !important;
+}
+
+:deep(.el-checkbox__input.is-checked .el-checkbox__inner),
+:deep(.el-checkbox__input.is-indeterminate .el-checkbox__inner) {
+  background-color: #fff !important;
+  border-color: #8f8f8f !important;
+}
+
+:deep(.el-checkbox__input.is-checked .el-checkbox__inner::after) {
+  border-color: #000 !important;
+  border-width: 1.5px !important;
+  border-left: 0 !important;
+  border-top: 0 !important;
+  height: 7px !important;
+  left: 4px !important;
+  top: 1px !important;
+  width: 3px !important;
+}
+
+:deep(.el-checkbox__input.is-indeterminate .el-checkbox__inner::before) {
+  background-color: #000 !important;
+  height: 7px !important;
+  width: 7px !important;
+  top: 2px !important;
+  left: 2px !important;
+  transform: none !important;
+  right: auto !important;
+  bottom: auto !important;
+}
+
+/* 经典滚动条 */
+::-webkit-scrollbar { width: 14px; height: 14px; }
+::-webkit-scrollbar-track { background: #f0f0f0; border-left: 1px solid #ccc; }
+::-webkit-scrollbar-thumb { background: #cdd5df; border: 1px solid #aeb5be; }
+::-webkit-scrollbar-thumb:hover { background: #b0b8c0; }
 </style>
