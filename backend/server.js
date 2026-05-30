@@ -23,6 +23,8 @@ const PollingEngine = require('./PollingEngine');
 const WebSocketManager = require('./WebSocketMgr');
 const OTAHandler = require('./OTAHandler');
 const createOtaRouter = require('./api/ota');
+const TestManager = require('./ate/TestManager');
+const testApiRouter = require('./api/test');
 
 // ==================== 配置加载 ====================
 
@@ -153,6 +155,25 @@ async function main() {
 
     await wsManager.start();
 
+    // 初始化 ATE 测试管理器
+    console.log('\n[Step 4.5] Initializing TestManager...');
+    const testManager = new TestManager({
+        devicePool,
+        pollingEngine,
+        wsManager,
+    });
+
+    // 监听测试事件并推送到前端
+    testManager.on('test_progress', (data) => {
+        wsManager.pushTestProgress(data);
+    });
+    testManager.on('test_finished', (data) => {
+        wsManager.pushTestFinished(data);
+    });
+    testManager.on('test_error', (data) => {
+        wsManager.pushTestError(data);
+    });
+
     // 设置客户端消息处理
     wsManager.onClientMessage = async (clientId, message) => {
         console.log(`[WS] Client message: ${message.type}`);
@@ -194,6 +215,105 @@ async function main() {
                     devices: devicePool.getAllDevices()
                 });
                 break;
+
+            // ============================================================
+            // ATE 自动化测试消息处理
+            // ============================================================
+
+            case 'start_test_request':
+                try {
+                    const device = devicePool.getAllDevices().find(d => d.ip === message.deviceIp);
+                    if (!device) {
+                        wsManager.sendResponse(clientId, 'start_test_request', false, { error: '设备未找到' });
+                        break;
+                    }
+
+                    // 异步启动测试（不阻塞 WebSocket）
+                    testManager.startSession({
+                        deviceKey: device.key,
+                        deviceIp: message.deviceIp,
+                        operatorInputId: message.operatorInputId,
+                        deviceModel: message.deviceModel,
+                        workOrder: message.workOrder,
+                        selectedItemIds: message.selectedItemIds || [],
+                    }).catch(err => {
+                        console.error('[ATE] Start session error:', err.message);
+                        wsManager.pushTestError({
+                            deviceIp: message.deviceIp,
+                            message: err.message,
+                        });
+                    });
+
+                    wsManager.sendResponse(clientId, 'start_test_request', true);
+                } catch (err) {
+                    wsManager.sendResponse(clientId, 'start_test_request', false, { error: err.message });
+                }
+                break;
+
+            case 'stop_test_request':
+                try {
+                    const device = devicePool.getAllDevices().find(d => d.ip === message.deviceIp);
+                    if (device) {
+                        await testManager.stopSession(device.key);
+                        wsManager.sendResponse(clientId, 'stop_test_request', true);
+                    } else {
+                        wsManager.sendResponse(clientId, 'stop_test_request', false, { error: '设备未找到' });
+                    }
+                } catch (err) {
+                    wsManager.sendResponse(clientId, 'stop_test_request', false, { error: err.message });
+                }
+                break;
+
+            case 'reset_test_request':
+                try {
+                    const device = devicePool.getAllDevices().find(d => d.ip === message.deviceIp);
+                    if (device) {
+                        await testManager.resetSession(device.key);
+                        wsManager.sendResponse(clientId, 'reset_test_request', true);
+                    } else {
+                        wsManager.sendResponse(clientId, 'reset_test_request', false, { error: '设备未找到' });
+                    }
+                } catch (err) {
+                    wsManager.sendResponse(clientId, 'reset_test_request', false, { error: err.message });
+                }
+                break;
+
+            case 'retry_failed_request':
+                try {
+                    const device = devicePool.getAllDevices().find(d => d.ip === message.deviceIp);
+                    if (device) {
+                        await testManager.retryFailed(device.key);
+                        wsManager.sendResponse(clientId, 'retry_failed_request', true);
+                    } else {
+                        wsManager.sendResponse(clientId, 'retry_failed_request', false, { error: '设备未找到' });
+                    }
+                } catch (err) {
+                    wsManager.sendResponse(clientId, 'retry_failed_request', false, { error: err.message });
+                }
+                break;
+
+            case 'get_test_session':
+                try {
+                    const device = devicePool.getAllDevices().find(d => d.ip === message.deviceIp);
+                    if (device) {
+                        const session = testManager.getSession(device.key);
+                        wsManager.sendResponse(clientId, 'get_test_session', true, { session });
+                    } else {
+                        wsManager.sendResponse(clientId, 'get_test_session', false, { error: '设备未找到' });
+                    }
+                } catch (err) {
+                    wsManager.sendResponse(clientId, 'get_test_session', false, { error: err.message });
+                }
+                break;
+
+            case 'manual_force_io_request':
+                try {
+                    // TODO: 实现手动强制 IO
+                    wsManager.sendResponse(clientId, 'manual_force_io_request', true);
+                } catch (err) {
+                    wsManager.sendResponse(clientId, 'manual_force_io_request', false, { error: err.message });
+                }
+                break;
         }
     };
 
@@ -210,6 +330,9 @@ async function main() {
 
     // 注册OTA路由
     app.use('/api/ota', createOtaRouter(otaHandler));
+
+    // 注册ATE测试报告路由
+    app.use('/api/test', testApiRouter);
 
     // 设备列表API
     app.get('/api/devices', (req, res) => {

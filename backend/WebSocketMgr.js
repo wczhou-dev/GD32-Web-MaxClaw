@@ -204,6 +204,70 @@ class WebSocketManager {
         });
     }
 
+    // ============================================================
+    // ATE 自动化测试推送方法
+    // ============================================================
+
+    /**
+     * 推送测试进度更新
+     * @param {object} data - 测试进度数据
+     */
+    pushTestProgress(data) {
+        this.broadcast({
+            type: 'test_progress_update',
+            timestamp: Date.now(),
+            ...data
+        });
+    }
+
+    /**
+     * 推送测试完成通知
+     * @param {object} data - 测试完成数据
+     */
+    pushTestFinished(data) {
+        this.broadcast({
+            type: 'test_finished_notification',
+            timestamp: Date.now(),
+            ...data
+        });
+    }
+
+    /**
+     * 推送测试错误
+     * @param {object} data - 错误数据
+     */
+    pushTestError(data) {
+        this.broadcast({
+            type: 'test_error',
+            timestamp: Date.now(),
+            ...data
+        });
+    }
+
+    /**
+     * 推送 ATE 设备日志
+     * @param {object} data - 日志数据
+     */
+    pushAteDeviceLog(data) {
+        this.broadcast({
+            type: 'ate_device_log',
+            timestamp: Date.now(),
+            ...data
+        });
+    }
+
+    /**
+     * 推送 ATE 原始帧（调试用）
+     * @param {object} data - 原始帧数据
+     */
+    pushAteRawFrame(data) {
+        this.broadcast({
+            type: 'ate_raw_frame',
+            timestamp: Date.now(),
+            ...data
+        });
+    }
+
     /**
      * 发送响应给客户端
      * @param {string} clientId - 客户端ID
