@@ -14,7 +14,7 @@
     <div class="app-container">
       <!-- 顶部导航栏 (Header) -->
       <header class="header">
-        <h1 class="title">🦞 GD32 环控系统</h1>
+        <h1 class="title">🦞 自动化检定平台</h1>
         <div class="device-status">
           <!-- 状态灯：根据连接状态显示绿色或红色 (类似 LED 状态灯) -->
           <el-tag :type="connectionStatus === 'connected' ? 'success' : 'danger'" size="large">
@@ -34,10 +34,6 @@
             <el-menu-item index="/monitor">
               <el-icon><Monitor /></el-icon>
               <span>环境监控</span>
-            </el-menu-item>
-            <el-menu-item index="/relay">
-              <el-icon><Switch /></el-icon>
-              <span>继电器控制</span>
             </el-menu-item>
             <el-menu-item index="/ota">
               <el-icon><Upload /></el-icon>
@@ -70,7 +66,7 @@ import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { useRoute } from 'vue-router'
 import { useDeviceStore } from './stores/deviceStore'
 import zhCn from 'element-plus/dist/locale/zh-cn.mjs'
-import { Monitor, Switch, Upload, Setting, Checked } from '@element-plus/icons-vue'
+import { Monitor, Upload, Setting, Checked } from '@element-plus/icons-vue'
 
 // 获取当前路由实例和全局设备状态库
 const route = useRoute()

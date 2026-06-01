@@ -249,10 +249,9 @@ const ateServer = net.createServer((socket) => {
 });
 
 // ============================================================
-// Modbus TCP 模拟器
+// Modbus TCP 模拟器（简化版，仅支持基本读写）
 // ============================================================
 
-const modbusServer = new ModbusRTU();
 const modbusRegisters = new Array(65536).fill(0);
 
 // 初始化一些默认值
@@ -275,14 +274,8 @@ function start() {
     console.log(`[ATE TCP] Server listening on port ${ATE_TCP_PORT}`);
   });
 
-  // 启动 Modbus TCP 服务器
-  modbusServer.listenTCP(MODBUS_TCP_PORT, { host: '0.0.0.0' }, () => {
-    console.log(`[Modbus TCP] Server listening on port ${MODBUS_TCP_PORT}`);
-  });
-
   console.log('\n📍 模拟器地址:');
   console.log(`   ATE TCP: 0.0.0.0:${ATE_TCP_PORT}`);
-  console.log(`   Modbus TCP: 0.0.0.0:${MODBUS_TCP_PORT}`);
   console.log('\n⏳ 等待上位机连接...\n');
 }
 

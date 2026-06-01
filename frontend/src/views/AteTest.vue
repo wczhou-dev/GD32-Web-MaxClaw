@@ -201,6 +201,87 @@
             </div>
           </fieldset>
 
+          <!-- 硬件端口拓扑示意图 -->
+          <div class="hw-topo-container">
+            <div class="hw-topo-board">
+              <!-- 顶部 DI 输入 -->
+              <div class="hw-di-row">
+                <div class="hw-di-label">数字量输入</div>
+                <div class="hw-di-items">
+                  <div v-for="i in 24" :key="'di'+i" class="hw-port hw-di">
+                    <span class="hw-port-name">DI{{ 25 - i }}</span>
+                    <span class="hw-port-led"></span>
+                  </div>
+                </div>
+              </div>
+
+              <!-- 中部主体区域 -->
+              <div class="hw-middle">
+                <!-- 左侧 AI/AO -->
+                <div class="hw-side-left">
+                  <div class="hw-side-group">
+                    <div class="hw-side-label hw-side-label-v">模拟输入</div>
+                    <div class="hw-port-list">
+                      <div v-for="i in 4" :key="'ai'+i" class="hw-port hw-io">
+                        <span class="hw-port-led"></span>
+                        <span class="hw-port-name">AI{{ i - 1 }}</span>
+                      </div>
+                    </div>
+                  </div>
+                  <div class="hw-side-group">
+                    <div class="hw-side-label hw-side-label-v">模拟输出</div>
+                    <div class="hw-port-list">
+                      <div v-for="i in 4" :key="'ao'+i" class="hw-port hw-io">
+                        <span class="hw-port-led"></span>
+                        <span class="hw-port-name">AO{{ i - 1 }}</span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                <!-- 中央区域 -->
+                <div class="hw-center">
+                  <div class="hw-center-icon">
+                    <i class="fa-solid fa-microchip"></i>
+                  </div>
+                  <div class="hw-center-text">环控器核心板</div>
+                </div>
+
+                <!-- 右侧 RS485 -->
+                <div class="hw-side-right">
+                  <div class="hw-port hw-rs485">
+                    <span class="hw-port-led"></span>
+                    <span class="hw-port-name">485-2</span>
+                  </div>
+                  <div class="hw-485-label-v">485端口</div>
+                  <div class="hw-port hw-rs485">
+                    <span class="hw-port-led"></span>
+                    <span class="hw-port-name">485-1</span>
+                  </div>
+                </div>
+              </div>
+
+              <!-- 底部 继电器输出 -->
+              <div class="hw-relay-row">
+                <div class="hw-relay-label">继电器</div>
+                <div class="hw-relay-items">
+                  <div v-for="i in 22" :key="'r'+i" class="hw-port hw-relay">
+                    <span class="hw-port-name">R{{ i }}</span>
+                    <span class="hw-port-led"></span>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- 一键整机自检按钮 -->
+          <div class="oneclick-section">
+            <button class="win-btn-oneclick" @click="startFullSelfTest" :disabled="testEngine.status === 'running'">
+              <span class="oneclick-dot" :class="{ 'dot-running': testEngine.status === 'running' }"></span>
+              <span class="oneclick-text">一键整机自检</span>
+            </button>
+          </div>
+
           <fieldset class="win-group">
             <legend>下位机参数初始化</legend>
             <div class="config-row">
@@ -608,6 +689,30 @@ const startContinuousTest = () => {
   runNext()
 }
 
+const startFullSelfTest = () => {
+  if (testEngine.value.status === 'running') return
+  if (!treeRef.value) return
+
+  // 全选所有节点
+  const allKeys = []
+  testTree.value.forEach(g => {
+    allKeys.push(g.id)
+    g.children.forEach(c => allKeys.push(c.id))
+  })
+  treeRef.value.setCheckedKeys(allKeys)
+
+  // 重置所有状态
+  testTree.value.forEach(g => g.children.forEach(c => c.status = 'not_run'))
+  testEngine.value.progress = 0
+  testEngine.value.failedItems = []
+  lastError.value = ''
+  activeLogTab.value = 'system'
+  systemLogs.value = []
+
+  addLog('=== 一键整机自检启动，全选所有检定项 ===', 'success', 'system')
+  startContinuousTest()
+}
+
 const startFailedOnlyTest = () => {
   activeQueue = buildQueue(true)
   if (activeQueue.length === 0) return alert('当前无不合格项')
@@ -856,6 +961,50 @@ onMounted(() => {
   border: 1px solid #0078d7;
 }
 
+/* 一键整机自检按钮 */
+.win-btn-oneclick {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  background: transparent;
+  border: 1px solid transparent;
+  padding: 4px 10px;
+  font-size: 11px;
+  color: #000;
+  cursor: pointer;
+  min-width: 70px;
+}
+
+.win-btn-oneclick:hover:not(:disabled) {
+  background-color: #e5f1fb;
+  border: 1px solid #0078d7;
+  border-radius: 2px;
+}
+
+.win-btn-oneclick:disabled {
+  color: #999;
+  cursor: not-allowed;
+  opacity: 0.6;
+}
+
+.oneclick-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: #22c55e;
+  margin-bottom: 4px;
+}
+
+.oneclick-dot.dot-running {
+  animation: pulse 1s infinite;
+}
+
+.oneclick-text {
+  font-weight: bold;
+  color: #15803d;
+}
+
 /* 启用报文按钮 */
 .enable-log-btn {
   display: flex;
@@ -1097,6 +1246,11 @@ onMounted(() => {
   overflow: auto;
 }
 
+.oneclick-section {
+  margin-bottom: 16px;
+  max-width: 1200px;
+}
+
 .win-group {
   border: 1px solid #d0d0bf;
   border-radius: 3px;
@@ -1128,10 +1282,10 @@ onMounted(() => {
 }
 
 .rs485-label {
-  font-size: 18px;
-  letter-spacing: 4px;
-  font-weight: normal;
-  color: black;
+  font-size: 12px;
+  letter-spacing: 0;
+  font-weight: bold;
+  color: #374151;
 }
 
 .config-input {
@@ -1160,6 +1314,209 @@ onMounted(() => {
 
 .win-btn-primary:hover {
   background: #cce4f7;
+}
+
+/* 硬件端口拓扑示意图 */
+.hw-topo-container {
+  margin-bottom: 20px;
+}
+
+.hw-topo-board {
+  background: #f0f4f8;
+  border: 1px solid #b0bec5;
+  border-radius: 10px;
+  padding: 24px;
+  max-width: 1050px;
+}
+
+/* DI 输入行 */
+.hw-di-row {
+  text-align: center;
+  margin-bottom: 12px;
+}
+
+.hw-di-label,
+.hw-relay-label {
+  display: inline-block;
+  background: #607d8b;
+  color: white;
+  font-size: 14px;
+  padding: 4px 24px;
+  border-radius: 4px;
+  margin-bottom: 8px;
+  font-weight: bold;
+}
+
+.hw-di-items,
+.hw-relay-items {
+  display: flex;
+  justify-content: center;
+  flex-wrap: nowrap;
+  gap: 5px;
+}
+
+/* 端口单元 */
+.hw-port {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 30px;
+  border-radius: 4px;
+  font-size: 10px;
+  font-weight: bold;
+  gap: 2px;
+  position: relative;
+}
+
+.hw-di {
+  background: #5c9ce6;
+  color: white;
+  padding: 4px 0;
+}
+
+.hw-relay {
+  background: #5c9ce6;
+  color: white;
+  padding: 4px 0;
+}
+
+.hw-io {
+  background: #5c9ce6;
+  color: white;
+  width: 90px;
+  height: 28px;
+  flex-direction: row;
+  gap: 6px;
+  padding: 0 8px;
+}
+
+.hw-rs485 {
+  background: #5c9ce6;
+  color: white;
+  width: 100px;
+  height: 36px;
+  flex-direction: row;
+  gap: 8px;
+  padding: 0 10px;
+  border-radius: 6px;
+  font-size: 13px;
+}
+
+/* LED 指示灯 */
+.hw-port-led {
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  background: #fff;
+  border: 1px solid rgba(0,0,0,0.15);
+  flex-shrink: 0;
+}
+
+.hw-port-name {
+  white-space: nowrap;
+  line-height: 1;
+}
+
+/* 中部三栏 */
+.hw-middle {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  min-height: 130px;
+  margin: 8px 0;
+}
+
+/* 左侧 AI/AO */
+.hw-side-left {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.hw-side-group {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.hw-port-list {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.hw-side-label {
+  font-size: 14px;
+  color: #607d8b;
+  font-weight: bold;
+}
+
+.hw-side-label-v {
+  writing-mode: vertical-rl;
+  text-orientation: upright;
+  background: #607d8b;
+  color: white;
+  padding: 10px 4px;
+  border-radius: 4px;
+  letter-spacing: 2px;
+  font-size: 12px;
+  font-weight: bold;
+}
+
+/* 中央区域 */
+.hw-center {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+}
+
+.hw-center-icon {
+  width: 72px;
+  height: 72px;
+  border-radius: 50%;
+  border: 2px solid #b0bec5;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #90a4ae;
+  font-size: 34px;
+  background: white;
+}
+
+.hw-center-text {
+  color: #78909c;
+  font-size: 18px;
+  font-weight: bold;
+  letter-spacing: 2px;
+}
+
+/* 右侧 RS485 */
+.hw-side-right {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+}
+
+.hw-485-label-v {
+  writing-mode: vertical-rl;
+  text-orientation: upright;
+  background: #607d8b;
+  color: white;
+  padding: 14px 4px;
+  border-radius: 4px;
+  letter-spacing: 2px;
+  font-size: 12px;
+  font-weight: bold;
+}
+
+/* 底部继电器行 */
+.hw-relay-row {
+  text-align: center;
+  margin-top: 8px;
 }
 
 /* 手动点检面板 */
@@ -1318,6 +1675,8 @@ onMounted(() => {
 :deep(.el-tree-node__content) {
   height: 22px !important;
   font-size: 12px;
+  display: flex;
+  align-items: center;
 }
 
 :deep(.el-checkbox__inner) {
@@ -1327,6 +1686,9 @@ onMounted(() => {
   height: 13px !important;
   background-color: #fff !important;
   box-shadow: inset 1px 1px 1px rgba(0,0,0,0.08);
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 
 :deep(.el-checkbox__input.is-focus .el-checkbox__inner) {
@@ -1345,8 +1707,9 @@ onMounted(() => {
   border-left: 0 !important;
   border-top: 0 !important;
   height: 7px !important;
-  left: 4px !important;
-  top: 1px !important;
+  left: 50% !important;
+  top: 50% !important;
+  transform: translate(-50%, -56%) rotate(45deg) scaleY(1) !important;
   width: 3px !important;
 }
 
