@@ -60,7 +60,8 @@ export const useDeviceStore = defineStore('device', () => {
 
   function connect() {
     if (ws) return
-    ws = new WebSocket(`ws://${window.location.hostname}:3001`)
+    const wsProtocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:'
+    ws = new WebSocket(`${wsProtocol}//${window.location.host}`)
     ws.onopen = () => { wsConnected.value = true }
     ws.onclose = () => { wsConnected.value = false; ws = null; setTimeout(connect, 5000) }
     ws.onmessage = (e) => {
@@ -145,13 +146,17 @@ export const useDeviceStore = defineStore('device', () => {
       }
 
       // 测试完成
-      if (type === 'test_test_finished') {
+      if (type === 'test_finished' || type === 'test_test_finished') {
         ateStatus.value = overallStatus === 2 ? 'pass' : 'fail'
-        ateSession.value = null
+        if (msg.downloadUrl) {
+          ateSession.value = { ...ateSession.value, downloadUrl: msg.downloadUrl }
+        } else {
+          ateSession.value = null
+        }
       }
 
       // 测试错误
-      if (type === 'test_test_error') {
+      if (type === 'test_error' || type === 'test_test_error') {
         ateStatus.value = 'error'
         ateLogs.value.push({
           level: 'error',

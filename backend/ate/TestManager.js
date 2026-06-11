@@ -23,6 +23,7 @@
 const EventEmitter = require('events');
 const TestCatalog = require('./TestCatalog');
 const TestReportService = require('./TestReportService');
+const AteTcpClient = require('./AteTcpClient');
 const {
   TEST_CMD,
   TEST_STATUS,
@@ -30,6 +31,7 @@ const {
   SINGLE_RESULT,
   SINGLE_RESULT_TEXT,
   BLOCK_TEST_STATUS,
+  ATE_TEST_BLOCK_SIZE,
   ATE_MASK_ALL,
   ERROR_CODE,
   ERROR_CODE_DETAIL,
@@ -62,6 +64,8 @@ class TestSession {
     this.deviceModel = options.deviceModel || '9200';
     this.workOrder = options.workOrder || '';
     this.selectedItemIds = options.selectedItemIds || [];
+    this.deviceSn = options.deviceSn || '';
+    this.firmwareVersion = options.firmwareVersion || '';
     this.state = SESSION_STATE.IDLE;
     this.startTime = null;
     this.endTime = null;
@@ -147,6 +151,11 @@ class TestManager extends EventEmitter {
      * 轮询定时器：Map<deviceKey, timerId>
      */
     this._pollingTimers = new Map();
+
+    /**
+     * ATE TCP 客户端池：Map<deviceKey, AteTcpClient>
+     */
+    this._tcpClients = new Map();
 
     /**
      * 统计信息
@@ -368,6 +377,66 @@ class TestManager extends EventEmitter {
   }
 
   // ============================================================
+  // 内部方法：ATE TCP 客户端管理
+  // ============================================================
+
+  /**
+   * 获取或创建设备的 ATE TCP 客户端
+   * @param {string} deviceKey
+   * @param {string} deviceIp
+   * @returns {AteTcpClient}
+   * @private
+   */
+  _getOrCreateTcpClient(deviceKey, deviceIp) {
+    if (this._tcpClients.has(deviceKey)) {
+      return this._tcpClients.get(deviceKey);
+    }
+    const client = new AteTcpClient({
+      deviceIp,
+      port: CONFIG_DEFAULTS.ATE_TCP_PORT,
+      ackTimeout: CONFIG_DEFAULTS.ATE_ACK_TIMEOUT_MS,
+    });
+    this._tcpClients.set(deviceKey, client);
+    return client;
+  }
+
+  /**
+   * 连接设备的 ATE TCP 客户端
+   * @param {string} deviceKey
+   * @param {string} deviceIp
+   * @private
+   */
+  async _connectTcp(deviceKey, deviceIp) {
+    const client = this._getOrCreateTcpClient(deviceKey, deviceIp);
+    if (!client.isConnected()) {
+      try {
+        await client.connect();
+        console.log(`[TestManager] TCP connected to ${deviceIp}:${CONFIG_DEFAULTS.ATE_TCP_PORT}`);
+      } catch (err) {
+        console.warn(`[TestManager] TCP connect failed for ${deviceIp}: ${err.message}, will use Modbus fallback`);
+      }
+    }
+    return client;
+  }
+
+  /**
+   * 断开设备的 ATE TCP 客户端
+   * @param {string} deviceKey
+   * @private
+   */
+  _disconnectTcp(deviceKey) {
+    const client = this._tcpClients.get(deviceKey);
+    if (client) {
+      try {
+        client.disconnect();
+      } catch (err) {
+        console.warn(`[TestManager] TCP disconnect error: ${err.message}`);
+      }
+      this._tcpClients.delete(deviceKey);
+    }
+  }
+
+  // ============================================================
   // 内部方法：测试执行
   // ============================================================
 
@@ -433,10 +502,21 @@ class TestManager extends EventEmitter {
    * @private
    */
   async _enterTestMode(session) {
-    const { deviceKey } = session;
+    const { deviceKey, deviceIp } = session;
 
-    // 通过 Modbus TCP 发送 test.enter 命令
-    // 写入 BLOCK_TEST_STATUS.START = 1 (start)
+    // 优先通过 ATE TCP 发送 test.enter 命令
+    const tcpClient = this._getOrCreateTcpClient(deviceKey, deviceIp);
+    if (tcpClient.isConnected()) {
+      try {
+        await tcpClient.request('test.enter', {});
+        await this._sleep(500);
+        return;
+      } catch (err) {
+        console.warn(`[TestManager] TCP test.enter failed: ${err.message}, falling back to Modbus`);
+      }
+    }
+
+    // 降级到 Modbus：写入 BLOCK_TEST_STATUS.START = 1 (start)
     await this._devicePool.runExclusive(deviceKey, async () => {
       await this._devicePool.writeRegister(deviceKey, BLOCK_TEST_STATUS.START, TEST_CMD.START);
     });
@@ -507,9 +587,9 @@ class TestManager extends EventEmitter {
   async _pollTestStatus(session) {
     const { deviceKey } = session;
 
-    // 读取测试状态寄存器区 0x8000-0x8027
+    // 读取测试状态寄存器区 0x8000-0x802F（48 个寄存器）
     const registers = await this._devicePool.runExclusive(deviceKey, async () => {
-      const response = await this._devicePool.readHoldingRegisters(deviceKey, 0x8000, 40);
+      const response = await this._devicePool.readHoldingRegisters(deviceKey, 0x8000, ATE_TEST_BLOCK_SIZE);
       return response.data;
     });
 
@@ -519,7 +599,7 @@ class TestManager extends EventEmitter {
     const currentItemId = registers[2];                // 0x8002
     const progress = registers[3];                     // 0x8003
     const overallStatus = registers[4];                // 0x8004
-    const testMask = registers[6];                     // 0x8006
+    const testMask = registers[8];                     // 0x8008
 
     // 更新会话状态
     session.progress = progress;
@@ -539,8 +619,8 @@ class TestManager extends EventEmitter {
       }
     }
 
-    // 更新单项结果（0x8010-0x8017）
-    for (let i = 0; i < 8; i++) {
+    // 更新单项结果（0x8010-0x8018）— 9 项
+    for (let i = 0; i < 9; i++) {
       const itemId = i + 1;
       const result = registers[16 + i]; // 0x8010 offset
       if (result !== SINGLE_RESULT.PENDING && session.timeline.has(itemId)) {
@@ -656,6 +736,96 @@ class TestManager extends EventEmitter {
   }
 
   // ============================================================
+  // 手动强制 IO
+  // ============================================================
+
+  /**
+   * 手动强制 IO 输出
+   * @param {object} options
+   * @param {string} options.deviceKey - 设备标识
+   * @param {string} options.deviceIp - 设备 IP
+   * @param {object} options.outputs - 输出配置 { channel: value }
+   * @param {number} options.timeoutMs - 超时释放时间（0 = 手动释放）
+   * @returns {Promise<object>}
+   */
+  async manualForceIo(options = {}) {
+    const { deviceKey, deviceIp, outputs = {}, timeoutMs = 0 } = options;
+
+    // 优先通过 ATE TCP 发送 control.force_io
+    const tcpClient = this._getOrCreateTcpClient(deviceKey, deviceIp);
+    if (tcpClient.isConnected()) {
+      try {
+        const result = await tcpClient.request('control.force_io', { outputs, timeoutMs });
+        // 设置超时释放定时器
+        if (timeoutMs > 0) {
+          setTimeout(async () => {
+            try {
+              await tcpClient.request('control.force_io', { outputs: this._buildAllOffOutputs(outputs) });
+              console.log(`[TestManager] Manual force IO timeout release for ${deviceKey}`);
+            } catch (err) {
+              console.warn(`[TestManager] Timeout release error: ${err.message}`);
+            }
+          }, timeoutMs);
+        }
+        return result;
+      } catch (err) {
+        console.warn(`[TestManager] TCP force_io failed: ${err.message}, falling back to Modbus`);
+      }
+    }
+
+    // 降级到 Modbus：写入继电器指令寄存器
+    try {
+      // 构建继电器位掩码（bit0-bit21 对应 R1-R22）
+      let relayMask = 0;
+      for (const [channel, value] of Object.entries(outputs)) {
+        const match = channel.match(/^relay_(\d+)$/);
+        if (match) {
+          const relayIndex = parseInt(match[1]) - 1;
+          if (relayIndex >= 0 && relayIndex < 22 && value) {
+            relayMask |= (1 << relayIndex);
+          }
+        }
+      }
+      await this._devicePool.runExclusive(deviceKey, async () => {
+        await this._devicePool.writeRegister(deviceKey, 0x5001, relayMask & 0xFFFF);
+        await this._devicePool.writeRegister(deviceKey, 0x5002, (relayMask >> 16) & 0xFFFF);
+      });
+
+      // 设置超时释放
+      if (timeoutMs > 0) {
+        setTimeout(async () => {
+          try {
+            await this._devicePool.runExclusive(deviceKey, async () => {
+              await this._devicePool.writeRegister(deviceKey, 0x5001, 0);
+              await this._devicePool.writeRegister(deviceKey, 0x5002, 0);
+            });
+            console.log(`[TestManager] Manual force IO timeout release for ${deviceKey}`);
+          } catch (err) {
+            console.warn(`[TestManager] Timeout release error: ${err.message}`);
+          }
+        }, timeoutMs);
+      }
+
+      return { success: true, method: 'modbus' };
+    } catch (err) {
+      console.error(`[TestManager] Manual force IO error: ${err.message}`);
+      return { success: false, error: err.message };
+    }
+  }
+
+  /**
+   * 构建全部关闭的输出配置
+   * @private
+   */
+  _buildAllOffOutputs(outputs) {
+    const off = {};
+    for (const channel of Object.keys(outputs)) {
+      off[channel] = 0;
+    }
+    return off;
+  }
+
+  // ============================================================
   // 内部方法：安全释放
   // ============================================================
 
@@ -701,16 +871,25 @@ class TestManager extends EventEmitter {
    * @private
    */
   async _safeRelease(session) {
-    const { deviceKey } = session;
+    const { deviceKey, deviceIp } = session;
 
+    // 优先通过 ATE TCP 发送 test.exit 命令
+    const tcpClient = this._tcpClients.get(deviceKey);
+    if (tcpClient && tcpClient.isConnected()) {
+      try {
+        await tcpClient.request('test.exit', {});
+        await this._sleep(500);
+        return;
+      } catch (err) {
+        console.warn(`[TestManager] TCP test.exit failed: ${err.message}, falling back to Modbus`);
+      }
+    }
+
+    // 降级到 Modbus：写入 reset 命令
     try {
-      // 发送 test.exit 命令
       await this._devicePool.runExclusive(deviceKey, async () => {
-        // 写入 reset 命令
         await this._devicePool.writeRegister(deviceKey, BLOCK_TEST_STATUS.START, TEST_CMD.RESET);
       });
-
-      // 等待设备处理
       await this._sleep(500);
     } catch (err) {
       console.error(`[TestManager] Safe release error: ${err.message}`);
@@ -725,6 +904,9 @@ class TestManager extends EventEmitter {
   _cleanupSession(deviceKey) {
     this._activeSessions.delete(deviceKey);
     this._stopPolling(deviceKey);
+
+    // 断开 TCP 连接
+    this._disconnectTcp(deviceKey);
 
     // 通知轮询引擎恢复轮询
     if (this._pollingEngine) {

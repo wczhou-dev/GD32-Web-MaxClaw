@@ -20,6 +20,7 @@
 
 const {
   BLOCK_TEST_STATUS,
+  ATE_TEST_BLOCK_SIZE,
   BLOCK_TEST_CONFIG,
   TEST_CMD,
   TEST_STATUS,
@@ -46,13 +47,13 @@ class TestProtocol {
   // ============================================================
 
   /**
-   * 解析测试状态寄存器区 (0x8000-0x8027)
-   * @param {number[]} registers - 原始寄存器数组（40 个）
+   * 解析测试状态寄存器区 (0x8000-0x802F)
+   * @param {number[]} registers - 原始寄存器数组（48 个）
    * @returns {object} 结构化测试状态
    */
   parseTestStatusBlock(registers) {
-    if (!registers || registers.length < 40) {
-      throw new Error('寄存器数据不足，需要 40 个');
+    if (!registers || registers.length < ATE_TEST_BLOCK_SIZE) {
+      throw new Error(`寄存器数据不足，需要 ${ATE_TEST_BLOCK_SIZE} 个`);
     }
 
     return {
@@ -81,23 +82,23 @@ class TestProtocol {
       // 会话 ID (0x8005-0x8006) - 寄存器偏移 5-6
       sessionId: (registers[5] << 16) | registers[6],
 
-      // 测试掩码 (0x8006) - 寄存器偏移 6（0x8006 - 0x8000 = 6）
-      testMask: registers[6],
+      // 测试掩码 (0x8008) - 寄存器偏移 8（0x8008 - 0x8000 = 8）
+      testMask: registers[8],
 
       // 失败项 ID (0x8007) - 寄存器偏移 7
       failedItemId: registers[7],
 
-      // 单项结果 (0x8010-0x8017)
-      singleResults: this.parseSingleResults(registers.slice(16, 24)),
+      // 单项结果 (0x8010-0x8018) — 9 项
+      singleResults: this.parseSingleResults(registers.slice(16, 25)),
 
-      // 错误码 (0x8020-0x8027)
-      errorCodes: this.parseErrorCodes(registers.slice(32, 40)),
+      // 错误码 (0x8020-0x8028) — 9 项
+      errorCodes: this.parseErrorCodes(registers.slice(32, 41)),
 
-      // 诊断信息 (0x8021-0x8023)
+      // 诊断信息 (0x802C-0x802E) - 寄存器偏移 44-46
       diagnostics: {
-        channel: registers[33],      // 0x8021
-        expected: registers[34],     // 0x8022
-        actual: registers[35],       // 0x8023
+        channel: registers[44],      // 0x802C
+        expected: registers[45],     // 0x802D
+        actual: registers[46],       // 0x802E
       },
 
       // 原始寄存器
@@ -106,13 +107,13 @@ class TestProtocol {
   }
 
   /**
-   * 解析单项结果 (0x8010-0x8017)
-   * @param {number[]} registers - 8 个寄存器
+   * 解析单项结果 (0x8010-0x8018)
+   * @param {number[]} registers - 9 个寄存器
    * @returns {Array<object>}
    */
   parseSingleResults(registers) {
     const results = [];
-    for (let i = 0; i < 8; i++) {
+    for (let i = 0; i < 9; i++) {
       const itemId = i + 1;
       const value = registers[i] || 0;
       results.push({
@@ -129,13 +130,13 @@ class TestProtocol {
   }
 
   /**
-   * 解析错误码 (0x8020-0x8027)
-   * @param {number[]} registers - 8 个寄存器
+   * 解析错误码 (0x8020-0x8028)
+   * @param {number[]} registers - 9 个寄存器
    * @returns {Array<object>}
    */
   parseErrorCodes(registers) {
     const codes = [];
-    for (let i = 0; i < 8; i++) {
+    for (let i = 0; i < 9; i++) {
       const itemId = i + 1;
       const errorCode = registers[i] || 0;
       const detail = ERROR_CODE_DETAIL[errorCode] || null;

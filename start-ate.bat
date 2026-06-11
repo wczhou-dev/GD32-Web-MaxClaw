@@ -65,14 +65,14 @@ timeout /t 3 /nobreak > nul
 
 REM 打开浏览器
 echo [信息] 正在打开浏览器...
-start http://localhost:3001
+start http://localhost:3000
 
 echo.
 echo ========================================
 echo   ✅ ATE 系统启动成功！
 echo ========================================
 echo.
-echo 📍 访问地址: http://localhost:3001
+echo 📍 访问地址: http://localhost:3000
 echo.
 echo 提示：
 echo   - 后端服务在新窗口中运行

@@ -374,11 +374,11 @@ class TestCatalog {
   getProjectTree() {
     const basicTree = {
       id: 'basic',
-      name: '基础硬件自检',
+      label: '基础硬件自检',
       category: '基础自检',
       children: this._basicItems.map(item => ({
         id: item.id,
-        name: item.name,
+        label: item.name,
         timeout: item.timeoutMs,
         status: 'pending',
       })),
@@ -386,11 +386,11 @@ class TestCatalog {
 
     const businessTree = {
       id: 'business',
-      name: '业务逻辑测试',
+      label: '业务逻辑测试',
       category: '业务逻辑',
       children: this._businessItems.map(item => ({
         id: item.id,
-        name: item.name,
+        label: item.name,
         timeout: item.timeoutMs,
         status: 'pending',
       })),

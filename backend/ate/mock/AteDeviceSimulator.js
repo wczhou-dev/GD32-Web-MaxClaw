@@ -70,10 +70,10 @@ const testRegisters = {
   progress: 0,       // 0x8003
   overallStatus: 0,  // 0x8004
   sessionId: 0,      // 0x8005-0x8006
-  testMask: 0,       // 0x8007
-  failedItem: 0,     // 0x8008
-  singleResults: [0, 0, 0, 0, 0, 0, 0, 0],  // 0x8010-0x8017
-  errorCodes: [0, 0, 0, 0, 0, 0, 0, 0],     // 0x8020-0x8027
+  testMask: 0,       // 0x8008
+  failedItem: 0,     // 0x8007
+  singleResults: new Array(9).fill(0),  // 0x8010-0x8018, 9 项结果
+  errorCodes: new Array(9).fill(0),     // 0x8020-0x8028, 9 项错误码
 };
 
 let testRunning = false;
@@ -190,8 +190,8 @@ const ateServer = net.createServer((socket) => {
         testRunning = false;
         testRegisters.control = 0;
         testRegisters.overallStatus = 0;
-        testRegisters.singleResults = [0, 0, 0, 0, 0, 0, 0, 0];
-        testRegisters.errorCodes = [0, 0, 0, 0, 0, 0, 0, 0];
+        testRegisters.singleResults = new Array(9).fill(0);
+        testRegisters.errorCodes = new Array(9).fill(0);
       } else if (payload.method === 'test.start') {
         const mask = payload.params?.testMask || 0x01FF;
         testRegisters.testMask = mask;
@@ -210,8 +210,8 @@ const ateServer = net.createServer((socket) => {
         testRegisters.overallStatus = 0;
         testRegisters.progress = 0;
         testRegisters.currentItem = 0;
-        testRegisters.singleResults = [0, 0, 0, 0, 0, 0, 0, 0];
-        testRegisters.errorCodes = [0, 0, 0, 0, 0, 0, 0, 0];
+        testRegisters.singleResults = new Array(9).fill(0);
+        testRegisters.errorCodes = new Array(9).fill(0);
         response = { method: 'test.reset', success: true };
       } else if (payload.method === 'properties.get') {
         response = {

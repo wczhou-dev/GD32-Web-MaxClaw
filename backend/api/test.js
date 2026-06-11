@@ -20,11 +20,13 @@
 const express = require('express');
 const router = express.Router();
 const TestReportService = require('../ate/TestReportService');
+const TestCatalog = require('../ate/TestCatalog');
 
 /**
- * 创建报告服务实例
+ * 创建报告服务实例和测试目录
  */
 const reportService = new TestReportService();
+const catalog = new TestCatalog();
 
 /**
  * GET /api/test/reports
@@ -43,26 +45,40 @@ router.get('/reports', async (req, res) => {
 
 /**
  * GET /api/test/reports/:filename
- * 下载报告文件（JSON 或 HTML）
+ * 统一报告下载路由：按扩展名分发 JSON 或 HTML
  */
 router.get('/reports/:filename', async (req, res) => {
   try {
     const { filename } = req.params;
-    const report = await reportService.getReport(filename);
 
+    if (filename.endsWith('.html')) {
+      // HTML 报告：先读取 JSON 源文件，再渲染为 HTML
+      const jsonFilename = filename.replace(/\.html$/, '.json');
+      const report = await reportService.getReport(jsonFilename);
+      if (!report) {
+        return res.status(404).json({ success: false, error: '报告不存在' });
+      }
+      const htmlReport = reportService._generateHtmlReport(report);
+      res.setHeader('Content-Type', 'text/html; charset=utf-8');
+      return res.send(htmlReport);
+    }
+
+    if (filename.endsWith('.json')) {
+      const report = await reportService.getReport(filename);
+      if (!report) {
+        return res.status(404).json({ success: false, error: '报告不存在' });
+      }
+      res.setHeader('Content-Type', 'application/json; charset=utf-8');
+      return res.json(report);
+    }
+
+    // 无扩展名：默认尝试 JSON
+    const report = await reportService.getReport(filename);
     if (!report) {
       return res.status(404).json({ success: false, error: '报告不存在' });
     }
-
-    // 根据文件扩展名设置 Content-Type
-    if (filename.endsWith('.html')) {
-      res.setHeader('Content-Type', 'text/html; charset=utf-8');
-      const htmlReport = reportService._generateHtmlReport(report);
-      res.send(htmlReport);
-    } else {
-      res.setHeader('Content-Type', 'application/json; charset=utf-8');
-      res.json(report);
-    }
+    res.setHeader('Content-Type', 'application/json; charset=utf-8');
+    res.json(report);
   } catch (err) {
     console.error('[API] Get report error:', err.message);
     res.status(500).json({ success: false, error: err.message });
@@ -70,46 +86,16 @@ router.get('/reports/:filename', async (req, res) => {
 });
 
 /**
- * GET /api/test/reports/:filename.json
- * 下载 JSON 报告
+ * GET /api/test/catalog
+ * 获取测试目录树（前端项目树数据源）
  */
-router.get('/reports/:filename.json', async (req, res) => {
+router.get('/catalog', (req, res) => {
   try {
-    const { filename } = req.params;
-    const jsonFilename = filename.endsWith('.json') ? filename : `${filename}.json`;
-    const report = await reportService.getReport(jsonFilename);
-
-    if (!report) {
-      return res.status(404).json({ success: false, error: '报告不存在' });
-    }
-
-    res.setHeader('Content-Type', 'application/json; charset=utf-8');
-    res.json(report);
+    const tree = catalog.getProjectTree();
+    const items = catalog.getAllItems();
+    res.json({ success: true, tree, items });
   } catch (err) {
-    console.error('[API] Get JSON report error:', err.message);
-    res.status(500).json({ success: false, error: err.message });
-  }
-});
-
-/**
- * GET /api/test/reports/:filename.html
- * 下载 HTML 报告
- */
-router.get('/reports/:filename.html', async (req, res) => {
-  try {
-    const { filename } = req.params;
-    const htmlFilename = filename.endsWith('.html') ? filename : `${filename}.html`;
-    const report = await reportService.getReport(htmlFilename);
-
-    if (!report) {
-      return res.status(404).json({ success: false, error: '报告不存在' });
-    }
-
-    const htmlReport = reportService._generateHtmlReport(report);
-    res.setHeader('Content-Type', 'text/html; charset=utf-8');
-    res.send(htmlReport);
-  } catch (err) {
-    console.error('[API] Get HTML report error:', err.message);
+    console.error('[API] Get catalog error:', err.message);
     res.status(500).json({ success: false, error: err.message });
   }
 });

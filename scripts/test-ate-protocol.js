@@ -25,6 +25,8 @@ const {
   TEST_STATUS,
   SINGLE_RESULT,
   ATE_MASK,
+  BLOCK_TEST_STATUS,
+  ATE_TEST_BLOCK_SIZE,
 } = require('../shared/constants');
 
 // ============================================================
@@ -142,25 +144,40 @@ console.log('\n\n=== 测试 TestProtocol ===');
 function testProtocol() {
   const protocol = new TestProtocol();
 
+  // 测试寄存器地址常量
+  console.log('\n0. 寄存器地址常量验证');
+  assertEqual(BLOCK_TEST_STATUS.TEST_MASK, 0x8008, 'TEST_MASK 地址为 0x8008');
+  assertEqual(BLOCK_TEST_STATUS.SESSION_ID_HIGH, 0x8005, 'SESSION_ID_HIGH 地址为 0x8005');
+  assertEqual(BLOCK_TEST_STATUS.SESSION_ID_LOW, 0x8006, 'SESSION_ID_LOW 地址为 0x8006');
+  assertEqual(BLOCK_TEST_STATUS.DIAG_CHANNEL, 0x802C, 'DIAG_CHANNEL 地址为 0x802C');
+  assertEqual(BLOCK_TEST_STATUS.DIAG_EXPECTED, 0x802D, 'DIAG_EXPECTED 地址为 0x802D');
+  assertEqual(BLOCK_TEST_STATUS.DIAG_ACTUAL, 0x802E, 'DIAG_ACTUAL 地址为 0x802E');
+  assertEqual(ATE_TEST_BLOCK_SIZE, 48, '测试块大小为 48 个寄存器');
+
   // 测试解析测试状态
   console.log('\n1. 解析测试状态寄存器');
 
-  const registers = new Array(40).fill(0);
+  const registers = new Array(ATE_TEST_BLOCK_SIZE).fill(0);
   registers[0] = TEST_CMD.START;      // 0x8000
   registers[1] = 2;                    // 0x8001 通风等级
   registers[2] = 3;                    // 0x8002 当前项
   registers[3] = 50;                   // 0x8003 进度
   registers[4] = TEST_STATUS.RUNNING;  // 0x8004 整体状态
-  registers[6] = 0x01FF;               // 0x8006 测试掩码
+  registers[8] = 0x01FF;               // 0x8008 测试掩码（修正后）
 
-  // 单项结果
-  registers[16] = SINGLE_RESULT.PASS;  // 0x8010
-  registers[17] = SINGLE_RESULT.FAIL;  // 0x8011
-  registers[18] = SINGLE_RESULT.TESTING; // 0x8012
+  // 单项结果（0x8010-0x8018，9 项）
+  registers[16] = SINGLE_RESULT.PASS;    // 项 1
+  registers[17] = SINGLE_RESULT.FAIL;    // 项 2
+  registers[18] = SINGLE_RESULT.TESTING; // 项 3
 
-  // 错误码
-  registers[32] = 0;                   // 0x8020
-  registers[33] = 0x0010;              // 0x8021
+  // 错误码（0x8020-0x8028，9 项）
+  registers[32] = 0;                     // 项 1 无错误
+  registers[33] = 0x0010;                // 项 2 错误码
+
+  // 诊断信息（0x802C-0x802E）
+  registers[44] = 1;                     // DIAG_CHANNEL
+  registers[45] = 2500;                  // DIAG_EXPECTED
+  registers[46] = 2480;                  // DIAG_ACTUAL
 
   const result = protocol.parseTestStatusBlock(registers);
 
@@ -172,24 +189,35 @@ function testProtocol() {
   assertEqual(result.overallStatus.value, TEST_STATUS.RUNNING, '整体状态正确');
   assertEqual(result.overallStatus.text, '测试中', '整体状态文本正确');
   assertEqual(result.overallStatus.isFinished, false, 'isFinished 正确');
-  assertEqual(result.testMask, 0x01FF, '测试掩码正确');
+  assertEqual(result.testMask, 0x01FF, '测试掩码正确（从 0x8008 读取）');
 
-  // 测试单项结果解析
-  console.log('\n2. 解析单项结果');
+  // 测试诊断信息（不再与错误码重叠）
+  console.log('\n1.5. 解析诊断信息');
+  assertEqual(result.diagnostics.channel, 1, '诊断通道正确');
+  assertEqual(result.diagnostics.expected, 2500, '诊断期望值正确');
+  assertEqual(result.diagnostics.actual, 2480, '诊断实际值正确');
 
+  // 测试单项结果解析（9 项）
+  console.log('\n2. 解析单项结果（9 项）');
+
+  assertEqual(result.singleResults.length, 9, '解析出 9 项结果');
   assertEqual(result.singleResults[0].value, SINGLE_RESULT.PASS, '项 1 状态为 PASS');
   assertEqual(result.singleResults[0].isPass, true, '项 1 isPass 正确');
   assertEqual(result.singleResults[1].value, SINGLE_RESULT.FAIL, '项 2 状态为 FAIL');
   assertEqual(result.singleResults[1].isFail, true, '项 2 isFail 正确');
   assertEqual(result.singleResults[2].value, SINGLE_RESULT.TESTING, '项 3 状态为 TESTING');
   assertEqual(result.singleResults[2].isTesting, true, '项 3 isTesting 正确');
+  // 验证第 9 项（RS485 热切换）存在
+  assertEqual(result.singleResults[8].itemId, 9, '项 9 (RS485 热切换) 存在');
+  assertEqual(result.singleResults[8].value, SINGLE_RESULT.PENDING, '项 9 默认为 PENDING');
 
-  // 测试错误码解析
-  console.log('\n3. 解析错误码');
+  // 测试错误码解析（9 项）
+  console.log('\n3. 解析错误码（9 项）');
 
+  assertEqual(result.errorCodes.length, 9, '解析出 9 项错误码');
   assertEqual(result.errorCodes[0].errorCode, 0, '项 1 无错误');
   assertEqual(result.errorCodes[0].hasError, false, '项 1 hasError 正确');
-  assertEqual(result.errorCodes[1].errorCode, 0x0010, '项 2 错误码正确');
+  assertEqual(result.errorCodes[1].errorCode, 0x0010, '项 2 错误码正确（不再与 DIAG 重叠）');
   assertEqual(result.errorCodes[1].hasError, true, '项 2 hasError 正确');
   assert(result.errorCodes[1].detail !== null, '项 2 有错误详情');
 

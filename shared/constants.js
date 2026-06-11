@@ -26,21 +26,28 @@
  * 用途：ATE 测试过程控制、整体进度、单项测试结果与故障错误码
  */
 const BLOCK_TEST_STATUS = {
-  START: 0x8000,      // 控制命令：R/W，uint16，0=idle, 1=start, 2=stop, 3=reset
+  START: 0x8000,              // 控制命令：R/W，uint16，0=idle, 1=start, 2=stop, 3=reset
   VENTILATION_LEVEL: 0x8001,  // 当前通风等级：RO，uint16
   CURRENT_ITEM: 0x8002,       // 当前测试项 ID：RO，uint16
   PROGRESS: 0x8003,           // 测试进度百分比：RO，uint16，0-100
   OVERALL_STATUS: 0x8004,     // 整体测试状态码：RO，uint16
-  SESSION_ID: 0x8005,         // 会话 ID：RO，uint32，防重复触发
-  TEST_MASK: 0x8006,          // 测试项掩码：R/W，uint16，0x01FF 表示全部 9 项
+  SESSION_ID_HIGH: 0x8005,    // 会话 ID 高 16 位：RO，uint16
+  SESSION_ID_LOW: 0x8006,     // 会话 ID 低 16 位：RO，uint16
   ERROR_ITEM_ID: 0x8007,      // 失败项 ID：RO，uint16
-  SINGLE_RESULT_BASE: 0x8010, // 单项自检结果码基址：RO，uint16[8]，0x8010-0x8017
-  ERROR_CODE_BASE: 0x8020,    // 故障错误码基址：RO，uint16[8]，0x8020-0x8027
-  DIAG_CHANNEL: 0x8021,       // 诊断通道号：RO，uint16
-  DIAG_EXPECTED: 0x8022,      // 诊断期望值：RO，uint16，单位 mV
-  DIAG_ACTUAL: 0x8023,        // 诊断实际值：RO，uint16，单位 mV
+  TEST_MASK: 0x8008,          // 测试项掩码：R/W，uint16，0x01FF 表示全部 9 项
+  SINGLE_RESULT_BASE: 0x8010, // 单项自检结果码基址：RO，uint16[9]，0x8010-0x8018
+  ERROR_CODE_BASE: 0x8020,    // 故障错误码基址：RO，uint16[9]，0x8020-0x8028
+  DIAG_CHANNEL: 0x802C,       // 诊断通道号：RO，uint16（移到 0x802C，避免与 ERROR_CODE 重叠）
+  DIAG_EXPECTED: 0x802D,      // 诊断期望值：RO，uint16，单位 mV
+  DIAG_ACTUAL: 0x802E,        // 诊断实际值：RO，uint16，单位 mV
   END: 0x802F                 // 区块结束地址（不含）
 };
+
+/**
+ * ATE 测试状态寄存器块总读取长度（寄存器个数）
+ * 0x8000 - 0x802F = 48 个寄存器
+ */
+const ATE_TEST_BLOCK_SIZE = 48;
 
 /**
  * ATE 测试参数配置寄存器区 (BLOCK_TEST_CONFIG)
@@ -169,8 +176,8 @@ const TEST_STATUS_TEXT = {
 // ============================================================
 
 /**
- * BLOCK_TEST_STATUS.SINGLE_RESULT_BASE (0x8010-0x8017) 的结果码
- * 每个测试项独立上报结果
+ * BLOCK_TEST_STATUS.SINGLE_RESULT_BASE (0x8010-0x8018) 的结果码
+ * 每个测试项独立上报结果，共 9 项（对应 ATE_MASK bit0-bit8）
  */
 const SINGLE_RESULT = {
   PENDING:   0,  // 待测试
@@ -204,9 +211,9 @@ const SINGLE_RESULT_CSS_CLASS = {
 // ============================================================
 
 /**
- * BLOCK_TEST_STATUS.ERROR_CODE_BASE (0x8020-0x8027) 的错误码
+ * BLOCK_TEST_STATUS.ERROR_CODE_BASE (0x8020-0x8028) 的错误码
  * 每个错误码绑定中文原因、排障建议和可能涉及的硬件点位
- * 依据 P0 方案第 3.7.3 节定义
+ * 依据 P0 方案第 3.7.3 节定义，共 9 项（对应 ATE_MASK bit0-bit8）
  */
 const ERROR_CODE = {
   // SPI Flash 错误码
@@ -624,6 +631,7 @@ const CONFIG_DEFAULTS = {
 module.exports = {
   // 寄存器区块
   BLOCK_TEST_STATUS,
+  ATE_TEST_BLOCK_SIZE,
   BLOCK_TEST_CONFIG,
   BLOCK_ENV,
   BLOCK_HW,

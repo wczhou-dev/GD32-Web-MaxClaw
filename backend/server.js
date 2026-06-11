@@ -163,16 +163,9 @@ async function main() {
         wsManager,
     });
 
-    // 监听测试事件并推送到前端
-    testManager.on('test_progress', (data) => {
-        wsManager.pushTestProgress(data);
-    });
-    testManager.on('test_finished', (data) => {
-        wsManager.pushTestFinished(data);
-    });
-    testManager.on('test_error', (data) => {
-        wsManager.pushTestError(data);
-    });
+    // 注意：TestManager._emitSessionUpdate() 已经通过 wsManager.broadcast() 直接推送
+    // 标准 WebSocket 消息（test_progress_update, test_finished_notification, test_error），
+    // 不再额外监听事件以避免双重广播。
 
     // 设置客户端消息处理
     wsManager.onClientMessage = async (clientId, message) => {
@@ -308,8 +301,18 @@ async function main() {
 
             case 'manual_force_io_request':
                 try {
-                    // TODO: 实现手动强制 IO
-                    wsManager.sendResponse(clientId, 'manual_force_io_request', true);
+                    const device = devicePool.getAllDevices().find(d => d.ip === message.deviceIp);
+                    if (!device) {
+                        wsManager.sendResponse(clientId, 'manual_force_io_request', false, { error: '设备未找到' });
+                        break;
+                    }
+                    const result = await testManager.manualForceIo({
+                        deviceKey: device.key,
+                        deviceIp: message.deviceIp,
+                        outputs: message.outputs || {},
+                        timeoutMs: message.timeoutMs || 0,
+                    });
+                    wsManager.sendResponse(clientId, 'manual_force_io_request', result.success, result);
                 } catch (err) {
                     wsManager.sendResponse(clientId, 'manual_force_io_request', false, { error: err.message });
                 }
@@ -360,6 +363,17 @@ async function main() {
         });
     });
 
+    // 生产模式：托管前端构建产物
+    const distPath = path.join(__dirname, '..', 'frontend', 'dist');
+    if (fs.existsSync(distPath)) {
+        console.log(`[Static] Serving frontend from: ${distPath}`);
+        app.use(express.static(distPath));
+        // SPA fallback：所有非 API 路由返回 index.html
+        app.get('*', (req, res) => {
+            res.sendFile(path.join(distPath, 'index.html'));
+        });
+    }
+
     // 启动基于共享端口的HTTP/WebSocket服务
     server.listen(httpPort, () => {
         console.log(`\n[Step 6/6] HTTP server: http://localhost:${httpPort}`);
@@ -369,7 +383,7 @@ async function main() {
         console.log(`\n📍 访问地址:`);
         console.log(`   HTTP API: http://localhost:${httpPort}`);
         console.log(`   WebSocket: ws://localhost:${httpPort}`);
-        console.log(`   OTA固件: http://${localIP}:8080/download/SciGeneAI.rbl`);
+        console.log(`   OTA固件: http://${localIP}:18080/download/SciGeneAI.rbl`);
         console.log(`\n📡 等待环控器连接...`);
         console.log(`   IP: ${config.devices[0]?.ip || '192.168.110.125'}`);
         console.log('');

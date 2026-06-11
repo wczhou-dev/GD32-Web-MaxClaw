@@ -21,6 +21,7 @@
 
 const fs = require('fs');
 const path = require('path');
+const TestCatalog = require('./TestCatalog');
 const {
   TEST_STATUS_TEXT,
   SINGLE_RESULT_TEXT,
@@ -137,7 +138,7 @@ class TestReportService {
   /**
    * 获取报告内容
    * @param {string} fileName - 报告文件名
-   * @returns {Promise<object|null>}
+   * @returns {Promise<object|null>} JSON 报告对象，或 null
    */
   async getReport(fileName) {
     const filePath = path.join(this._reportDir, fileName);
@@ -147,6 +148,11 @@ class TestReportService {
 
     try {
       const content = fs.readFileSync(filePath, 'utf8');
+      if (fileName.endsWith('.html')) {
+        // HTML 文件不作为 JSON 解析，直接返回 null
+        // HTML 报告由 API 层通过 JSON 源文件重新渲染生成
+        return null;
+      }
       return JSON.parse(content);
     } catch (err) {
       return null;
@@ -217,13 +223,13 @@ class TestReportService {
       // 参数快照
       parameters: {
         selectedItemIds: session.selectedItemIds,
-        testMask: session.selectedItemIds.reduce((mask, id) => {
-          const item = require('./TestCatalog').prototype.getItemById.call(
-            { _basicItems: [], _businessItems: [] },
-            id
-          );
-          return mask | (item ? item.mask : 0);
-        }, 0),
+        testMask: (() => {
+          const cat = new TestCatalog();
+          return session.selectedItemIds.reduce((mask, id) => {
+            const item = cat.getItemById(id);
+            return mask | (item ? item.mask : 0);
+          }, 0);
+        })(),
       },
 
       // 原始寄存器快照

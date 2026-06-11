@@ -241,10 +241,14 @@
 
                 <!-- 中央区域 -->
                 <div class="hw-center">
-                  <div class="hw-center-icon">
-                    <i class="fa-solid fa-microchip"></i>
-                  </div>
-                  <div class="hw-center-text">环控器核心板</div>
+                  <button class="hw-oneclick-btn hw-start" @click="startFullSelfTest" :disabled="testEngine.status === 'running'">
+                    <i class="fa-solid fa-play hw-oneclick-icon"></i>
+                    <span class="hw-oneclick-label">一键整机自检</span>
+                  </button>
+                  <button class="hw-oneclick-btn hw-stop" @click="stopTest" :disabled="testEngine.status !== 'running'">
+                    <i class="fa-solid fa-stop hw-oneclick-icon"></i>
+                    <span class="hw-oneclick-label">停止自检</span>
+                  </button>
                 </div>
 
                 <!-- 右侧 RS485 -->
@@ -274,14 +278,6 @@
             </div>
           </div>
 
-          <!-- 一键整机自检按钮 -->
-          <div class="oneclick-section">
-            <button class="win-btn-oneclick" @click="startFullSelfTest" :disabled="testEngine.status === 'running'">
-              <span class="oneclick-dot" :class="{ 'dot-running': testEngine.status === 'running' }"></span>
-              <span class="oneclick-text">一键整机自检</span>
-            </button>
-          </div>
-
           <fieldset class="win-group">
             <legend>下位机参数初始化</legend>
             <div class="config-row">
@@ -303,11 +299,11 @@
           </div>
 
           <fieldset class="win-group">
-            <legend>继电器 (DO) 手动强制点检</legend>
+            <legend>继电器 (DO) 手动强制点检 — 22 路</legend>
             <div class="relay-grid">
-              <div v-for="i in 8" :key="i" class="relay-item">
+              <div v-for="i in 22" :key="i" class="relay-item">
                 <el-switch v-model="manualRelays[i-1]" active-color="#13ce66"></el-switch>
-                <span>继电器 {{ i }}</span>
+                <span>R{{ i }}</span>
               </div>
             </div>
           </fieldset>
@@ -345,7 +341,7 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted, nextTick } from 'vue'
+import { ref, computed, onMounted, nextTick, watch } from 'vue'
 import { useDeviceStore } from '../stores/deviceStore'
 
 const deviceStore = useDeviceStore()
@@ -363,7 +359,7 @@ const comPorts = ref({
   rs485: 'COM3', baudRateRS485: 115200,
   log: 'COM3', baudRateLog: 115200
 })
-const manualRelays = ref(Array(8).fill(false))
+const manualRelays = ref(Array(22).fill(false))
 
 // ==================== 串口日志相关 ====================
 const enableRealtimeLogs = ref(false)
@@ -372,45 +368,59 @@ let serialReader = null
 let mockInterval = null
 
 // ==================== 左侧项目树数据 ====================
-const testTree = ref([
-  {
-    id: 'L1',
-    label: 'L1 核心板及外设物理自检',
-    children: [
-      { id: 1, label: 'SPI Flash 物理读写自检', status: 'not_run' },
-      { id: 2, label: 'EEPROM 参数存储自检', status: 'not_run' },
-      { id: 3, label: 'RTC 时钟晶振起振自检', status: 'not_run' },
-      { id: 4, label: 'RS485-1 总线通信自检', status: 'not_run' },
-      { id: 5, label: 'RS485-2 扩展通信自检', status: 'not_run' },
-      { id: 6, label: 'ADC 与 AO-AI 电压闭环', status: 'not_run' },
-      { id: 7, label: '22路继电器回读自检', status: 'not_run' },
-    ]
-  },
-  {
-    id: 'L2',
-    label: 'L2 核心控制算法自检',
-    children: [
-      { id: 10, label: '小窗手动目标开度调节', status: 'not_run' },
-      { id: 11, label: '小窗自动负压温差调节', status: 'not_run' },
-      { id: 12, label: '进风幕帘开度行程校验', status: 'not_run' },
-      { id: 13, label: '风机手动强制占空比', status: 'not_run' },
-      { id: 14, label: '负压通风自动阶梯升降', status: 'not_run' },
-      { id: 15, label: '加热自动回差及强锁', status: 'not_run' },
-      { id: 16, label: '有害气体超标阻断校验', status: 'not_run' },
-    ]
-  },
-  {
-    id: 'L3',
-    label: 'L3 容错及安全机制自检',
-    children: [
-      { id: 20, label: '传感器断线超时告警', status: 'not_run' },
-      { id: 21, label: '传感器热重构免重启', status: 'not_run' },
-      { id: 22, label: '主备压差计高可用切换', status: 'not_run' },
-      { id: 23, label: '保温灯天龄切换延时', status: 'not_run' },
-      { id: 24, label: '微正压断联自适应重构', status: 'not_run' },
+// 从后端 TestCatalog 加载，不再硬编码
+const testTree = ref([])
+
+/**
+ * 从后端加载测试目录树
+ */
+const loadTestTree = async () => {
+  try {
+    const res = await fetch('/api/test/catalog')
+    const data = await res.json()
+    if (data.success && data.tree) {
+      // 为每个节点添加 status 字段
+      testTree.value = data.tree.map(group => ({
+        ...group,
+        children: (group.children || []).map(item => ({
+          ...item,
+          status: 'not_run'
+        }))
+      }))
+    }
+  } catch (err) {
+    console.error('[AteTest] Failed to load test catalog:', err)
+    // 降级：使用与后端 TestCatalog 一致的目录
+    testTree.value = [
+      {
+        id: 'basic',
+        label: '基础硬件自检',
+        children: [
+          { id: 1, label: 'SPI Flash 自检', status: 'not_run' },
+          { id: 2, label: 'EEPROM 自检', status: 'not_run' },
+          { id: 3, label: 'RTC 时钟自检', status: 'not_run' },
+          { id: 4, label: 'RS485-1 通信自检', status: 'not_run' },
+          { id: 5, label: 'RS485-2 通信自检', status: 'not_run' },
+          { id: 6, label: 'CAN/扩展板自检', status: 'not_run' },
+          { id: 7, label: 'ADC/AO 自检', status: 'not_run' },
+          { id: 8, label: '22 路继电器自检', status: 'not_run' },
+          { id: 9, label: 'RS485 热切换自检', status: 'not_run' },
+        ]
+      },
+      {
+        id: 'business',
+        label: '业务逻辑测试',
+        children: [
+          { id: 101, label: '自动通风测试', status: 'not_run' },
+          { id: 102, label: '开口控制测试', status: 'not_run' },
+          { id: 103, label: '水帘控制测试', status: 'not_run' },
+          { id: 104, label: '喷淋控制测试', status: 'not_run' },
+          { id: 105, label: '加热控制测试', status: 'not_run' },
+        ]
+      }
     ]
   }
-])
+}
 
 const defaultProps = { children: 'children', label: 'label' }
 
@@ -735,32 +745,38 @@ const startFailedOnlyTest = () => {
 }
 
 const stopTest = () => {
-  testEngine.value.status = 'idle'
-  currentCmd.value = '操作员已强行中止检定。'
-  addLog('🛑 检定序列被人工中止。', 'warn', 'system')
+  if (deviceStore.wsConnected && deviceStore.ateSession) {
+    deviceStore.stopTest()
+    addLog('已发送停止检定指令到后端。', 'warn', 'system')
+  } else {
+    testEngine.value.status = 'idle'
+    currentCmd.value = '操作员已强行中止检定。'
+    addLog('检定序列被人工中止。', 'warn', 'system')
+  }
 }
 
 const resetTest = () => {
-  testEngine.value.status = 'idle'
-  testEngine.value.progress = 0
-  lastError.value = ''
-  testTree.value.forEach(g => g.children.forEach(c => c.status = 'not_run'))
-  clearLogs()
-  currentCmd.value = '状态已重置'
+  if (deviceStore.wsConnected && deviceStore.ateSession) {
+    deviceStore.resetTest()
+    addLog('已发送复位指令到后端。', 'warn', 'system')
+  } else {
+    testEngine.value.status = 'idle'
+    testEngine.value.progress = 0
+    lastError.value = ''
+    testTree.value.forEach(g => g.children?.forEach(c => c.status = 'not_run'))
+    clearLogs()
+    currentCmd.value = '状态已重置'
+  }
 }
 
 const executeStep = (node, callback) => {
   testEngine.value.currentItemName = node.label
   node.status = 'running'
 
-  addLog(`[System] 下发指令指令队列: 节点 ${node.id.toString(16)} ...`, 'info', 'system')
-  if (enableRealtimeLogs.value) addLog(`[TX] 68 4A 00 4A 00 68 4B ${node.id.toString(16).padStart(2, '0')} ...`, 'info', 'device')
+  addLog(`[System] 下发检定指令: 节点 [${node.label}] (ID=${node.id})`, 'info', 'system')
 
-  updateRegisterAssertMock(node)
-
-  // 如果有后端连接，调用后端 API
+  // 通过后端 WebSocket 发起测试
   if (deviceStore.wsConnected) {
-    // 调用后端启动测试
     deviceStore.startTest({
       deviceIp: deviceStore.selectedDeviceIp || deviceIp.value,
       operatorInputId: testEngine.value.sn,
@@ -769,27 +785,25 @@ const executeStep = (node, callback) => {
       workOrder: testEngine.value.workOrder,
     })
 
-    // 监听后端响应
+    // 监听后端响应（轮询 ateStatus 变化）
     const checkStatus = setInterval(() => {
-      if (deviceStore.ateStatus === 'pass' || deviceStore.ateStatus === 'fail') {
+      if (deviceStore.ateStatus === 'pass' || deviceStore.ateStatus === 'fail' || deviceStore.ateStatus === 'error') {
         clearInterval(checkStatus)
 
         if (deviceStore.ateStatus === 'pass') {
           node.status = 'pass'
           addLog(`[PASS] 节点 [${node.label}] 自检合格`, 'success', 'system')
-          if (enableRealtimeLogs.value) addLog(`[RX] 68 4A 00 4A 00 68 8B 00 00 (ACK_OK)`, 'success', 'device')
           activeDetailRegisters.value.forEach(r => r.result = '合格')
         } else {
           node.status = 'fail'
           testEngine.value.failedItems.push(node)
-          lastError.value = `${node.id} ${node.label} 返回错误码 E01`
-          addLog(`[FAIL] 告警: 节点 [${node.label}] 硬件响应超时或数据异常`, 'error', 'system')
-          if (enableRealtimeLogs.value) addLog(`[RX] 68 4A 00 4A 00 68 CB 01 E0 (ACK_ERR_E01)`, 'error', 'device')
+          lastError.value = `${node.id} ${node.label} 测试失败`
+          addLog(`[FAIL] 节点 [${node.label}] 自检不合格`, 'error', 'system')
           activeDetailRegisters.value.forEach(r => r.result = '不合格')
         }
         callback()
       }
-    }, 100)
+    }, 200)
 
     // 超时处理
     setTimeout(() => {
@@ -801,45 +815,65 @@ const executeStep = (node, callback) => {
         activeDetailRegisters.value.forEach(r => r.result = '不合格')
         callback()
       }
-    }, 10000)
+    }, 30000)
   } else {
-    // 无后端连接时，使用本地模拟
-    setTimeout(() => {
-      let isPass = Math.random() > 0.15
-
-      if (isPass) {
-        node.status = 'pass'
-        addLog(`[PASS] 节点 [${node.label}] 自检合格`, 'success', 'system')
-        if (enableRealtimeLogs.value) addLog(`[RX] 68 4A 00 4A 00 68 8B 00 00 (ACK_OK)`, 'success', 'device')
-        activeDetailRegisters.value.forEach(r => r.result = '合格')
-      } else {
-        node.status = 'fail'
-        testEngine.value.failedItems.push(node)
-        lastError.value = `${node.id} ${node.label} 返回错误码 E01`
-        addLog(`[FAIL] 告警: 节点 [${node.label}] 硬件响应超时或数据异常`, 'error', 'system')
-        if (enableRealtimeLogs.value) addLog(`[RX] 68 4A 00 4A 00 68 CB 01 E0 (ACK_ERR_E01)`, 'error', 'device')
-        activeDetailRegisters.value.forEach(r => r.result = '不合格')
-      }
-      callback()
-    }, 800)
+    // 无后端连接时，提示用户
+    node.status = 'fail'
+    testEngine.value.failedItems.push(node)
+    addLog(`[ERROR] 节点 [${node.label}] 后端未连接，无法执行测试`, 'error', 'system')
+    activeDetailRegisters.value.forEach(r => r.result = '未连接')
+    callback()
   }
 }
 
-const downloadReport = () => {
-  alert("报表生成请求已下发。")
+const downloadReport = async () => {
+  try {
+    const res = await fetch('/api/test/reports')
+    const data = await res.json()
+    if (data.success && data.reports && data.reports.length > 0) {
+      const latest = data.reports[0]
+      window.open(`/api/test/reports/${latest.fileName}`, '_blank')
+      addLog(`已打开报告: ${latest.fileName}`, 'success', 'system')
+    } else {
+      alert('当前无测试报告可下载')
+    }
+  } catch (err) {
+    alert('下载报告失败: ' + err.message)
+  }
 }
 
-const handleConfigPush = () => {
-  alert("配置下发成功！")
+const handleConfigPush = async () => {
+  try {
+    const res = await fetch('/api/test/config', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        deviceIp: deviceIp.value,
+        comPorts: comPorts.value,
+      })
+    })
+    const data = await res.json()
+    if (data.success) {
+      addLog('配置下发成功', 'success', 'system')
+    } else {
+      addLog('配置下发失败: ' + (data.error || '未知错误'), 'error', 'system')
+    }
+  } catch (err) {
+    addLog('配置下发失败: ' + err.message, 'error', 'system')
+  }
 }
 
 // ==================== 生命周期 ====================
-onMounted(() => {
-  if (treeRef.value) {
+onMounted(async () => {
+  // 从后端加载测试目录树
+  await loadTestTree()
+
+  // 全选所有节点
+  if (treeRef.value && testTree.value.length > 0) {
     const allKeys = []
     testTree.value.forEach(g => {
       allKeys.push(g.id)
-      g.children.forEach(c => allKeys.push(c.id))
+      g.children?.forEach(c => allKeys.push(c.id))
     })
     treeRef.value.setCheckedKeys(allKeys)
   }
@@ -847,6 +881,59 @@ onMounted(() => {
   // 获取当前测试会话
   deviceStore.getTestSession()
 })
+
+// ==================== 状态同步 watchers ====================
+
+// 同步后端进度到本地 testEngine
+watch(() => deviceStore.ateProgress, (val) => {
+  testEngine.value.progress = val || 0
+})
+
+// 同步后端状态到本地 testEngine
+watch(() => deviceStore.ateStatus, (val) => {
+  if (val === 'running' || val === 'starting') {
+    testEngine.value.status = 'running'
+  } else if (val === 'idle') {
+    testEngine.value.status = 'idle'
+  } else if (val === 'pass') {
+    testEngine.value.status = 'pass'
+  } else if (val === 'fail' || val === 'error') {
+    testEngine.value.status = 'fail'
+  }
+})
+
+// 同步后端 timeline 到本地项目树节点状态
+watch(() => deviceStore.ateTimeline, (timeline) => {
+  if (!timeline || typeof timeline !== 'object') return
+  Object.entries(timeline).forEach(([itemId, item]) => {
+    const id = parseInt(itemId)
+    testTree.value.forEach(g => {
+      g.children?.forEach(c => {
+        if (c.id === id) {
+          if (item.state === 2) c.status = 'pass'       // SINGLE_RESULT.PASS
+          else if (item.state === 3) c.status = 'fail'  // SINGLE_RESULT.FAIL
+          else if (item.state === 1) c.status = 'running'
+          else if (item.state === 5) c.status = 'fail'  // TIMEOUT
+        }
+      })
+    })
+  })
+}, { deep: true })
+
+// 手动继电器开关 watcher：发送 WebSocket 消息
+watch(manualRelays, (newVal) => {
+  if (deviceStore.wsConnected) {
+    const outputs = {}
+    newVal.forEach((val, idx) => {
+      outputs[`relay_${idx + 1}`] = val ? 1 : 0
+    })
+    deviceStore.manualForceIo({
+      deviceIp: deviceStore.selectedDeviceIp || deviceIp.value,
+      outputs,
+      timeoutMs: 0
+    })
+  }
+}, { deep: true })
 </script>
 
 <style scoped>
@@ -961,48 +1048,70 @@ onMounted(() => {
   border: 1px solid #0078d7;
 }
 
-/* 一键整机自检按钮 */
-.win-btn-oneclick {
+/* 一键整机自检按钮 - 拓扑图中央大按钮 */
+.hw-oneclick-btn {
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  background: transparent;
-  border: 1px solid transparent;
-  padding: 4px 10px;
-  font-size: 11px;
-  color: #000;
+  gap: 10px;
+  width: 160px;
+  height: 80px;
+  background: linear-gradient(135deg, #e8f5e9 0%, #c8e6c9 50%, #a5d6a7 100%);
+  border: 2px solid #4caf50;
+  border-radius: 12px;
   cursor: pointer;
-  min-width: 70px;
+  transition: all 0.2s;
+  box-shadow: 0 2px 8px rgba(76, 175, 80, 0.25);
 }
 
-.win-btn-oneclick:hover:not(:disabled) {
-  background-color: #e5f1fb;
-  border: 1px solid #0078d7;
-  border-radius: 2px;
+.hw-oneclick-btn:hover:not(:disabled) {
+  background: linear-gradient(135deg, #c8e6c9 0%, #a5d6a7 50%, #81c784 100%);
+  border-color: #388e3c;
+  box-shadow: 0 4px 12px rgba(76, 175, 80, 0.4);
+  transform: scale(1.03);
 }
 
-.win-btn-oneclick:disabled {
-  color: #999;
+.hw-oneclick-btn:active:not(:disabled) {
+  transform: scale(0.97);
+}
+
+.hw-oneclick-btn:disabled {
+  opacity: 0.5;
   cursor: not-allowed;
-  opacity: 0.6;
 }
 
-.oneclick-dot {
-  width: 10px;
-  height: 10px;
-  border-radius: 50%;
-  background: #22c55e;
-  margin-bottom: 4px;
+.hw-oneclick-icon {
+  font-size: 28px;
+  color: #2e7d32;
 }
 
-.oneclick-dot.dot-running {
-  animation: pulse 1s infinite;
-}
-
-.oneclick-text {
+.hw-oneclick-label {
+  font-size: 15px;
   font-weight: bold;
-  color: #15803d;
+  color: #1b5e20;
+  letter-spacing: 1px;
+}
+
+/* 停止自检按钮 */
+.hw-stop {
+  background: linear-gradient(135deg, #ffebee 0%, #ffcdd2 50%, #ef9a9a 100%);
+  border-color: #ef5350;
+  box-shadow: 0 2px 8px rgba(239, 83, 80, 0.25);
+}
+
+.hw-stop:hover:not(:disabled) {
+  background: linear-gradient(135deg, #ffcdd2 0%, #ef9a9a 50%, #e57373 100%);
+  border-color: #c62828;
+  box-shadow: 0 4px 12px rgba(239, 83, 80, 0.4);
+}
+
+.hw-stop .hw-oneclick-icon {
+  color: #c62828;
+}
+
+.hw-stop .hw-oneclick-label {
+  color: #b71c1c;
 }
 
 /* 启用报文按钮 */
@@ -1246,11 +1355,6 @@ onMounted(() => {
   overflow: auto;
 }
 
-.oneclick-section {
-  margin-bottom: 16px;
-  max-width: 1200px;
-}
-
 .win-group {
   border: 1px solid #d0d0bf;
   border-radius: 3px;
@@ -1364,7 +1468,7 @@ onMounted(() => {
   width: 32px;
   height: 30px;
   border-radius: 4px;
-  font-size: 10px;
+  font-size: 13px;
   font-weight: bold;
   gap: 2px;
   position: relative;
@@ -1468,29 +1572,10 @@ onMounted(() => {
 /* 中央区域 */
 .hw-center {
   display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 12px;
-}
-
-.hw-center-icon {
-  width: 72px;
-  height: 72px;
-  border-radius: 50%;
-  border: 2px solid #b0bec5;
-  display: flex;
+  flex-direction: row;
   align-items: center;
   justify-content: center;
-  color: #90a4ae;
-  font-size: 34px;
-  background: white;
-}
-
-.hw-center-text {
-  color: #78909c;
-  font-size: 18px;
-  font-weight: bold;
-  letter-spacing: 2px;
+  gap: 20px;
 }
 
 /* 右侧 RS485 */
@@ -1543,8 +1628,8 @@ onMounted(() => {
 
 .relay-grid {
   display: grid;
-  grid-template-columns: repeat(4, 1fr);
-  gap: 16px;
+  grid-template-columns: repeat(6, 1fr);
+  gap: 10px;
 }
 
 .relay-item {
