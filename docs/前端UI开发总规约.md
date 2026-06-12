@@ -2,7 +2,7 @@
 
 ## 1. 核心映射逻辑 (Data Mapping)
 前端所有数据必须来自 `deviceStore.js`，严禁组件内直接请求。
-数据来源为 WebSocket `sensor_data` 帧中的 `data` 字段（格式见 modbus-tcp-dev-spec.md 第7节）。
+数据来源为 WebSocket `sensor_data` 帧中的 `data` 字段（格式见 Modbus-TCP后端通信开发规范.md 第7节）。
 
 ### 1.1 传感器数据映射
 | 模块          | WS字段                    | 取值方式              | 换算    | 示例变量             |
