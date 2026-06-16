@@ -64,6 +64,9 @@ class SensorSimulator extends EventEmitter {
     this._parity = options.parity || 'none';
     this._stopBits = options.stopBits || 1;
 
+    /** Mock 模式：不打开真实串口，用于无硬件测试 */
+    this._mockMode = options.mock || false;
+
     /** 影子寄存器表：Map<slaveAddr, Map<registerAddr, rawValue>> */
     this._shadowRegisters = new Map();
 
@@ -100,6 +103,14 @@ class SensorSimulator extends EventEmitter {
   async start(options = {}) {
     if (this._running) {
       console.warn('[SensorSimulator] 已在运行中');
+      return;
+    }
+
+    // Mock 模式：不打开真实串口
+    if (this._mockMode) {
+      this._running = true;
+      console.log('[SensorSimulator] 已启动 (Mock 模式)');
+      this.emit('started', { mock: true });
       return;
     }
 
@@ -179,9 +190,11 @@ class SensorSimulator extends EventEmitter {
     this._shadowRegisters.clear();
     this._sensorKeyMap.clear();
 
-    // 初始化温湿度传感器影子寄存器
+    // 初始化温湿度传感器影子寄存器（每个从站同时注册 temp_N 和 humi_N）
     for (const sensor of config.tempHumi.indoor) {
-      this._initSensor(sensor.key, sensor.slaveAddr, 0x0000, 2, 10);
+      const idx = sensor.index || parseInt(sensor.key.split('_')[1]);
+      this._initSensor(sensor.key, sensor.slaveAddr, 0x0000, 2, 10);  // temp
+      this._initSensor(`humi_${idx}`, sensor.slaveAddr, 0x0000, 2, 10);  // humi（同一从站）
     }
 
     // 初始化 CO2 传感器
@@ -427,6 +440,89 @@ class SensorSimulator extends EventEmitter {
    */
   getFieldConfig() {
     return this._currentFieldConfig;
+  }
+
+  // ============================================================
+  // Mock 模式接口（无硬件测试用）
+  // ============================================================
+
+  /**
+   * Mock 模式：模拟 Modbus RTU 读取响应
+   * 返回指定从站地址和寄存器地址的原始值数组
+   * @param {number} slaveAddr
+   * @param {number} startAddr
+   * @param {number} count
+   * @returns {number[]|null} 寄存器值数组，null 表示超时不响应
+   */
+  mockReadHoldingRegisters(slaveAddr, startAddr, count) {
+    // 检查该从站是否有故障
+    const key = this._findSensorKey(slaveAddr);
+    if (key) {
+      const fault = this._faults.get(key);
+      if (fault) {
+        if (fault.type === SENSOR_STATUS.TIMEOUT) {
+          this._logTransaction({
+            action: 'mock_timeout',
+            slaveAddr,
+            startAddr,
+            count,
+            key,
+          });
+          return null;  // 超时不响应
+        }
+      }
+    }
+
+    // 从影子寄存器读取
+    const slaveRegs = this._shadowRegisters.get(slaveAddr);
+    if (!slaveRegs) return null;
+
+    const values = [];
+    for (let i = 0; i < count; i++) {
+      values.push(slaveRegs.get(startAddr + i) || 0);
+    }
+
+    this._logTransaction({
+      action: 'mock_read',
+      slaveAddr,
+      startAddr,
+      count,
+      values,
+      key,
+    });
+
+    return values;
+  }
+
+  /**
+   * Mock 模式：获取指定传感器 key 的当前值（工程值）
+   * @param {string} key
+   * @returns {number|null}
+   */
+  mockGetSensorValue(key) {
+    const mapping = this._sensorKeyMap.get(key);
+    if (!mapping) return null;
+
+    const { slaveAddr, registerAddr, scale } = mapping;
+    const slaveRegs = this._shadowRegisters.get(slaveAddr);
+    if (!slaveRegs) return null;
+
+    // 湿度在 registerAddr + 1
+    const reg = key.startsWith('humi_') ? registerAddr + 1 : registerAddr;
+    const raw = slaveRegs.get(reg);
+    if (raw == null) return null;
+
+    // 处理有符号值
+    const signed = raw > 32767 ? raw - 65536 : raw;
+    return signed / scale;
+  }
+
+  /**
+   * 检查是否为 Mock 模式
+   * @returns {boolean}
+   */
+  isMockMode() {
+    return this._mockMode;
   }
 
   // ============================================================

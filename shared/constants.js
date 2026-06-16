@@ -154,6 +154,38 @@ const BLOCK_SENSOR_TIME = {
  */
 const INVALID_VALUE = 0x7FFF;
 
+/**
+ * 告警寄存器区 (BLOCK_SENSOR_ALARM)
+ * 用途：读取传感器告警状态
+ */
+const BLOCK_SENSOR_ALARM = {
+  ER_READ_FLAG: 0x7030,       // ErRead 告警标志：RO，uint16，bit0~bit15 对应传感器
+  ER_MAX_FLAG: 0x7031,        // ErMax 告警标志：RO，uint16
+  TEMP_HIGH_ALARM: 0x7032,    // 温度高限告警：RO，uint16
+  HUMI_HIGH_ALARM: 0x7033,    // 湿度高限告警：RO，uint16
+  ONLINE_STATUS: 0x7034,      // 传感器在线状态：RO，uint16，bit0~bit15
+};
+
+/**
+ * 阈值配置寄存器区 (BLOCK_SENSOR_THRESHOLD)
+ * 用途：读写传感器告警阈值
+ */
+const BLOCK_SENSOR_THRESHOLD = {
+  TEMP_HIGH_LIMIT: 0x7040,    // 温度高限阈值：R/W，uint16，val/10 → ℃
+  TEMP_LOW_LIMIT: 0x7041,     // 温度低限阈值：R/W，uint16，val/10 → ℃
+  HUMI_HIGH_LIMIT: 0x7042,    // 湿度高限阈值：R/W，uint16，val/10 → %RH
+  HUMI_LOW_LIMIT: 0x7043,     // 湿度低限阈值：R/W，uint16，val/10 → %RH
+};
+
+/**
+ * 补偿值配置寄存器区 (BLOCK_SENSOR_COMPENSATION)
+ * 用途：读写传感器补偿值
+ */
+const BLOCK_SENSOR_COMPENSATION = {
+  TEMP_COMP_BASE: 0x7050,     // 温度补偿基址：R/W，int16，val/10 → ℃，0x7050+i 对应第 i+1 路
+  HUMI_COMP_BASE: 0x7060,     // 湿度补偿基址：R/W，int16，val/10 → %RH，0x7060+i 对应第 i+1 路
+};
+
 // ============================================================
 // 2. ATE 测试掩码定义
 // ============================================================
@@ -800,6 +832,9 @@ module.exports = {
   SENSOR_ACTUAL,
   BLOCK_SENSOR_TIME,
   INVALID_VALUE,
+  BLOCK_SENSOR_ALARM,
+  BLOCK_SENSOR_THRESHOLD,
+  BLOCK_SENSOR_COMPENSATION,
 
   // 测试掩码
   ATE_MASK_ALL,

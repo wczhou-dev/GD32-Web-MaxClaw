@@ -591,9 +591,32 @@ class SensorTestExecutor extends EventEmitter {
    * RS485 端口切换热更新
    */
   async _execHotPortSwitch(scenario, assertions) {
-    // TODO: 需要确认端口配置寄存器地址
-    this._log('端口切换热更新: 需要确认端口配置寄存器地址');
-    assertions.push({ pass: true, code: null, message: '端口切换: 待硬件资源确认' });
+    // 读取当前端口配置
+    const originalPort = await this._stateReader.readPortConfig(0);
+    this._log(`当前端口: ${originalPort}`);
+
+    // 切换到新端口
+    const newPort = originalPort === 6 ? 7 : 6;
+    await this._stateReader.writePortConfig(0, newPort);
+
+    // 回读确认
+    const readback = await this._stateReader.readPortConfig(0);
+    assertions.push(this._assertEngine.assertEqual(readback, newPort,
+      `端口回读: ${readback}, 期望: ${newPort}`));
+
+    // 等待 Modbus 重建
+    await this._waitCollect(5000);
+
+    // 验证数据正常采集
+    this._simulator.setSensorValue('temp_1', 25.0);
+    await this._waitCollect(5000);
+    const sensorData = await this._stateReader.readSensorData();
+    assertions.push(this._assertEngine.assertClose(sensorData.temp[0], 25.0, 0.2,
+      `切换后数据: ${sensorData.temp[0]}, 期望: 25.0`));
+
+    // 恢复原端口
+    await this._stateReader.writePortConfig(0, originalPort);
+    this._log(`恢复端口: ${originalPort}`);
   }
 
   /**
@@ -601,14 +624,17 @@ class SensorTestExecutor extends EventEmitter {
    */
   async _execHotThreshold(scenario, assertions, type) {
     const { newThreshold, testValue, recoverValue } = scenario.inputs;
+    const thresholdType = type === 'temp' ? 'temp_high' : 'humi_high';
+
+    // 读取原阈值
+    const originalRaw = await this._stateReader.readThreshold(thresholdType);
 
     // 写入新阈值
-    const thresholdReg = type === 'temp' ? 0x7010 : 0x7011;  // TODO: 确认实际地址
     const thresholdRaw = Math.round(newThreshold * 10);
-    await this._stateReader.writeRegister(thresholdReg, thresholdRaw);
+    await this._stateReader.writeThreshold(thresholdType, thresholdRaw);
 
     // 回读确认
-    const readback = await this._stateReader.readRegister(thresholdReg);
+    const readback = await this._stateReader.readThreshold(thresholdType);
     assertions.push(this._assertEngine.assertEqual(readback, thresholdRaw,
       `阈值回读: ${readback}, 期望: ${thresholdRaw}`));
 
@@ -618,14 +644,24 @@ class SensorTestExecutor extends EventEmitter {
     this._log(`设置超阈值: ${sensorKey} = ${testValue}`);
     await this._waitCollect(5000);
 
-    // TODO: 读取告警寄存器断言告警置位
+    // 读取告警状态
+    const alarmAfterExceed = await this._stateReader.readAlarmStatus();
+    const alarmField = type === 'temp' ? 'tempHigh' : 'humiHigh';
+    assertions.push(this._assertEngine.assertEqual(alarmAfterExceed[alarmField], true,
+      `超阈值后告警: ${alarmAfterExceed[alarmField]}`));
 
     // 恢复正常值
     this._simulator.setSensorValue(sensorKey, recoverValue);
     this._log(`恢复正常值: ${sensorKey} = ${recoverValue}`);
     await this._waitCollect(5000);
 
-    // TODO: 读取告警寄存器断言告警清除
+    // 读取告警状态
+    const alarmAfterRecover = await this._stateReader.readAlarmStatus();
+    assertions.push(this._assertEngine.assertEqual(alarmAfterRecover[alarmField], false,
+      `恢复后告警清除: ${alarmAfterRecover[alarmField]}`));
+
+    // 恢复原阈值
+    await this._stateReader.writeThreshold(thresholdType, originalRaw);
   }
 
   /**
@@ -640,30 +676,40 @@ class SensorTestExecutor extends EventEmitter {
     await this._waitCollect(5000);
 
     // 读取补偿前值
-    const regAddr = type === 'temp' ? 0x1001 : 0x1001;  // TODO: 按实际传感器路数
-    const before = await this._stateReader.readRegister(regAddr);
-    const beforeVal = type === 'temp' ? (before > 32767 ? before - 65536 : before) / 10 : before / 10;
+    const sensorData = await this._stateReader.readSensorData();
+    const idx = this._getSensorIndex(baseSensor.key);
+    const beforeVal = type === 'temp' ? sensorData.temp[idx] : sensorData.humi[idx];
     assertions.push(this._assertEngine.assertClose(beforeVal, beforeCompensation, tolerance,
       `补偿前: ${beforeVal}, 期望: ${beforeCompensation}`));
 
     // 写入补偿值
-    const compReg = type === 'temp' ? 0x7020 : 0x7021;  // TODO: 确认实际地址
-    await this._stateReader.writeRegister(compReg, compensationValue);
+    await this._stateReader.writeCompensation(type, idx, compensationValue);
     await this._waitCollect(3000);
 
+    // Mock 模式下模拟补偿效果
+    if (this._simulator.isMockMode()) {
+      const compVal = compensationValue > 32767 ? (compensationValue - 65536) / 10 : compensationValue / 10;
+      this._simulator.setSensorValue(baseSensor.key, baseSensor.value + compVal);
+    }
+
     // 读取补偿后值
-    const after = await this._stateReader.readRegister(regAddr);
-    const afterVal = type === 'temp' ? (after > 32767 ? after - 65536 : after) / 10 : after / 10;
+    const sensorDataAfter = await this._stateReader.readSensorData();
+    const afterVal = type === 'temp' ? sensorDataAfter.temp[idx] : sensorDataAfter.humi[idx];
     assertions.push(this._assertEngine.assertClose(afterVal, afterCompensation, tolerance,
       `补偿后: ${afterVal}, 期望: ${afterCompensation}`));
 
     // 恢复补偿为 0
-    await this._stateReader.writeRegister(compReg, 0);
+    await this._stateReader.writeCompensation(type, idx, 0);
     await this._waitCollect(3000);
 
+    // Mock 模式下恢复原值
+    if (this._simulator.isMockMode()) {
+      this._simulator.setSensorValue(baseSensor.key, baseSensor.value);
+    }
+
     // 读取恢复后值
-    const restored = await this._stateReader.readRegister(regAddr);
-    const restoredVal = type === 'temp' ? (restored > 32767 ? restored - 65536 : restored) / 10 : restored / 10;
+    const sensorDataRestored = await this._stateReader.readSensorData();
+    const restoredVal = type === 'temp' ? sensorDataRestored.temp[idx] : sensorDataRestored.humi[idx];
     assertions.push(this._assertEngine.assertClose(restoredVal, afterRestore, tolerance,
       `恢复后: ${restoredVal}, 期望: ${afterRestore}`));
   }

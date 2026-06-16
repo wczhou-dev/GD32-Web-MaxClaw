@@ -350,32 +350,131 @@ class ControllerStateReader {
   }
 
   // ============================================================
-  // 历史缓冲（需要固件配合）
+  // 历史缓冲
   // ============================================================
 
   /**
    * 读取历史缓冲最近 N 条
-   * 注意：需要固件提供读取接口（Modbus 调试寄存器 / MSH / 测试 API）
-   * @param {number} count
+   * 实现方案：Modbus TCP 调试寄存器（推荐方案）
+   *
+   * 寄存器约定（需固件配合实现）：
+   *   - 0x7100: 历史缓冲条目总数 (HISTORY_LOG_MAX=25)
+   *   - 0x7101: 最新条目索引
+   *   - 0x7102: 读取触发寄存器（写入索引号触发读取）
+   *   - 0x7103: 读取结果 - tm_hour
+   *   - 0x7104: 读取结果 - temp 原始值 (int16, val/10)
+   *   - 0x7105: 读取结果 - humi 原始值 (uint16, val/10)
+   *   - 0x7106: 读取结果 - timestamp 高 16 位
+   *   - 0x7107: 读取结果 - timestamp 低 16 位
+   *
+   * @param {number} count 读取最近 N 条
    * @returns {Promise<Array<{tm_hour: number, temp: number, humi: number, timestamp: number}>>}
    */
   async readHistoryTail(count) {
-    // TODO: 接入固件侧历史缓冲读取接口
-    // 方案 1: Modbus 调试寄存器（推荐）
-    // 方案 2: 通过 ATE TCP 发送 MSH 命令并解析输出
-    // 方案 3: 测试专用 API
-    throw new Error('readHistoryTail 未实现：需要固件提供历史缓冲读取接口');
+    const HISTORY_TOTAL_REG = 0x7100;
+    const HISTORY_LATEST_REG = 0x7101;
+    const HISTORY_READ_TRIGGER = 0x7102;
+    const HISTORY_RESULT_HOUR = 0x7103;
+    const HISTORY_RESULT_TEMP = 0x7104;
+    const HISTORY_RESULT_HUMI = 0x7105;
+    const HISTORY_RESULT_TS_H = 0x7106;
+    const HISTORY_RESULT_TS_L = 0x7107;
+
+    try {
+      // 读取最新条目索引
+      const latestResult = await this._devicePool.runExclusive(this._deviceKey, async () => {
+        return await this._devicePool.readHoldingRegisters(
+          this._deviceKey, HISTORY_TOTAL_REG, 2
+        );
+      });
+      const total = latestResult.data[0];
+      const latestIdx = latestResult.data[1];
+
+      if (total === 0 || latestIdx === 0) {
+        return [];
+      }
+
+      const entries = [];
+      for (let i = 0; i < count; i++) {
+        const idx = (latestIdx - i + total) % total;
+        if (idx < 0) break;
+
+        // 触发读取指定索引
+        await this._devicePool.runExclusive(this._deviceKey, async () => {
+          await this._devicePool.writeRegister(this._deviceKey, HISTORY_READ_TRIGGER, idx);
+        });
+
+        // 等待固件准备数据
+        await this._sleep(50);
+
+        // 读取结果
+        const result = await this._devicePool.runExclusive(this._deviceKey, async () => {
+          return await this._devicePool.readHoldingRegisters(
+            this._deviceKey, HISTORY_RESULT_HOUR, 5
+          );
+        });
+
+        const tm_hour = result.data[0];
+        const tempRaw = result.data[1];
+        const humiRaw = result.data[2];
+        const tsHigh = result.data[3];
+        const tsLow = result.data[4];
+
+        const temp = (tempRaw > 32767 ? tempRaw - 65536 : tempRaw) / 10;
+        const humi = humiRaw / 10;
+        const timestamp = (tsHigh << 16) | tsLow;
+
+        entries.push({ index: idx, tm_hour, temp, humi, timestamp });
+      }
+
+      return entries.reverse();  // 按时间从旧到新
+    } catch (err) {
+      console.warn(`[ControllerStateReader] readHistoryTail 失败: ${err.message}`);
+      throw new Error(`readHistoryTail 失败: ${err.message}。确认固件已实现 0x7100~0x7107 调试寄存器`);
+    }
   }
 
   /**
    * 清空历史缓冲
+   * 实现方案：Modbus TCP 调试寄存器
+   *
+   * 寄存器约定（需固件配合实现）：
+   *   - 0x7110: 清空触发寄存器（写 0xAA55 触发清空）
+   *   - 0x7111: 清空结果（0=成功, 非0=失败）
+   *
    * @returns {Promise<boolean>}
    */
   async clearHistory() {
-    // TODO: 接入固件侧清空接口
-    // 方案 1: MSH sensor_history_clear
-    // 方案 2: Modbus 调试寄存器触发
-    throw new Error('clearHistory 未实现：需要固件提供历史缓冲清空接口');
+    const HISTORY_CLEAR_TRIGGER = 0x7110;
+    const HISTORY_CLEAR_RESULT = 0x7111;
+    const HISTORY_CLEAR_MAGIC = 0xAA55;
+
+    try {
+      // 写入清空魔数
+      await this._devicePool.runExclusive(this._deviceKey, async () => {
+        await this._devicePool.writeRegister(this._deviceKey, HISTORY_CLEAR_TRIGGER, HISTORY_CLEAR_MAGIC);
+      });
+
+      // 等待清空完成
+      await this._sleep(200);
+
+      // 读取结果
+      const result = await this._devicePool.runExclusive(this._deviceKey, async () => {
+        return await this._devicePool.readHoldingRegisters(
+          this._deviceKey, HISTORY_CLEAR_RESULT, 1
+        );
+      });
+
+      if (result.data[0] !== 0) {
+        throw new Error(`清空返回错误码: ${result.data[0]}`);
+      }
+
+      console.log('[ControllerStateReader] 历史缓冲已清空');
+      return true;
+    } catch (err) {
+      console.warn(`[ControllerStateReader] clearHistory 失败: ${err.message}`);
+      throw new Error(`clearHistory 失败: ${err.message}。确认固件已实现 0x7110~0x7111 调试寄存器`);
+    }
   }
 
   // ============================================================
@@ -387,14 +486,130 @@ class ControllerStateReader {
    * @returns {Promise<object>}
    */
   async readAlarmStatus() {
-    // TODO: 确认告警寄存器地址后实现
-    // 暂时返回占位
-    return {
-      erRead: false,
-      erMax: false,
-      tempHigh: false,
-      humiHigh: false,
+    const {
+      BLOCK_SENSOR_ALARM,
+    } = require('../../shared/constants');
+
+    try {
+      const result = await this._devicePool.runExclusive(this._deviceKey, async () => {
+        return await this._devicePool.readHoldingRegisters(
+          this._deviceKey, BLOCK_SENSOR_ALARM.ER_READ_FLAG, 5
+        );
+      });
+
+      return {
+        erRead: result.data[0] !== 0,
+        erMax: result.data[1] !== 0,
+        tempHigh: result.data[2] !== 0,
+        humiHigh: result.data[3] !== 0,
+        onlineStatus: result.data[4],
+        raw: result.data,
+      };
+    } catch (err) {
+      console.warn(`[ControllerStateReader] readAlarmStatus 失败: ${err.message}`);
+      return {
+        erRead: false,
+        erMax: false,
+        tempHigh: false,
+        humiHigh: false,
+        onlineStatus: 0,
+        raw: [0, 0, 0, 0, 0],
+      };
+    }
+  }
+
+  /**
+   * 读取端口配置
+   * @param {number} sensorIndex 传感器路数 (0-based)
+   * @returns {Promise<number>} 端口号
+   */
+  async readPortConfig(sensorIndex) {
+    const PORT_CONFIG_BASE = 0x7070;  // 端口配置基址
+    const address = PORT_CONFIG_BASE + sensorIndex;
+    return await this.readRegister(address);
+  }
+
+  /**
+   * 写入端口配置
+   * @param {number} sensorIndex 传感器路数 (0-based)
+   * @param {number} port 端口号
+   */
+  async writePortConfig(sensorIndex, port) {
+    const PORT_CONFIG_BASE = 0x7070;
+    const address = PORT_CONFIG_BASE + sensorIndex;
+    await this.writeRegister(address, port);
+  }
+
+  /**
+   * 读取阈值配置
+   * @param {string} type 'temp_high'|'temp_low'|'humi_high'|'humi_low'
+   * @returns {Promise<number>} 阈值原始值 (val/10 为工程值)
+   */
+  async readThreshold(type) {
+    const {
+      BLOCK_SENSOR_THRESHOLD,
+    } = require('../../shared/constants');
+    const regMap = {
+      temp_high: BLOCK_SENSOR_THRESHOLD.TEMP_HIGH_LIMIT,
+      temp_low: BLOCK_SENSOR_THRESHOLD.TEMP_LOW_LIMIT,
+      humi_high: BLOCK_SENSOR_THRESHOLD.HUMI_HIGH_LIMIT,
+      humi_low: BLOCK_SENSOR_THRESHOLD.HUMI_LOW_LIMIT,
     };
+    const address = regMap[type];
+    if (!address) throw new Error(`未知阈值类型: ${type}`);
+    return await this.readRegister(address);
+  }
+
+  /**
+   * 写入阈值配置
+   * @param {string} type
+   * @param {number} value 原始值 (val/10 为工程值)
+   */
+  async writeThreshold(type, value) {
+    const {
+      BLOCK_SENSOR_THRESHOLD,
+    } = require('../../shared/constants');
+    const regMap = {
+      temp_high: BLOCK_SENSOR_THRESHOLD.TEMP_HIGH_LIMIT,
+      temp_low: BLOCK_SENSOR_THRESHOLD.TEMP_LOW_LIMIT,
+      humi_high: BLOCK_SENSOR_THRESHOLD.HUMI_HIGH_LIMIT,
+      humi_low: BLOCK_SENSOR_THRESHOLD.HUMI_LOW_LIMIT,
+    };
+    const address = regMap[type];
+    if (!address) throw new Error(`未知阈值类型: ${type}`);
+    await this.writeRegister(address, value);
+  }
+
+  /**
+   * 写入补偿值
+   * @param {string} sensorType 'temp'|'humi'
+   * @param {number} index 传感器路数 (0-based)
+   * @param {number} value 补偿值原始值 (val/10 为工程值)
+   */
+  async writeCompensation(sensorType, index, value) {
+    const {
+      BLOCK_SENSOR_COMPENSATION,
+    } = require('../../shared/constants');
+    const base = sensorType === 'temp'
+      ? BLOCK_SENSOR_COMPENSATION.TEMP_COMP_BASE
+      : BLOCK_SENSOR_COMPENSATION.HUMI_COMP_BASE;
+    await this.writeRegister(base + index, value);
+  }
+
+  /**
+   * 读取补偿值
+   * @param {string} sensorType 'temp'|'humi'
+   * @param {number} index 传感器路数 (0-based)
+   * @returns {Promise<number>}
+   */
+  async readCompensation(sensorType, index) {
+    const {
+      BLOCK_SENSOR_COMPENSATION,
+    } = require('../../shared/constants');
+    const base = sensorType === 'temp'
+      ? BLOCK_SENSOR_COMPENSATION.TEMP_COMP_BASE
+      : BLOCK_SENSOR_COMPENSATION.HUMI_COMP_BASE;
+    return await this.readRegister(base + index);
   }
 
   // ============================================================
