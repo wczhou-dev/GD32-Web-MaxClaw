@@ -24,6 +24,9 @@ const EventEmitter = require('events');
 const TestCatalog = require('./TestCatalog');
 const TestReportService = require('./TestReportService');
 const AteTcpClient = require('./AteTcpClient');
+const TestScenarioCatalog = require('./TestScenarioCatalog');
+const ControllerStateReader = require('./ControllerStateReader');
+const AssertEngine = require('./AssertEngine');
 const {
   TEST_CMD,
   TEST_STATUS,
@@ -142,6 +145,26 @@ class TestManager extends EventEmitter {
     this._reportService = new TestReportService();
 
     /**
+     * P1 传感器测试场景目录
+     */
+    this._scenarioCatalog = new TestScenarioCatalog();
+
+    /**
+     * 断言引擎
+     */
+    this._assertEngine = new AssertEngine();
+
+    /**
+     * 传感器模拟器实例（外部注入）
+     */
+    this._sensorSimulator = options.sensorSimulator || null;
+
+    /**
+     * 环控器状态读取器：Map<deviceKey, ControllerStateReader>
+     */
+    this._stateReaders = new Map();
+
+    /**
      * 活跃会话：Map<deviceKey, TestSession>
      * 确保同一设备同时只能有一个测试会话
      */
@@ -210,6 +233,234 @@ class TestManager extends EventEmitter {
    */
   getStats() {
     return { ...this._stats };
+  }
+
+  /**
+   * 获取或创建 ControllerStateReader
+   * @param {string} deviceKey
+   * @returns {ControllerStateReader}
+   */
+  getStateReader(deviceKey) {
+    if (!this._stateReaders.has(deviceKey)) {
+      this._stateReaders.set(deviceKey, new ControllerStateReader({
+        devicePool: this._devicePool,
+        deviceKey,
+      }));
+    }
+    return this._stateReaders.get(deviceKey);
+  }
+
+  /**
+   * 设置传感器模拟器
+   * @param {SensorSimulator} simulator
+   */
+  setSensorSimulator(simulator) {
+    this._sensorSimulator = simulator;
+  }
+
+  /**
+   * 获取场景目录
+   * @returns {TestScenarioCatalog}
+   */
+  getScenarioCatalog() {
+    return this._scenarioCatalog;
+  }
+
+  // ============================================================
+  // 传感器测试执行（P1）
+  // ============================================================
+
+  /**
+   * 运行单个传感器测试场景
+   * @param {object} options
+   * @param {string} options.scenarioId - 场景 ID（如 'T-READ-001'）
+   * @param {string} options.deviceKey - 设备键
+   * @param {string} [options.fieldType='A'] - 场区类型
+   * @returns {Promise<{pass: boolean, results: object[], report: object}>}
+   */
+  async runSensorScenario(options) {
+    const { scenarioId, deviceKey, fieldType = 'A' } = options;
+
+    if (!this._sensorSimulator) {
+      throw new Error('传感器模拟器未设置，请先调用 setSensorSimulator()');
+    }
+
+    const scenario = this._scenarioCatalog.loadScenario(scenarioId);
+    if (!scenario) {
+      throw new Error(`场景未找到: ${scenarioId}`);
+    }
+
+    const stateReader = this.getStateReader(deviceKey);
+    const startTime = Date.now();
+    const allResults = [];
+    const transactionLog = [];
+
+    console.log(`[TestManager] 开始传感器测试: ${scenarioId} (${scenario.name})`);
+    this.emit('sensor_test_started', { scenarioId, deviceKey });
+
+    try {
+      // 1. 加载场区配置
+      this._sensorSimulator.loadFieldConfig(fieldType);
+
+      // 2. 设置模拟器输入
+      if (scenario.inputs && scenario.inputs.sensors) {
+        for (const sensor of scenario.inputs.sensors) {
+          this._sensorSimulator.setSensorValue(sensor.key, sensor.value);
+        }
+      }
+
+      // 3. 等待环控器采集周期
+      const waitMs = scenario.inputs && scenario.inputs.waitMs || 15000;
+      console.log(`[TestManager] 等待采集周期: ${waitMs}ms`);
+      await this._sleep(waitMs);
+
+      // 4. 读取环控器结果
+      let actualData;
+      if (scenarioId.startsWith('T-READ-001') || scenarioId.startsWith('T-READ-002')) {
+        actualData = await stateReader.readSensorData();
+      } else if (scenarioId.startsWith('T-READ-003')) {
+        actualData = await stateReader.readSensorData();
+      } else if (scenarioId.startsWith('T-READ-004')) {
+        actualData = await stateReader.readSensorData();
+      }
+
+      const actualActual = await stateReader.readActualTempHumi();
+
+      // 5. 执行断言
+      const tolerance = scenario.expected ? scenario.expected.tolerance || 0.2 : 0.2;
+
+      if (scenario.inputs && scenario.inputs.sensors) {
+        for (const sensor of scenario.inputs.sensors) {
+          let actualValue;
+          if (sensor.key.startsWith('temp_')) {
+            const idx = parseInt(sensor.key.split('_')[1]) - 1;
+            actualValue = actualData ? actualData.temp[idx] : null;
+          } else if (sensor.key.startsWith('humi_')) {
+            const idx = parseInt(sensor.key.split('_')[1]) - 1;
+            actualValue = actualData ? actualData.humi[idx] : null;
+          } else if (sensor.key.startsWith('co2_')) {
+            const idx = parseInt(sensor.key.split('_')[1]) - 1;
+            actualValue = actualData ? actualData.co2[idx] : null;
+          } else if (sensor.key.startsWith('press_')) {
+            const idx = parseInt(sensor.key.split('_')[1]) - 1;
+            actualValue = actualData ? actualData.press[idx] : null;
+          }
+
+          if (actualValue != null) {
+            const result = this._assertEngine.assertSensorValue(
+              actualValue, sensor.value, tolerance, sensor.key
+            );
+            allResults.push(result);
+          }
+        }
+      }
+
+      // 6. 平均值断言
+      if (scenarioId === 'T-READ-001' && actualData && actualActual) {
+        const validTemps = actualData.temp.filter((_, i) => true);  // TODO: 过滤未安装
+        const expectedAvg = validTemps.reduce((a, b) => a + b, 0) / validTemps.length;
+        const avgResult = this._assertEngine.assertActualValue(
+          actualActual.actualTemp, expectedAvg, tolerance, 'temp'
+        );
+        allResults.push(avgResult);
+      }
+
+      if (scenarioId === 'T-READ-002' && actualData && actualActual) {
+        const validHumis = actualData.humi.filter((_, i) => true);
+        const expectedAvg = validHumis.reduce((a, b) => a + b, 0) / validHumis.length;
+        const avgResult = this._assertEngine.assertActualValue(
+          actualActual.actualHumi, expectedAvg, tolerance, 'humi'
+        );
+        allResults.push(avgResult);
+      }
+
+      // 7. 检查结果
+      const { allPassed, failures } = this._assertEngine.checkResults(allResults);
+
+      // 8. 记录交易日志
+      transactionLog.push(...this._sensorSimulator.getTransactionLog());
+
+      const elapsed = Date.now() - startTime;
+      console.log(`[TestManager] 传感器测试完成: ${scenarioId}, 耗时 ${elapsed}ms, ${allPassed ? 'PASS' : 'FAIL'}`);
+
+      this.emit('sensor_test_finished', {
+        scenarioId,
+        deviceKey,
+        pass: allPassed,
+        elapsed,
+        total: allResults.length,
+        failures: failures.length,
+      });
+
+      return {
+        pass: allPassed,
+        results: this._assertEngine.toReportFormat(allResults),
+        report: {
+          scenarioId,
+          scenarioName: scenario.name,
+          deviceKey,
+          fieldType,
+          startTime,
+          endTime: Date.now(),
+          duration: elapsed,
+          conclusion: allPassed ? '通过' : '失败',
+          assertions: this._assertEngine.toReportFormat(allResults),
+          transactionLog,
+          simulatorState: {
+            shadowRegisters: this._sensorSimulator.getShadowRegisters(),
+            faultStatus: this._sensorSimulator.getFaultStatus(),
+          },
+        },
+      };
+
+    } catch (err) {
+      console.error(`[TestManager] 传感器测试异常: ${scenarioId} - ${err.message}`);
+      this.emit('sensor_test_error', { scenarioId, deviceKey, error: err.message });
+      throw err;
+    } finally {
+      // 清理：清除模拟器故障
+      try {
+        if (this._sensorSimulator) {
+          this._sensorSimulator.clearAllFaults();
+        }
+      } catch (e) {
+        // 忽略清理错误
+      }
+    }
+  }
+
+  /**
+   * 批量运行传感器测试场景
+   * @param {object} options
+   * @param {string[]} options.scenarioIds - 场景 ID 列表
+   * @param {string} options.deviceKey
+   * @param {string} [options.fieldType='A']
+   * @returns {Promise<{total: number, passed: number, failed: number, results: object[]}>}
+   */
+  async runSensorBatch(options) {
+    const { scenarioIds, deviceKey, fieldType = 'A' } = options;
+    const results = [];
+    let passed = 0;
+    let failed = 0;
+
+    for (const scenarioId of scenarioIds) {
+      try {
+        const result = await this.runSensorScenario({ scenarioId, deviceKey, fieldType });
+        results.push(result);
+        if (result.pass) passed++;
+        else failed++;
+      } catch (err) {
+        results.push({ pass: false, scenarioId, error: err.message });
+        failed++;
+      }
+    }
+
+    return {
+      total: scenarioIds.length,
+      passed,
+      failed,
+      results,
+    };
   }
 
   // ============================================================

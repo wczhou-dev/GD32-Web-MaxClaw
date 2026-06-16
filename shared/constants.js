@@ -109,6 +109,51 @@ const BLOCK_HW = {
   AO2_SET: 0x5004         // AO2 设定值：R/W，uint16
 };
 
+/**
+ * 传感器配置寄存器区 (BLOCK_SENSOR_CONFIG)
+ * 用途：场区类型、传感器安装状态、阈值、补偿值等配置
+ */
+const BLOCK_SENSOR_CONFIG = {
+  FIELD_ZONE_TYPE: 0x0019,     // 场区类型：RO，uint16，0=未配置, 1=A, 2=B, 3=C
+  INSTALL_TEMP: 0x700A,        // 室内温度安装位：R/W，uint16，bit0~bit15 = 1#~16#
+  INSTALL_HUMI: 0x700B,        // 室内湿度安装位：R/W，uint16，bit0~bit15 = 1#~16#
+  INSTALL_CO2: 0x700C,         // 室内CO2安装位：R/W，uint16，bit0~bit7 = 1#~8#
+  INSTALL_NH3: 0x700D,         // 室内氨气安装位：R/W，uint16，bit0~bit3 = 1#~4#
+  INSTALL_PRESS: 0x700E,       // 室内压差安装位：R/W，uint16，bit0~bit3 = 1#~4#
+  INSTALL_OUTDOOR: 0x700F,     // 室外传感器安装位：R/W，uint16，bit0=室外TH, bit1~bit4=水帘1~4
+};
+
+/**
+ * 传感器 Actual 值寄存器
+ * 用途：读取环控器计算后的实际平均温湿度
+ */
+const SENSOR_ACTUAL = {
+  ACTUAL_TEMP: 0x103B,    // 室内实际平均温度：RO，int16，换算 val/10 → ℃
+  ACTUAL_HUMI: 0x103C,    // 室内实际平均湿度：RO，uint16，换算 val/10 → %RH
+};
+
+/**
+ * 对时与重启寄存器区 (BLOCK_SENSOR_TIME)
+ * 用途：Modbus TCP 对时和设备重启
+ */
+const BLOCK_SENSOR_TIME = {
+  TIME_YEAR: 10,           // HR10：年
+  TIME_MONTH: 11,          // HR11：月
+  TIME_DAY: 12,            // HR12：日
+  TIME_HOUR: 13,           // HR13：时
+  TIME_MIN: 14,            // HR14：分
+  TIME_SEC: 15,            // HR15：秒
+  TIME_TRIGGER: 16,        // HR16：写 1 触发对时
+  TIME_RESULT: 17,         // HR17：读 0 表示对时成功
+  REBOOT: 18,              // HR18：写 0x55AA 触发重启
+  REBOOT_MAGIC: 0x55AA,    // 重启魔数
+};
+
+/**
+ * 传感器无效值
+ */
+const INVALID_VALUE = 0x7FFF;
+
 // ============================================================
 // 2. ATE 测试掩码定义
 // ============================================================
@@ -269,6 +314,24 @@ const ERROR_CODE = {
   HOTSWAP_INIT_FAIL:      0x0090,  // 热切换初始化失败
   HOTSWAP_SWITCH_FAIL:    0x0091,  // 热切换切换失败
   HOTSWAP_RECOVERY_FAIL:  0x0092,  // 热切换恢复失败
+
+  // 传感器测试错误码 (P1)
+  SENSOR_READ_FAIL:         0x00A0,  // 传感器数据读取失败
+  SENSOR_TIMEOUT:           0x00A1,  // 传感器通信超时
+  SENSOR_ER_READ:           0x00A2,  // ErRead 连续通信失败触发
+  SENSOR_ER_MAX:            0x00A3,  // ErMax 数值不变触发
+  SENSOR_DEVIATION剔除:     0x00A4,  // 偏差剔除离群值
+  SENSOR_VALUE_MISMATCH:    0x00A5,  // 传感器值与模拟器预设不匹配
+  SENSOR_ACTUAL_MISMATCH:   0x00A6,  // ActualTemp/ActualHumi 平均值不匹配
+  SENSOR_HISTORY_MISMATCH:  0x00A7,  // 历史缓冲值不匹配
+  SENSOR_BOOT_FALLBACK_FAIL:0x00A8,  // 启动回退验证失败
+  SENSOR_TIME_SYNC_FAIL:    0x00A9,  // 对时失败
+  SENSOR_REBOOT_FAIL:       0x00AA,  // 设备重启失败
+  SENSOR_RECONNECT_FAIL:    0x00AB,  // 重启后重连失败
+  SENSOR_CONFIG_WRITE_FAIL: 0x00AC,  // 配置写入失败
+  SENSOR_CONFIG_VERIFY_FAIL:0x00AD,  // 配置回读验证失败
+  SENSOR_ALARM_MISMATCH:    0x00AE,  // 告警状态不匹配
+  SENSOR_HISTORY_CLEAR_FAIL:0x00AF,  // 历史缓冲清空失败
 };
 
 /**
@@ -491,6 +554,104 @@ const ERROR_CODE_DETAIL = {
     cause: '恢复电路故障、无法恢复默认状态',
     suggestion: '检查恢复电路、确认硬件连接',
     hardware: 'RS485 热切换电路'
+  },
+
+  // 传感器测试错误详情 (P1)
+  [ERROR_CODE.SENSOR_READ_FAIL]: {
+    name: '传感器数据读取失败',
+    cause: 'Modbus TCP 读取环控器传感器寄存器失败',
+    suggestion: '检查 Modbus TCP 连接、确认寄存器地址正确',
+    hardware: '环控器 Modbus TCP'
+  },
+  [ERROR_CODE.SENSOR_TIMEOUT]: {
+    name: '传感器通信超时',
+    cause: '环控器 RS485 轮询传感器超时或模拟器未响应',
+    suggestion: '检查 USB-RS485 连接、确认模拟器从站地址和波特率',
+    hardware: 'RS485 总线、传感器模拟器'
+  },
+  [ERROR_CODE.SENSOR_ER_READ]: {
+    name: 'ErRead 连续通信失败',
+    cause: '传感器连续 10 次通信失败触发 ErRead 异常',
+    suggestion: '检查模拟器超时注入是否正确、确认轮询周期',
+    hardware: 'RS485 总线'
+  },
+  [ERROR_CODE.SENSOR_ER_MAX]: {
+    name: 'ErMax 数值不变异常',
+    cause: '传感器连续 100 次读数不变触发 ErMax 异常',
+    suggestion: '确认模拟器固定值注入次数、检查轮询周期',
+    hardware: '传感器模拟器'
+  },
+  [ERROR_CODE.SENSOR_DEVIATION剔除]: {
+    name: '偏差剔除离群值',
+    cause: '传感器读数偏离中位数超过 ±10℃ 阈值被剔除',
+    suggestion: '检查离群值注入是否正确、确认中位数算法',
+    hardware: '环控器固件'
+  },
+  [ERROR_CODE.SENSOR_VALUE_MISMATCH]: {
+    name: '传感器值不匹配',
+    cause: '环控器读取的传感器值与模拟器预设值不一致',
+    suggestion: '检查影子寄存器值、确认换算规则（val/10）、确认场区地址映射',
+    hardware: '传感器模拟器、环控器'
+  },
+  [ERROR_CODE.SENSOR_ACTUAL_MISMATCH]: {
+    name: '平均值不匹配',
+    cause: 'ActualTemp/ActualHumi 与期望平均值偏差超限',
+    suggestion: '确认参与计算的传感器路数、检查未安装屏蔽逻辑',
+    hardware: '环控器固件'
+  },
+  [ERROR_CODE.SENSOR_HISTORY_MISMATCH]: {
+    name: '历史缓冲值不匹配',
+    cause: '历史缓冲中的温湿度值与冻结阶段预设值不一致',
+    suggestion: '检查跨小时冻结是否成功、确认对时跳变未污染缓冲区',
+    hardware: '环控器 FlashDB'
+  },
+  [ERROR_CODE.SENSOR_BOOT_FALLBACK_FAIL]: {
+    name: '启动回退验证失败',
+    cause: '重启后 ActualTemp/ActualHumi 未回退到对应历史值',
+    suggestion: '确认传感器异常保持（persist=true）、检查 find_current_hour_data 匹配',
+    hardware: '环控器固件'
+  },
+  [ERROR_CODE.SENSOR_TIME_SYNC_FAIL]: {
+    name: '对时失败',
+    cause: 'Modbus TCP 写入 HR10~HR17 后 HR17 非 0 或读回时间不一致',
+    suggestion: '检查 HR10~HR17 寄存器是否可写、确认固件对时逻辑',
+    hardware: '环控器 Modbus TCP'
+  },
+  [ERROR_CODE.SENSOR_REBOOT_FAIL]: {
+    name: '设备重启失败',
+    cause: '写入 HR18=0x55AA 后设备未重启或重启指令被拒绝',
+    suggestion: '检查 HR18 寄存器是否可写、确认重启魔数值',
+    hardware: '环控器 Modbus TCP'
+  },
+  [ERROR_CODE.SENSOR_RECONNECT_FAIL]: {
+    name: '重启后重连失败',
+    cause: '设备重启后 Modbus TCP 重连超时',
+    suggestion: '增加 rebootTimeoutMs、检查网络连接、确认设备 IP',
+    hardware: '网络、环控器'
+  },
+  [ERROR_CODE.SENSOR_CONFIG_WRITE_FAIL]: {
+    name: '配置写入失败',
+    cause: '写入传感器配置寄存器（安装位/阈值/补偿）失败',
+    suggestion: '检查寄存器地址和写入权限、确认 Modbus TCP 连接',
+    hardware: '环控器 Modbus TCP'
+  },
+  [ERROR_CODE.SENSOR_CONFIG_VERIFY_FAIL]: {
+    name: '配置回读验证失败',
+    cause: '写入配置后回读值与写入值不一致',
+    suggestion: '确认寄存器可写性、检查是否需要重启生效',
+    hardware: '环控器 Modbus TCP'
+  },
+  [ERROR_CODE.SENSOR_ALARM_MISMATCH]: {
+    name: '告警状态不匹配',
+    cause: '超阈值后告警标志未置位或恢复后告警未清除',
+    suggestion: '检查告警寄存器地址、确认告警恢复延时策略',
+    hardware: '环控器固件'
+  },
+  [ERROR_CODE.SENSOR_HISTORY_CLEAR_FAIL]: {
+    name: '历史缓冲清空失败',
+    cause: '调用清空接口后历史缓冲仍有旧数据',
+    suggestion: '确认 MSH sensor_history_clear 或调试寄存器可用',
+    hardware: '环控器固件'
   }
 };
 
@@ -635,6 +796,10 @@ module.exports = {
   BLOCK_TEST_CONFIG,
   BLOCK_ENV,
   BLOCK_HW,
+  BLOCK_SENSOR_CONFIG,
+  SENSOR_ACTUAL,
+  BLOCK_SENSOR_TIME,
+  INVALID_VALUE,
 
   // 测试掩码
   ATE_MASK_ALL,

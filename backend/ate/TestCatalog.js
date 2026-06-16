@@ -307,6 +307,218 @@ class TestCatalog {
         dependencies: [],
         description: '验证加热控制逻辑在低温条件下的响应',
       },
+
+      // ============================================================
+      // P1 传感器自动测试项 (ID 201+)
+      // ============================================================
+
+      // 正常抄读
+      {
+        id: 201,
+        name: '室内温度抄读',
+        category: '传感器测试',
+        chapter: 2,
+        timeoutMs: 30000,
+       判定类型: 'PASS/FAIL',
+        errorCodes: [ERROR_CODE.SENSOR_READ_FAIL, ERROR_CODE.SENSOR_VALUE_MISMATCH, ERROR_CODE.SENSOR_ACTUAL_MISMATCH],
+        dependencies: [],
+        description: '验证 16 路室内温度逐路采集和 ActualTemp 平均值计算',
+      },
+      {
+        id: 202,
+        name: '室内湿度抄读',
+        category: '传感器测试',
+        chapter: 2,
+        timeoutMs: 30000,
+       判定类型: 'PASS/FAIL',
+        errorCodes: [ERROR_CODE.SENSOR_READ_FAIL, ERROR_CODE.SENSOR_VALUE_MISMATCH, ERROR_CODE.SENSOR_ACTUAL_MISMATCH],
+        dependencies: [],
+        description: '验证 16 路室内湿度逐路采集和 ActualHumi 平均值计算',
+      },
+      {
+        id: 203,
+        name: '压差传感器抄读',
+        category: '传感器测试',
+        chapter: 2,
+        timeoutMs: 20000,
+       判定类型: 'PASS/FAIL',
+        errorCodes: [ERROR_CODE.SENSOR_READ_FAIL, ERROR_CODE.SENSOR_VALUE_MISMATCH],
+        dependencies: [],
+        description: '验证 4 路室内压差采集',
+      },
+      {
+        id: 204,
+        name: 'CO2 传感器抄读',
+        category: '传感器测试',
+        chapter: 2,
+        timeoutMs: 20000,
+       判定类型: 'PASS/FAIL',
+        errorCodes: [ERROR_CODE.SENSOR_READ_FAIL, ERROR_CODE.SENSOR_VALUE_MISMATCH],
+        dependencies: [],
+        description: '验证 8 路 CO2 浓度采集',
+      },
+
+      // 异常过滤
+      {
+        id: 205,
+        name: '通信失败 (ErRead)',
+        category: '传感器测试',
+        chapter: 3,
+        timeoutMs: 120000,
+       判定类型: 'PASS/FAIL',
+        errorCodes: [ERROR_CODE.SENSOR_ER_READ, ERROR_CODE.SENSOR_TIMEOUT],
+        dependencies: [201],
+        description: '验证连续 10 次通信失败后触发 ErRead',
+      },
+      {
+        id: 206,
+        name: '数值不变 (ErMax)',
+        category: '传感器测试',
+        chapter: 3,
+        timeoutMs: 300000,
+       判定类型: 'PASS/FAIL',
+        errorCodes: [ERROR_CODE.SENSOR_ER_MAX],
+        dependencies: [201],
+        description: '验证连续 100 次读数不变后触发 ErMax',
+      },
+      {
+        id: 207,
+        name: '偏差剔除',
+        category: '传感器测试',
+        chapter: 3,
+        timeoutMs: 30000,
+       判定类型: 'PASS/FAIL',
+        errorCodes: [ERROR_CODE.SENSOR_DEVIATION剔除, ERROR_CODE.SENSOR_ACTUAL_MISMATCH],
+        dependencies: [201],
+        description: '验证奇数/偶数传感器中位数偏差剔除',
+      },
+
+      // 历史回退
+      {
+        id: 208,
+        name: '历史回退 (用例A)',
+        category: '传感器测试',
+        chapter: 4,
+        timeoutMs: 600000,
+       判定类型: 'PASS/FAIL',
+        errorCodes: [ERROR_CODE.SENSOR_HISTORY_MISMATCH, ERROR_CODE.SENSOR_BOOT_FALLBACK_FAIL, ERROR_CODE.SENSOR_TIME_SYNC_FAIL, ERROR_CODE.SENSOR_REBOOT_FAIL],
+        dependencies: [201],
+        description: '验证 3 组历史数据冻结与启动回退闭环',
+      },
+      {
+        id: 209,
+        name: '对时跳变防污染',
+        category: '传感器测试',
+        chapter: 4,
+        timeoutMs: 300000,
+       判定类型: 'PASS/FAIL',
+        errorCodes: [ERROR_CODE.SENSOR_HISTORY_MISMATCH, ERROR_CODE.SENSOR_TIME_SYNC_FAIL],
+        dependencies: [201],
+        description: '验证正常跨小时冻结和对时跳变不产生非预期历史条目',
+      },
+
+      // 配置热更新
+      {
+        id: 210,
+        name: '传感器启用热更新',
+        category: '传感器测试',
+        chapter: 5,
+        timeoutMs: 15000,
+       判定类型: 'PASS/FAIL',
+        errorCodes: [ERROR_CODE.SENSOR_CONFIG_WRITE_FAIL, ERROR_CODE.SENSOR_CONFIG_VERIFY_FAIL],
+        dependencies: [201],
+        description: '启用未安装传感器后无需重启即可采集',
+      },
+      {
+        id: 211,
+        name: '传感器禁用热更新',
+        category: '传感器测试',
+        chapter: 5,
+        timeoutMs: 15000,
+       判定类型: 'PASS/FAIL',
+        errorCodes: [ERROR_CODE.SENSOR_CONFIG_WRITE_FAIL, ERROR_CODE.SENSOR_CONFIG_VERIFY_FAIL],
+        dependencies: [201],
+        description: '禁用传感器后停止抄读',
+      },
+      {
+        id: 212,
+        name: 'RS485 端口切换',
+        category: '传感器测试',
+        chapter: 5,
+        timeoutMs: 15000,
+       判定类型: 'PASS/FAIL',
+        errorCodes: [ERROR_CODE.SENSOR_CONFIG_WRITE_FAIL],
+        dependencies: [201],
+        description: '切换传感器 RS485 端口后新端口无需重启生效',
+      },
+      {
+        id: 213,
+        name: '温度阈值热更新',
+        category: '传感器测试',
+        chapter: 5,
+        timeoutMs: 30000,
+       判定类型: 'PASS/FAIL',
+        errorCodes: [ERROR_CODE.SENSOR_ALARM_MISMATCH, ERROR_CODE.SENSOR_CONFIG_WRITE_FAIL],
+        dependencies: [201],
+        description: '修改温度告警阈值后新阈值立即参与判断',
+      },
+      {
+        id: 214,
+        name: '湿度阈值热更新',
+        category: '传感器测试',
+        chapter: 5,
+        timeoutMs: 30000,
+       判定类型: 'PASS/FAIL',
+        errorCodes: [ERROR_CODE.SENSOR_ALARM_MISMATCH, ERROR_CODE.SENSOR_CONFIG_WRITE_FAIL],
+        dependencies: [202],
+        description: '修改湿度告警阈值后新阈值立即参与判断',
+      },
+      {
+        id: 215,
+        name: '温度补偿热更新',
+        category: '传感器测试',
+        chapter: 5,
+        timeoutMs: 15000,
+       判定类型: 'PASS/FAIL',
+        errorCodes: [ERROR_CODE.SENSOR_CONFIG_WRITE_FAIL, ERROR_CODE.SENSOR_VALUE_MISMATCH],
+        dependencies: [201],
+        description: '写温度补偿后采集值立即按补偿修正',
+      },
+      {
+        id: 216,
+        name: '湿度补偿热更新',
+        category: '传感器测试',
+        chapter: 5,
+        timeoutMs: 15000,
+       判定类型: 'PASS/FAIL',
+        errorCodes: [ERROR_CODE.SENSOR_CONFIG_WRITE_FAIL, ERROR_CODE.SENSOR_VALUE_MISMATCH],
+        dependencies: [202],
+        description: '写湿度补偿后采集值立即按补偿修正',
+      },
+
+      // 综合场景
+      {
+        id: 217,
+        name: '异常恢复',
+        category: '传感器测试',
+        chapter: 6,
+        timeoutMs: 60000,
+       判定类型: 'PASS/FAIL',
+        errorCodes: [ERROR_CODE.SENSOR_TIMEOUT, ERROR_CODE.SENSOR_VALUE_MISMATCH],
+        dependencies: [205],
+        description: '传感器离线后恢复，验证在线位、数据和告警恢复',
+      },
+      {
+        id: 218,
+        name: '多路同时失效',
+        category: '传感器测试',
+        chapter: 6,
+        timeoutMs: 120000,
+       判定类型: 'PASS/FAIL',
+        errorCodes: [ERROR_CODE.SENSOR_TIMEOUT, ERROR_CODE.SENSOR_ACTUAL_MISMATCH],
+        dependencies: [205],
+        description: '8 路传感器同时异常时系统仍基于有效路计算平均值',
+      },
     ];
   }
 
@@ -384,11 +596,14 @@ class TestCatalog {
       })),
     };
 
+    const businessItems = this._businessItems.filter(item => item.id < 200);
+    const sensorItems = this._businessItems.filter(item => item.id >= 200);
+
     const businessTree = {
       id: 'business',
       label: '业务逻辑测试',
       category: '业务逻辑',
-      children: this._businessItems.map(item => ({
+      children: businessItems.map(item => ({
         id: item.id,
         label: item.name,
         timeout: item.timeoutMs,
@@ -396,7 +611,19 @@ class TestCatalog {
       })),
     };
 
-    return [basicTree, businessTree];
+    const sensorTree = {
+      id: 'sensor',
+      label: '传感器自动测试 (P1)',
+      category: '传感器测试',
+      children: sensorItems.map(item => ({
+        id: item.id,
+        label: item.name,
+        timeout: item.timeoutMs,
+        status: 'pending',
+      })),
+    };
+
+    return [basicTree, businessTree, sensorTree];
   }
 
   /**
