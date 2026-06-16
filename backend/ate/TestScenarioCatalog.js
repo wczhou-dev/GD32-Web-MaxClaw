@@ -40,19 +40,125 @@ const SCENARIO_CATEGORY = {
 };
 
 // ============================================================
+// 页面分组枚举（对应 §1.5.1）
+// ============================================================
+
+const PAGE_GROUP = {
+  PRE_CHECK: '前置检查',
+  READ: '正常抄读',
+  ABNF: '异常过滤',
+  HIST: '历史回退',
+  HOT: '配置热更新',
+  COMP: '综合场景',
+};
+
+// ============================================================
+// 显示 ID → 真实场景 ID 映射（§1.5.4 子场景拆分）
+// ============================================================
+
+const ID_ALIAS_MAP = {
+  'T-ABNF-003-A': 'T-ABNF-003-ODD',
+  'T-ABNF-003-B': 'T-ABNF-003-EVEN',
+  'T-HIST-001-A': 'T-HIST-001',
+  'T-HIST-001-B': 'SEN-HIST-BOOT-001',
+};
+
+// 反向映射：真实 ID → 显示 ID
+const ID_REVERSE_MAP = {};
+for (const [displayId, realId] of Object.entries(ID_ALIAS_MAP)) {
+  if (!ID_REVERSE_MAP[realId]) ID_REVERSE_MAP[realId] = displayId;
+}
+
+/**
+ * 解析场景 ID（支持显示 ID 和真实 ID）
+ * @param {string} id 显示 ID 或真实 ID
+ * @returns {string} 真实场景 ID
+ */
+function resolveScenarioId(id) {
+  return ID_ALIAS_MAP[id] || id;
+}
+
+// ============================================================
 // P1 全量场景定义
 // ============================================================
 
 const scenarios = [
   // ----------------------------------------------------------
+  // 前置检查 (3 项，不计入 P1 正式 20 项)
+  // ----------------------------------------------------------
+  {
+    id: 'PRE-FIELD-001',
+    testId: 'PRE-FIELD-001',
+    scenarioId: 'PRE-FIELD-001',
+    name: '场区类型读取与地址表加载',
+    type: 'pre-check',
+    category: '前置检查',
+    group: PAGE_GROUP.PRE_CHECK,
+    priority: 'P0',
+    isP1Required: false,
+    estimatedSeconds: 5,
+    dependencies: [],
+    timeoutMs: 10000,
+    description: '读取环控器场区类型寄存器 0x0019，加载对应传感器地址表',
+    inputs: { register: 0x0019, count: 1 },
+    expected: { nonZero: true },
+    assertions: [{ type: '场区非零', rule: 'field_zone_non_zero' }],
+    cleanup: [],
+  },
+  {
+    id: 'PRE-INSTALL-001',
+    testId: 'PRE-INSTALL-001',
+    scenarioId: 'PRE-INSTALL-001',
+    name: '传感器安装状态读取',
+    type: 'pre-check',
+    category: '前置检查',
+    group: PAGE_GROUP.PRE_CHECK,
+    priority: 'P0',
+    isP1Required: false,
+    estimatedSeconds: 5,
+    dependencies: ['PRE-FIELD-001'],
+    timeoutMs: 10000,
+    description: '读取 0x700A~0x700F 确认传感器安装位，生成 installed 位图',
+    inputs: { register: 0x700A, count: 6 },
+    expected: { bitmapParsed: true },
+    assertions: [{ type: '位图解析', rule: 'install_bitmap_parsed' }],
+    cleanup: [],
+  },
+  {
+    id: 'PRE-ENV-001',
+    testId: 'PRE-ENV-001',
+    scenarioId: 'PRE-ENV-001',
+    name: '环控器传感器数据块读取',
+    type: 'pre-check',
+    category: '前置检查',
+    group: PAGE_GROUP.PRE_CHECK,
+    priority: 'P0',
+    isP1Required: false,
+    estimatedSeconds: 5,
+    dependencies: ['PRE-FIELD-001'],
+    timeoutMs: 10000,
+    description: '读取 BLOCK_ENV (0x1001~0x1048) 验证数据结构完整',
+    inputs: { register: 0x1001, count: 72 },
+    expected: { dataComplete: true },
+    assertions: [{ type: '数据完整', rule: 'block_env_complete' }],
+    cleanup: [],
+  },
+
+  // ----------------------------------------------------------
   // 正常抄读 (4 项)
   // ----------------------------------------------------------
   {
     id: 'T-READ-001',
+    testId: 'T-READ-001',
+    scenarioId: 'SEN-READ-TEMP-001',
     name: '室内温度传感器抄读',
     type: SCENARIO_TYPE.NORMAL_READ,
     category: SCENARIO_CATEGORY.READ,
+    group: PAGE_GROUP.READ,
     priority: 'P0',
+    isP1Required: true,
+    estimatedSeconds: 30,
+    dependencies: ['PRE-FIELD-001', 'PRE-INSTALL-001'],
     timeoutMs: 30000,
     description: '验证 16 路室内温度逐路采集和 ActualTemp 平均值计算',
     inputs: {
@@ -77,10 +183,16 @@ const scenarios = [
   },
   {
     id: 'T-READ-002',
+    testId: 'T-READ-002',
+    scenarioId: 'SEN-READ-HUMI-001',
     name: '室内湿度传感器抄读',
     type: SCENARIO_TYPE.NORMAL_READ,
     category: SCENARIO_CATEGORY.READ,
+    group: PAGE_GROUP.READ,
     priority: 'P0',
+    isP1Required: true,
+    estimatedSeconds: 30,
+    dependencies: ['PRE-FIELD-001', 'PRE-INSTALL-001'],
     timeoutMs: 30000,
     description: '验证 16 路室内湿度逐路采集和 ActualHumi 平均值计算',
     inputs: {
@@ -105,10 +217,16 @@ const scenarios = [
   },
   {
     id: 'T-READ-003',
+    testId: 'T-READ-003',
+    scenarioId: 'SEN-READ-PRESS-001',
     name: '压差传感器抄读',
     type: SCENARIO_TYPE.NORMAL_READ,
     category: SCENARIO_CATEGORY.READ,
+    group: PAGE_GROUP.READ,
     priority: 'P0',
+    isP1Required: true,
+    estimatedSeconds: 20,
+    dependencies: ['PRE-FIELD-001', 'PRE-INSTALL-001'],
     timeoutMs: 20000,
     description: '验证 4 路室内压差采集',
     inputs: {
@@ -131,10 +249,16 @@ const scenarios = [
   },
   {
     id: 'T-READ-004',
+    testId: 'T-READ-004',
+    scenarioId: 'SEN-READ-CO2-001',
     name: 'CO2 传感器抄读',
     type: SCENARIO_TYPE.NORMAL_READ,
     category: SCENARIO_CATEGORY.READ,
+    group: PAGE_GROUP.READ,
     priority: 'P0',
+    isP1Required: true,
+    estimatedSeconds: 20,
+    dependencies: ['PRE-FIELD-001', 'PRE-INSTALL-001'],
     timeoutMs: 20000,
     description: '验证 8 路 CO2 浓度采集',
     inputs: {
@@ -165,10 +289,16 @@ const scenarios = [
   // ----------------------------------------------------------
   {
     id: 'T-ABNF-001',
-    name: '传感器离线检测 (ErRead)',
+    testId: 'T-ABNF-001',
+    scenarioId: 'SEN-ABNF-ERREAD-001',
+    name: '通信失败 ErRead 过滤',
     type: SCENARIO_TYPE.ABNORMAL_FILTER,
     category: SCENARIO_CATEGORY.ABNF,
+    group: PAGE_GROUP.ABNF,
     priority: 'P0',
+    isP1Required: true,
+    estimatedSeconds: 90,
+    dependencies: ['PRE-FIELD-001', 'PRE-INSTALL-001'],
     timeoutMs: 120000,
     description: '验证连续 10 次通信失败后触发 ErRead、数据无效和在线位清除',
     inputs: {
@@ -193,10 +323,16 @@ const scenarios = [
   },
   {
     id: 'T-ABNF-002',
-    name: '数值不变异常过滤 (ErMax)',
+    testId: 'T-ABNF-002',
+    scenarioId: 'SEN-ABNF-ERMAX-001',
+    name: '数值不变 ErMax 过滤',
     type: SCENARIO_TYPE.ABNORMAL_FILTER,
     category: SCENARIO_CATEGORY.ABNF,
+    group: PAGE_GROUP.ABNF,
     priority: 'P1',
+    isP1Required: true,
+    estimatedSeconds: 300,
+    dependencies: ['PRE-FIELD-001', 'PRE-INSTALL-001'],
     timeoutMs: 300000,
     description: '验证连续 100 次读数不变后触发 ErMax',
     inputs: {
@@ -213,10 +349,17 @@ const scenarios = [
   },
   {
     id: 'T-ABNF-003-ODD',
-    name: '偏差剔除（奇数传感器）',
+    testId: 'T-ABNF-003-A',
+    scenarioId: 'SEN-ABNF-OUTLIER-ODD-001',
+    parentTestId: 'T-ABNF-003',
+    name: '奇数路温度偏差剔除',
     type: SCENARIO_TYPE.ABNORMAL_FILTER,
     category: SCENARIO_CATEGORY.ABNF,
+    group: PAGE_GROUP.ABNF,
     priority: 'P0',
+    isP1Required: true,
+    estimatedSeconds: 30,
+    dependencies: ['PRE-FIELD-001', 'PRE-INSTALL-001'],
     timeoutMs: 30000,
     description: '验证 5 路温度中 1 路离群值被剔除，ActualTemp 按 4 路正常值计算',
     inputs: {
@@ -243,10 +386,17 @@ const scenarios = [
   },
   {
     id: 'T-ABNF-003-EVEN',
-    name: '偏差剔除（偶数传感器）',
+    testId: 'T-ABNF-003-B',
+    scenarioId: 'SEN-ABNF-OUTLIER-EVEN-001',
+    parentTestId: 'T-ABNF-003',
+    name: '偶数路温度偏差剔除',
     type: SCENARIO_TYPE.ABNORMAL_FILTER,
     category: SCENARIO_CATEGORY.ABNF,
+    group: PAGE_GROUP.ABNF,
     priority: 'P0',
+    isP1Required: true,
+    estimatedSeconds: 30,
+    dependencies: ['PRE-FIELD-001', 'PRE-INSTALL-001'],
     timeoutMs: 30000,
     description: '验证 4 路温度中 1 路离群值被剔除，ActualTemp 按 3 路正常值计算',
     inputs: {
@@ -276,10 +426,17 @@ const scenarios = [
   // ----------------------------------------------------------
   {
     id: 'T-HIST-001',
-    name: '历史数据冻结与启动回退闭环',
+    testId: 'T-HIST-001-A',
+    scenarioId: 'SEN-HIST-FREEZE-001',
+    parentTestId: 'T-HIST-001',
+    name: '三组历史数据冻结',
     type: SCENARIO_TYPE.HISTORY_BOOT_FALLBACK,
     category: SCENARIO_CATEGORY.HIST,
+    group: PAGE_GROUP.HIST,
     priority: 'P0',
+    isP1Required: true,
+    estimatedSeconds: 600,
+    dependencies: ['PRE-FIELD-001', 'PRE-ENV-001'],
     timeoutMs: 600000,  // 10 分钟（含 3 次跨小时等待 + 3 次重启）
     description: '验证 3 组固定模拟值冻结后，启动回退按 tm_hour 匹配正确历史值',
     executeMode: 'caseAOnly',
@@ -309,10 +466,16 @@ const scenarios = [
   },
   {
     id: 'T-HIST-003',
+    testId: 'T-HIST-003',
+    scenarioId: 'SEN-HIST-TIMEGUARD-001',
     name: '历史数据更新与对时跳变防污染',
     type: SCENARIO_TYPE.HISTORY_BOOT_FALLBACK,
     category: SCENARIO_CATEGORY.HIST,
+    group: PAGE_GROUP.HIST,
     priority: 'P0',
+    isP1Required: true,
+    estimatedSeconds: 300,
+    dependencies: ['PRE-FIELD-001', 'PRE-ENV-001'],
     timeoutMs: 300000,
     description: '验证正常跨小时冻结和对时跳变不产生非预期历史条目',
     inputs: {
@@ -332,10 +495,17 @@ const scenarios = [
   },
   {
     id: 'SEN-HIST-BOOT-001',
-    name: '传感器历史数据启动回退',
+    testId: 'T-HIST-001-B',
+    scenarioId: 'SEN-HIST-BOOT-001',
+    parentTestId: 'T-HIST-001',
+    name: '启动历史回退验证',
     type: SCENARIO_TYPE.HISTORY_BOOT_FALLBACK,
     category: SCENARIO_CATEGORY.HIST,
+    group: PAGE_GROUP.HIST,
     priority: 'P0',
+    isP1Required: true,
+    estimatedSeconds: 600,
+    dependencies: ['PRE-FIELD-001', 'PRE-ENV-001'],
     timeoutMs: 600000,
     description: '历史回退专项场景：3 组冻结/验证数据，供 TestManager 直接加载',
     executeMode: 'caseAOnly',
@@ -354,10 +524,16 @@ const scenarios = [
   // ----------------------------------------------------------
   {
     id: 'T-HOT-001',
+    testId: 'T-HOT-001',
+    scenarioId: 'SEN-HOT-ENABLE-001',
     name: '传感器启用热更新',
     type: SCENARIO_TYPE.CONFIG_HOT_UPDATE,
     category: SCENARIO_CATEGORY.HOT,
+    group: PAGE_GROUP.HOT,
     priority: 'P0',
+    isP1Required: true,
+    estimatedSeconds: 15,
+    dependencies: ['PRE-FIELD-001'],
     timeoutMs: 15000,
     description: '启用未安装传感器后无需重启即可采集',
     inputs: {
@@ -377,10 +553,16 @@ const scenarios = [
   },
   {
     id: 'T-HOT-002',
+    testId: 'T-HOT-002',
+    scenarioId: 'SEN-HOT-DISABLE-001',
     name: '传感器禁用热更新',
     type: SCENARIO_TYPE.CONFIG_HOT_UPDATE,
     category: SCENARIO_CATEGORY.HOT,
+    group: PAGE_GROUP.HOT,
     priority: 'P0',
+    isP1Required: true,
+    estimatedSeconds: 15,
+    dependencies: ['PRE-FIELD-001'],
     timeoutMs: 15000,
     description: '禁用传感器后停止抄读',
     inputs: {
@@ -400,10 +582,16 @@ const scenarios = [
   },
   {
     id: 'T-HOT-003',
+    testId: 'T-HOT-003',
+    scenarioId: 'SEN-HOT-PORT-001',
     name: 'RS485 端口切换热更新',
     type: SCENARIO_TYPE.CONFIG_HOT_UPDATE,
     category: SCENARIO_CATEGORY.HOT,
+    group: PAGE_GROUP.HOT,
     priority: 'P1',
+    isP1Required: true,
+    estimatedSeconds: 15,
+    dependencies: ['PRE-FIELD-001'],
     timeoutMs: 15000,
     description: '切换传感器 RS485 端口后新端口无需重启生效',
     inputs: {
@@ -421,10 +609,16 @@ const scenarios = [
   },
   {
     id: 'T-HOT-004',
+    testId: 'T-HOT-004',
+    scenarioId: 'SEN-HOT-TEMP-ALARM-001',
     name: '温度告警阈值热更新',
     type: SCENARIO_TYPE.CONFIG_HOT_UPDATE,
     category: SCENARIO_CATEGORY.HOT,
+    group: PAGE_GROUP.HOT,
     priority: 'P1',
+    isP1Required: true,
+    estimatedSeconds: 30,
+    dependencies: ['PRE-FIELD-001'],
     timeoutMs: 30000,
     description: '修改温度告警阈值后新阈值立即参与判断',
     inputs: {
@@ -446,10 +640,16 @@ const scenarios = [
   },
   {
     id: 'T-HOT-005',
+    testId: 'T-HOT-005',
+    scenarioId: 'SEN-HOT-HUMI-ALARM-001',
     name: '湿度告警阈值热更新',
     type: SCENARIO_TYPE.CONFIG_HOT_UPDATE,
     category: SCENARIO_CATEGORY.HOT,
+    group: PAGE_GROUP.HOT,
     priority: 'P1',
+    isP1Required: true,
+    estimatedSeconds: 30,
+    dependencies: ['PRE-FIELD-001'],
     timeoutMs: 30000,
     description: '修改湿度告警阈值后新阈值立即参与判断',
     inputs: {
@@ -471,10 +671,16 @@ const scenarios = [
   },
   {
     id: 'T-HOT-006',
+    testId: 'T-HOT-006',
+    scenarioId: 'SEN-HOT-TEMP-COMP-001',
     name: '温度补偿值热更新',
     type: SCENARIO_TYPE.CONFIG_HOT_UPDATE,
     category: SCENARIO_CATEGORY.HOT,
+    group: PAGE_GROUP.HOT,
     priority: 'P0',
+    isP1Required: true,
+    estimatedSeconds: 15,
+    dependencies: ['PRE-FIELD-001'],
     timeoutMs: 15000,
     description: '写温度补偿后采集值立即按补偿修正，恢复 0 后回原值',
     inputs: {
@@ -496,10 +702,16 @@ const scenarios = [
   },
   {
     id: 'T-HOT-007',
+    testId: 'T-HOT-007',
+    scenarioId: 'SEN-HOT-HUMI-COMP-001',
     name: '湿度补偿值热更新',
     type: SCENARIO_TYPE.CONFIG_HOT_UPDATE,
     category: SCENARIO_CATEGORY.HOT,
+    group: PAGE_GROUP.HOT,
     priority: 'P0',
+    isP1Required: true,
+    estimatedSeconds: 15,
+    dependencies: ['PRE-FIELD-001'],
     timeoutMs: 15000,
     description: '写湿度补偿后采集值立即按补偿修正，恢复 0 后回原值',
     inputs: {
@@ -525,10 +737,16 @@ const scenarios = [
   // ----------------------------------------------------------
   {
     id: 'T-COMP-001',
+    testId: 'T-COMP-001',
+    scenarioId: 'SEN-COMP-RECOVER-001',
     name: '传感器离线后恢复',
     type: SCENARIO_TYPE.COMPOSITE,
     category: SCENARIO_CATEGORY.COMP,
+    group: PAGE_GROUP.COMP,
     priority: 'P0',
+    isP1Required: true,
+    estimatedSeconds: 60,
+    dependencies: ['PRE-FIELD-001', 'PRE-INSTALL-001'],
     timeoutMs: 60000,
     description: '通信失败触发异常后恢复，验证在线位、数据和告警恢复',
     inputs: {
@@ -547,10 +765,16 @@ const scenarios = [
   },
   {
     id: 'T-COMP-002',
+    testId: 'T-COMP-002',
+    scenarioId: 'SEN-COMP-MULTI-FAIL-001',
     name: '多路传感器同时失效',
     type: SCENARIO_TYPE.COMPOSITE,
     category: SCENARIO_CATEGORY.COMP,
+    group: PAGE_GROUP.COMP,
     priority: 'P1',
+    isP1Required: true,
+    estimatedSeconds: 120,
+    dependencies: ['PRE-FIELD-001', 'PRE-INSTALL-001'],
     timeoutMs: 120000,
     description: '8 路传感器同时异常时系统仍基于有效路计算平均值',
     inputs: {
@@ -587,25 +811,35 @@ class TestScenarioCatalog {
   }
 
   /**
-   * 按 ID 加载场景
-   * @param {string} id 场景 ID
+   * 按 ID 加载场景（支持显示 ID 和真实 ID）
+   * @param {string} id 场景 ID（显示 ID 或真实 ID）
    * @returns {object|null}
    */
   loadScenario(id) {
-    const scenario = this._scenarios.get(id);
+    const realId = resolveScenarioId(id);
+    const scenario = this._scenarios.get(realId);
     if (!scenario) {
-      console.warn(`[TestScenarioCatalog] 场景未找到: ${id}`);
+      console.warn(`[TestScenarioCatalog] 场景未找到: ${id} (resolved: ${realId})`);
       return null;
     }
     return { ...scenario };
   }
 
   /**
-   * 获取全部场景
+   * 获取全部场景（返回页面需要的完整字段）
    * @returns {object[]}
    */
   getAllScenarios() {
     return Array.from(this._scenarios.values()).map(s => ({ ...s }));
+  }
+
+  /**
+   * 按分组获取场景
+   * @param {string} group 页面分组名
+   * @returns {object[]}
+   */
+  getScenariosByGroup(group) {
+    return this.getAllScenarios().filter(s => s.group === group);
   }
 
   /**
@@ -640,10 +874,38 @@ class TestScenarioCatalog {
    * @returns {boolean}
    */
   hasScenario(id) {
-    return this._scenarios.has(id);
+    return this._scenarios.has(resolveScenarioId(id));
+  }
+
+  /**
+   * 解析显示 ID 到真实 ID
+   * @param {string} id
+   * @returns {string}
+   */
+  resolveId(id) {
+    return resolveScenarioId(id);
+  }
+
+  /**
+   * 获取前置检查场景列表
+   * @returns {object[]}
+   */
+  getPreCheckScenarios() {
+    return this.getAllScenarios().filter(s => s.type === 'pre-check');
+  }
+
+  /**
+   * 获取 P1 正式测试场景列表（不含前置检查）
+   * @returns {object[]}
+   */
+  getP1Scenarios() {
+    return this.getAllScenarios().filter(s => s.isP1Required === true);
   }
 }
 
 module.exports = TestScenarioCatalog;
 module.exports.SCENARIO_TYPE = SCENARIO_TYPE;
 module.exports.SCENARIO_CATEGORY = SCENARIO_CATEGORY;
+module.exports.PAGE_GROUP = PAGE_GROUP;
+module.exports.ID_ALIAS_MAP = ID_ALIAS_MAP;
+module.exports.resolveScenarioId = resolveScenarioId;

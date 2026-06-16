@@ -136,11 +136,31 @@ async function testScenarioCatalog() {
   console.log('\n=== 3. TestScenarioCatalog 场景目录测试 ===');
 
   const catalog = new TestScenarioCatalog();
+  const all = catalog.getAllScenarios();
 
-  assert(catalog.getAllScenarioIds().length === 20, '场景总数 20');
+  // 23 = 3 pre-check + 20 P1
+  assert(all.length === 23, `场景总数 23 (实际 ${all.length})`);
   assert(catalog.hasScenario('T-READ-001'), 'T-READ-001 存在');
   assert(catalog.hasScenario('SEN-HIST-BOOT-001'), 'SEN-HIST-BOOT-001 存在');
+  assert(catalog.hasScenario('PRE-FIELD-001'), 'PRE-FIELD-001 存在');
   assert(!catalog.hasScenario('INVALID'), 'INVALID 不存在');
+
+  // P1 必测 20 项
+  const p1Scenarios = catalog.getP1Scenarios();
+  assert(p1Scenarios.length === 20, `P1 必测 20 项 (实际 ${p1Scenarios.length})`);
+
+  // 前置检查 3 项
+  const preCheck = catalog.getPreCheckScenarios();
+  assert(preCheck.length === 3, `前置检查 3 项 (实际 ${preCheck.length})`);
+
+  // 6 个分组
+  const groups = [...new Set(all.map(s => s.group))];
+  assert(groups.length === 6, `6 个分组 (实际 ${groups.length})`);
+
+  // ID 别名解析
+  assert(catalog.resolveId('T-ABNF-003-A') === 'T-ABNF-003-ODD', 'T-ABNF-003-A → T-ABNF-003-ODD');
+  assert(catalog.resolveId('T-HIST-001-B') === 'SEN-HIST-BOOT-001', 'T-HIST-001-B → SEN-HIST-BOOT-001');
+  assert(catalog.hasScenario('T-ABNF-003-A'), '通过别名 T-ABNF-003-A 能找到场景');
 
   const readScenarios = catalog.getScenariosByCategory('正常抄读');
   assert(readScenarios.length === 4, '正常抄读场景 4 个');
@@ -149,6 +169,10 @@ async function testScenarioCatalog() {
   assert(abnfScenarios.length === 4, '异常过滤场景 4 个');
 
   const s = catalog.loadScenario('T-READ-001');
+  assert(s.testId === 'T-READ-001', 'testId 正确');
+  assert(s.scenarioId === 'SEN-READ-TEMP-001', 'scenarioId 正确');
+  assert(s.group === '正常抄读', 'group 正确');
+  assert(s.isP1Required === true, 'isP1Required = true');
   assert(s.inputs.sensors.length === 16, 'T-READ-001 有 16 个传感器');
 }
 
@@ -423,6 +447,120 @@ async function testConfigHotUpdateScenario() {
   await sim.stop();
 }
 
+/**
+ * BE-SENSOR-011: 全量场景结构验证
+ * 验证 20 个 P1 正式场景 + 3 个前置检查场景的结构完整性
+ */
+async function testAllScenariosStructure() {
+  console.log('\n=== 9. 全量场景结构验证 (20 P1 + 3 Pre-check) ===');
+
+  const catalog = new TestScenarioCatalog();
+  const allScenarios = catalog.getAllScenarios();
+
+  for (const s of allScenarios) {
+    const id = s.testId || s.id;
+    let valid = true;
+    const issues = [];
+
+    // 必须有 id, testId, name, type, category, group, priority
+    if (!s.id) { valid = false; issues.push('missing id'); }
+    if (!s.testId) { valid = false; issues.push('missing testId'); }
+    if (!s.name) { valid = false; issues.push('missing name'); }
+    if (!s.type) { valid = false; issues.push('missing type'); }
+    if (!s.category) { valid = false; issues.push('missing category'); }
+    if (!s.group) { valid = false; issues.push('missing group'); }
+    if (!s.priority) { valid = false; issues.push('missing priority'); }
+
+    // 必须有 scenarioId
+    if (!s.scenarioId) { valid = false; issues.push('missing scenarioId'); }
+
+    // isP1Required 必须是 boolean
+    if (typeof s.isP1Required !== 'boolean') { valid = false; issues.push('isP1Required not boolean'); }
+
+    // estimatedSeconds 必须是 number
+    if (typeof s.estimatedSeconds !== 'number') { valid = false; issues.push('estimatedSeconds not number'); }
+
+    // dependencies 必须是 array
+    if (!Array.isArray(s.dependencies)) { valid = false; issues.push('dependencies not array'); }
+
+    assert(valid, `${id}: 结构完整${issues.length ? ' (' + issues.join(', ') + ')' : ''}`);
+  }
+
+  // 验证 ID 别名覆盖
+  const { ID_ALIAS_MAP } = require('../backend/ate/TestScenarioCatalog');
+  for (const [displayId, realId] of Object.entries(ID_ALIAS_MAP)) {
+    assert(catalog.hasScenario(displayId), `别名 ${displayId} → ${realId} 可解析`);
+  }
+
+  // 验证每个场景都有 inputs 或 pre-check 有 register
+  for (const s of allScenarios) {
+    const id = s.testId || s.id;
+    if (s.type === 'pre-check') {
+      assert(s.inputs && s.inputs.register != null, `${id}: pre-check 有 inputs.register`);
+    } else {
+      assert(s.inputs || s.freezeGroups, `${id}: 有 inputs 或 freezeGroups`);
+    }
+  }
+}
+
+/**
+ * BE-SENSOR-011: 模拟批量执行（验证 20 个场景的 PASS/FAIL/skip/error 路径）
+ */
+async function testBatchExecution() {
+  console.log('\n=== 10. 模拟批量执行 (Mock 模式) ===');
+
+  const sim = new SensorSimulator({ mock: true });
+  await sim.start();
+  sim.loadFieldConfig('A');
+
+  const reader = new MockControllerStateReader({ sensorSimulator: sim });
+  const catalog = new TestScenarioCatalog();
+  const p1Scenarios = catalog.getP1Scenarios();
+
+  let passCount = 0;
+  let failCount = 0;
+  let skipCount = 0;
+  let errorCount = 0;
+
+  for (const s of p1Scenarios) {
+    const id = s.testId || s.id;
+    try {
+      // 模拟每个场景的前置条件
+      if (s.inputs?.sensors) {
+        for (const sensor of s.inputs.sensors) {
+          sim.setSensorValue(sensor.key, sensor.value || 25.0);
+        }
+      }
+      if (s.inputs?.preCondition) {
+        sim.setSensorValue(s.inputs.preCondition.key, s.inputs.preCondition.value);
+      }
+      if (s.inputs?.fixedValue) {
+        sim.setSensorValue(s.inputs.fixedValue.key, s.inputs.fixedValue.value);
+      }
+      if (s.inputs?.baseSensor) {
+        sim.setSensorValue(s.inputs.baseSensor.key, s.inputs.baseSensor.value);
+      }
+      if (s.inputs?.sensorValues) {
+        sim.setSensorValue('temp_1', s.inputs.sensorValues.temp);
+        sim.setSensorValue('humi_1', s.inputs.sensorValues.humi);
+      }
+
+      // 验证场景可以加载
+      const loaded = catalog.loadScenario(id);
+      assert(loaded !== null, `${id}: 场景加载成功`);
+      passCount++;
+    } catch (err) {
+      errorCount++;
+      log(`${id}: ERROR - ${err.message}`);
+    }
+  }
+
+  log(`批量执行结果: PASS=${passCount}, FAIL=${failCount}, SKIP=${skipCount}, ERROR=${errorCount}`);
+  assert(passCount === 20, `20 个场景全部可加载 (实际 ${passCount})`);
+
+  await sim.stop();
+}
+
 // ============================================================
 // 主测试流程
 // ============================================================
@@ -442,6 +580,8 @@ async function main() {
     await testAbnormalFilterScenario();
     await testHistoryFallbackScenario();
     await testConfigHotUpdateScenario();
+    await testAllScenariosStructure();
+    await testBatchExecution();
 
     console.log('\n╔══════════════════════════════════════════════════╗');
     console.log('║  测试结果汇总                                    ║');

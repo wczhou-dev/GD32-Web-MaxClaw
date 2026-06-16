@@ -309,6 +309,7 @@
           </fieldset>
         </div>
       </template>
+
     </div>
 
     <!-- 底部状态栏 (Status Bar) -->
@@ -341,7 +342,7 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted, nextTick, watch } from 'vue'
+import { ref, computed, onMounted, onUnmounted, nextTick, watch } from 'vue'
 import { useDeviceStore } from '../stores/deviceStore'
 
 const deviceStore = useDeviceStore()
@@ -420,6 +421,93 @@ const loadTestTree = async () => {
       }
     ]
   }
+}
+
+/**
+ * 传感器测试场景降级目录（与后端 TestScenarioCatalog 一致）
+ * 后端未启动时使用此硬编码列表
+ */
+const SENSOR_SCENARIOS_FALLBACK = [
+  // 前置检查
+  { id: 'PRE-FIELD-001', testId: 'PRE-FIELD-001', name: '场区类型读取与地址表加载', group: '前置检查', priority: 'P0', isP1Required: false, estimatedSeconds: 5, dependencies: [] },
+  { id: 'PRE-INSTALL-001', testId: 'PRE-INSTALL-001', name: '传感器安装状态读取', group: '前置检查', priority: 'P0', isP1Required: false, estimatedSeconds: 5, dependencies: [] },
+  { id: 'PRE-ENV-001', testId: 'PRE-ENV-001', name: '环控器传感器数据块读取', group: '前置检查', priority: 'P0', isP1Required: false, estimatedSeconds: 5, dependencies: [] },
+  // 正常抄读
+  { id: 'T-READ-001', testId: 'T-READ-001', name: '室内温度传感器抄读', group: '正常抄读', priority: 'P0', isP1Required: true, estimatedSeconds: 30, dependencies: [] },
+  { id: 'T-READ-002', testId: 'T-READ-002', name: '室内湿度传感器抄读', group: '正常抄读', priority: 'P0', isP1Required: true, estimatedSeconds: 30, dependencies: [] },
+  { id: 'T-READ-003', testId: 'T-READ-003', name: '压差传感器抄读', group: '正常抄读', priority: 'P0', isP1Required: true, estimatedSeconds: 30, dependencies: [] },
+  { id: 'T-READ-004', testId: 'T-READ-004', name: 'CO2 传感器抄读', group: '正常抄读', priority: 'P0', isP1Required: true, estimatedSeconds: 30, dependencies: [] },
+  // 异常过滤
+  { id: 'T-ABNF-001', testId: 'T-ABNF-001', name: '通信失败 ErRead 过滤', group: '异常过滤', priority: 'P0', isP1Required: true, estimatedSeconds: 60, dependencies: [] },
+  { id: 'T-ABNF-002', testId: 'T-ABNF-002', name: '数值不变 ErMax 过滤', group: '异常过滤', priority: 'P1', isP1Required: true, estimatedSeconds: 300, dependencies: [] },
+  { id: 'T-ABNF-003-A', testId: 'T-ABNF-003-A', name: '奇数路温度偏差剔除', group: '异常过滤', priority: 'P0', isP1Required: true, estimatedSeconds: 30, dependencies: [] },
+  { id: 'T-ABNF-003-B', testId: 'T-ABNF-003-B', name: '偶数路温度偏差剔除', group: '异常过滤', priority: 'P0', isP1Required: true, estimatedSeconds: 30, dependencies: [] },
+  // 历史回退
+  { id: 'T-HIST-001-A', testId: 'T-HIST-001-A', name: '三组历史数据冻结', group: '历史回退', priority: 'P0', isP1Required: true, estimatedSeconds: 600, dependencies: [] },
+  { id: 'T-HIST-001-B', testId: 'T-HIST-001-B', name: '启动历史回退验证', group: '历史回退', priority: 'P0', isP1Required: true, estimatedSeconds: 600, dependencies: ['T-HIST-001-A'] },
+  { id: 'T-HIST-003', testId: 'T-HIST-003', name: '历史数据更新与对时跳变防污染', group: '历史回退', priority: 'P0', isP1Required: true, estimatedSeconds: 300, dependencies: [] },
+  // 配置热更新
+  { id: 'T-HOT-001', testId: 'T-HOT-001', name: '传感器启用热更新', group: '配置热更新', priority: 'P0', isP1Required: true, estimatedSeconds: 30, dependencies: [] },
+  { id: 'T-HOT-002', testId: 'T-HOT-002', name: '传感器禁用热更新', group: '配置热更新', priority: 'P0', isP1Required: true, estimatedSeconds: 30, dependencies: [] },
+  { id: 'T-HOT-003', testId: 'T-HOT-003', name: 'RS485 端口切换热更新', group: '配置热更新', priority: 'P1', isP1Required: true, estimatedSeconds: 60, dependencies: [] },
+  { id: 'T-HOT-004', testId: 'T-HOT-004', name: '温度告警阈值热更新', group: '配置热更新', priority: 'P1', isP1Required: true, estimatedSeconds: 60, dependencies: [] },
+  { id: 'T-HOT-005', testId: 'T-HOT-005', name: '湿度告警阈值热更新', group: '配置热更新', priority: 'P1', isP1Required: true, estimatedSeconds: 60, dependencies: [] },
+  { id: 'T-HOT-006', testId: 'T-HOT-006', name: '温度补偿值热更新', group: '配置热更新', priority: 'P0', isP1Required: true, estimatedSeconds: 30, dependencies: [] },
+  { id: 'T-HOT-007', testId: 'T-HOT-007', name: '湿度补偿值热更新', group: '配置热更新', priority: 'P0', isP1Required: true, estimatedSeconds: 30, dependencies: [] },
+  // 综合场景
+  { id: 'T-COMP-001', testId: 'T-COMP-001', name: '传感器离线后恢复', group: '综合场景', priority: 'P0', isP1Required: true, estimatedSeconds: 60, dependencies: [] },
+  { id: 'T-COMP-002', testId: 'T-COMP-002', name: '多路传感器同时失效', group: '综合场景', priority: 'P1', isP1Required: true, estimatedSeconds: 60, dependencies: [] },
+]
+
+/**
+ * 从后端加载传感器测试场景，合并到项目树
+ */
+const loadSensorScenarios = async () => {
+  let scenarios = null
+  try {
+    const res = await fetch('/api/sensor-test/scenarios')
+    const data = await res.json()
+    if (data.success && data.scenarios) {
+      scenarios = data.scenarios
+    }
+  } catch (err) {
+    console.error('[AteTest] Failed to load sensor scenarios from API:', err)
+  }
+
+  // 降级：后端未启动或返回失败时使用硬编码目录
+  if (!scenarios) {
+    scenarios = SENSOR_SCENARIOS_FALLBACK
+    addLog(`[传感器] 后端未连接，使用降级目录 (${scenarios.length} 项)`, 'warn', 'system')
+  }
+
+  const groupOrder = ['前置检查', '正常抄读', '异常过滤', '历史回退', '配置热更新', '综合场景']
+  const groupMap = {}
+  for (const s of scenarios) {
+    const g = s.group || s.category || '其他'
+    if (!groupMap[g]) groupMap[g] = []
+    groupMap[g].push({
+      id: `sensor:${s.testId || s.id}`,
+      label: `${s.testId || s.id} ${s.name}`,
+      status: 'not_run',
+      _sensorScenario: s,
+    })
+  }
+  const sensorChildren = []
+  for (const g of groupOrder) {
+    if (groupMap[g]) sensorChildren.push(...groupMap[g])
+  }
+  const sensorGroup = {
+    id: 'sensor_tests',
+    label: '传感器相关检定',
+    children: sensorChildren,
+  }
+  const existIdx = testTree.value.findIndex(g => g.id === 'sensor_tests')
+  if (existIdx >= 0) {
+    testTree.value[existIdx] = sensorGroup
+  } else {
+    testTree.value.push(sensorGroup)
+  }
+  addLog(`[传感器] 已加载 ${sensorChildren.length} 个传感器检定项`, 'info', 'system')
 }
 
 const defaultProps = { children: 'children', label: 'label' }
@@ -744,11 +832,118 @@ const startFailedOnlyTest = () => {
   runNext()
 }
 
+// ==================== 传感器测试执行 ====================
+
+const currentSensorTaskId = ref(null)
+
+const executeSensorStep = async (node, callback) => {
+  const scenario = node._sensorScenario
+  if (!scenario) {
+    node.status = 'fail'
+    addLog(`[FAIL] 传感器场景数据缺失: ${node.label}`, 'error', 'system')
+    callback()
+    return
+  }
+
+  const scenarioId = scenario.testId || scenario.id
+  addLog(`[传感器] 开始执行: ${scenarioId} ${scenario.name}`, 'info', 'system')
+  activeDetailRegisters.value = [
+    { id: 1, name: '测试项', result: scenario.name },
+    { id: 2, name: '场景 ID', result: scenarioId },
+    { id: 3, name: '优先级', result: scenario.priority || '-' },
+    { id: 4, name: '状态', result: '执行中...' },
+  ]
+
+  try {
+    const resp = await fetch('/api/sensor-test/run', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        scenarioIds: [scenarioId],
+        deviceKey: `${deviceIp.value}:502:1`,
+        fieldType: 'A',
+      }),
+    })
+    const data = await resp.json()
+    if (data.success) {
+      currentSensorTaskId.value = data.taskId
+      addLog(`[传感器] 任务已提交: ${data.taskId}`, 'info', 'system')
+      await waitForSensorTask(data.taskId, node, callback)
+    } else {
+      node.status = 'fail'
+      addLog(`[FAIL] 传感器任务提交失败: ${data.error}`, 'error', 'system')
+      activeDetailRegisters.value = [
+        { id: 1, name: '错误', result: data.error || '提交失败' },
+      ]
+      callback()
+    }
+  } catch (err) {
+    node.status = 'fail'
+    addLog(`[FAIL] 传感器执行异常: ${err.message}`, 'error', 'system')
+    activeDetailRegisters.value = [
+      { id: 1, name: '错误', result: err.message },
+    ]
+    callback()
+  } finally {
+    currentSensorTaskId.value = null
+  }
+}
+
+const waitForSensorTask = async (taskId, node, callback) => {
+  const maxWait = 600000
+  const startTime = Date.now()
+
+  while (Date.now() - startTime < maxWait) {
+    await new Promise(r => setTimeout(r, 3000))
+    try {
+      const resp = await fetch(`/api/sensor-test/tasks/${taskId}`)
+      const data = await resp.json()
+      if (data.success && data.task) {
+        const task = data.task
+        if (task.assertions && task.assertions.length) {
+          activeDetailRegisters.value = task.assertions.map((a, i) => ({
+            id: i + 1,
+            name: a.message || a.type || '-',
+            result: a.pass ? '合格' : '不合格',
+          }))
+        }
+        if (task.status === 'pass' || task.status === 'fail' ||
+            task.status === 'error' || task.status === 'stopped') {
+          if (task.status === 'pass') {
+            node.status = 'pass'
+            addLog(`[PASS] ${node.label} 测试通过`, 'success', 'system')
+          } else {
+            node.status = 'fail'
+            testEngine.value.failedItems.push(node)
+            addLog(`[FAIL] ${node.label} 测试失败 (${task.status})`, 'error', 'system')
+          }
+          callback()
+          return
+        }
+      }
+    } catch (_) {}
+  }
+
+  node.status = 'fail'
+  testEngine.value.failedItems.push(node)
+  addLog(`[FAIL] ${node.label} 测试超时`, 'error', 'system')
+  callback()
+}
+
 const stopTest = () => {
+  // 停止传感器测试任务
+  if (currentSensorTaskId.value) {
+    fetch('/api/sensor-test/stop', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ taskId: currentSensorTaskId.value }),
+    }).catch(() => {})
+    addLog('已发送停止传感器测试指令。', 'warn', 'system')
+  }
   if (deviceStore.wsConnected && deviceStore.ateSession) {
     deviceStore.stopTest()
     addLog('已发送停止检定指令到后端。', 'warn', 'system')
-  } else {
+  } else if (!currentSensorTaskId.value) {
     testEngine.value.status = 'idle'
     currentCmd.value = '操作员已强行中止检定。'
     addLog('检定序列被人工中止。', 'warn', 'system')
@@ -772,6 +967,12 @@ const resetTest = () => {
 const executeStep = (node, callback) => {
   testEngine.value.currentItemName = node.label
   node.status = 'running'
+
+  // 传感器测试项：走 /api/sensor-test/run
+  if (typeof node.id === 'string' && node.id.startsWith('sensor:')) {
+    executeSensorStep(node, callback)
+    return
+  }
 
   addLog(`[System] 下发检定指令: 节点 [${node.label}] (ID=${node.id})`, 'info', 'system')
 
@@ -863,10 +1064,74 @@ const handleConfigPush = async () => {
   }
 }
 
+// ==================== 传感器 WebSocket ====================
+let sensorWs = null
+let sensorWsReconnectTimer = null
+
+const connectSensorWebSocket = () => {
+  const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:'
+  const wsUrl = `${protocol}//${window.location.host}`
+  try {
+    sensorWs = new WebSocket(wsUrl)
+    sensorWs.onopen = () => {
+      addLog('[传感器] WebSocket 已连接', 'info', 'system')
+    }
+    sensorWs.onclose = () => {
+      sensorWsReconnectTimer = setTimeout(connectSensorWebSocket, 3000)
+    }
+    sensorWs.onerror = () => {}
+    sensorWs.onmessage = (event) => {
+      try {
+        const msg = JSON.parse(event.data)
+        handleSensorWsMessage(msg)
+      } catch (_) {}
+    }
+  } catch (_) {}
+}
+
+const handleSensorWsMessage = (msg) => {
+  switch (msg.type) {
+    case 'sensor_test_progress':
+      addLog(`[传感器] 进度: ${msg.scenarioId} (${(msg.index || 0) + 1}/${msg.total})`, 'info', 'system')
+      break
+    case 'sensor_test_scenario_finished': {
+      const nodeId = `sensor:${msg.scenarioId}`
+      testTree.value.forEach(g => {
+        g.children?.forEach(c => {
+          if (c.id === nodeId) {
+            c.status = msg.status === 'pass' ? 'pass' : msg.status === 'skip' ? 'not_run' : 'fail'
+          }
+        })
+      })
+      if (msg.assertions) {
+        activeDetailRegisters.value = msg.assertions.map((a, i) => ({
+          id: i + 1,
+          name: a.message || a.type || '-',
+          result: a.pass ? '合格' : '不合格',
+        }))
+      }
+      addLog(`[传感器] ${msg.scenarioId} → ${msg.status}`, msg.status === 'pass' ? 'success' : 'error', 'system')
+      break
+    }
+    case 'sensor_test_finished':
+      addLog(`[传感器] 批量测试完成: ${msg.result?.passed || 0}/${msg.result?.total || 0}`, 'success', 'system')
+      break
+    case 'sensor_test_error':
+      addLog(`[传感器] 测试异常: ${msg.error}`, 'error', 'system')
+      break
+  }
+}
+
 // ==================== 生命周期 ====================
 onMounted(async () => {
   // 从后端加载测试目录树
   await loadTestTree()
+
+  // 加载传感器测试场景到项目树
+  await loadSensorScenarios()
+
+  // 连接传感器 WebSocket
+  connectSensorWebSocket()
 
   // 全选所有节点
   if (treeRef.value && testTree.value.length > 0) {
@@ -880,6 +1145,16 @@ onMounted(async () => {
 
   // 获取当前测试会话
   deviceStore.getTestSession()
+})
+
+onUnmounted(() => {
+  if (sensorWs) {
+    sensorWs.close()
+    sensorWs = null
+  }
+  if (sensorWsReconnectTimer) {
+    clearTimeout(sensorWsReconnectTimer)
+  }
 })
 
 // ==================== 状态同步 watchers ====================
@@ -1146,6 +1421,7 @@ watch(manualRelays, (newVal) => {
   gap: 4px;
   background: #d4d0c8;
 }
+
 
 /* 经典面板边框下沉效果 */
 .win-panel-inset {

@@ -24,7 +24,9 @@ const WebSocketManager = require('./WebSocketMgr');
 const OTAHandler = require('./OTAHandler');
 const createOtaRouter = require('./api/ota');
 const TestManager = require('./ate/TestManager');
+const SensorSimulator = require('./ate/SensorSimulator');
 const testApiRouter = require('./api/test');
+const sensorTestApiRouter = require('./api/sensor-test');
 
 // ==================== 配置加载 ====================
 
@@ -94,6 +96,8 @@ function getLocalIP() {
 
 // ==================== 主程序 ====================
 
+let sensorSimulator = null; // 模块级引用，供优雅退出使用
+
 async function main() {
     console.log('========================================');
     console.log('  GD32-Web-MaxClaw 后端服务');
@@ -162,6 +166,27 @@ async function main() {
         pollingEngine,
         wsManager,
     });
+
+    // 初始化传感器模拟器（支持 Mock 和真实串口模式）
+    console.log('\n[Step 4.6] Initializing SensorSimulator...');
+    const sensorSimMock = process.env.SENSOR_SIM_MOCK === 'true' || !process.env.SENSOR_SIM_PORT;
+    sensorSimulator = new SensorSimulator({
+      mock: sensorSimMock,
+      port: process.env.SENSOR_SIM_PORT || 'COM3',
+      baudRate: parseInt(process.env.SENSOR_SIM_BAUD) || 9600,
+    });
+    try {
+      await sensorSimulator.start();
+      console.log(`[SensorSimulator] 启动成功 (mode=${sensorSimMock ? 'mock' : 'serial'})`);
+    } catch (err) {
+      console.warn(`[SensorSimulator] 启动失败: ${err.message}，将以 Mock 模式运行`);
+    }
+    testManager.setSensorSimulator(sensorSimulator);
+
+    // 将 testManager、wsManager 和 pollingEngine 注册到 Express app，供 API 路由使用
+    app.set('testManager', testManager);
+    app.set('wsManager', wsManager);
+    app.set('pollingEngine', pollingEngine);
 
     // 注意：TestManager._emitSessionUpdate() 已经通过 wsManager.broadcast() 直接推送
     // 标准 WebSocket 消息（test_progress_update, test_finished_notification, test_error），
@@ -337,6 +362,9 @@ async function main() {
     // 注册ATE测试报告路由
     app.use('/api/test', testApiRouter);
 
+    // 注册传感器自动测试路由
+    app.use('/api/sensor-test', sensorTestApiRouter);
+
     // 设备列表API
     app.get('/api/devices', (req, res) => {
         res.json({ success: true, devices: devicePool.getAllDevices() });
@@ -414,8 +442,9 @@ process.on('unhandledRejection', (reason, promise) => {
 });
 
 // 优雅退出
-process.on('SIGINT', () => {
+process.on('SIGINT', async () => {
     console.log('\n[System] Shutting down...');
+    try { await sensorSimulator.stop(); } catch (_) {}
     process.exit(0);
 });
 

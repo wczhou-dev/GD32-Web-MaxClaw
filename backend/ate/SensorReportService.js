@@ -81,13 +81,17 @@ class SensorReportService {
     const htmlPath = path.join(this._reportDir, `${fileName}.html`);
 
     const jsonReport = {
-      reportVersion: '2.0',
+      reportVersion: '2.1',
       reportType: 'sensor-batch',
       generatedAt: new Date().toISOString(),
+      // BE-SENSOR-010: 补充设备信息、场区类型和固件版本
+      deviceInfo: batchResult.deviceInfo || {},
+      fieldType: batchResult.fieldType || 'A',
       summary: {
         total: batchResult.total,
         passed: batchResult.passed,
         failed: batchResult.failed,
+        skipped: batchResult.skipped || 0,
         passRate: batchResult.total > 0
           ? `${((batchResult.passed / batchResult.total) * 100).toFixed(1)}%`
           : '0%',
@@ -95,11 +99,16 @@ class SensorReportService {
       scenarios: batchResult.results.map(r => ({
         scenarioId: r.report?.scenarioId || r.scenarioId,
         scenarioName: r.report?.scenarioName || '未知',
-        conclusion: r.pass ? '通过' : '失败',
+        conclusion: r.pass ? '通过' : (r.report?.conclusion || '失败'),
+        skipReason: r.skipReason || null,
         duration: r.report?.duration || 0,
         assertionCount: r.results?.length || 0,
         failureCount: r.results?.filter(a => !a.pass).length || 0,
         assertions: r.results || [],
+        // BE-SENSOR-010: 补充输入模拟值、交易日志和清理结果
+        inputs: r.report?.simulatorState?.shadowRegisters || null,
+        transactionLog: r.report?.transactionLog || [],
+        cleanupResult: r.report?.cleanupResult || null,
       })),
     };
 
@@ -133,6 +142,12 @@ class SensorReportService {
             type: data.reportType,
             conclusion: data.conclusion || data.summary?.passRate,
             scenarioId: data.scenarioId,
+            fieldType: data.fieldType || null,
+            total: data.summary?.total || null,
+            passed: data.summary?.passed || null,
+            failed: data.summary?.failed || null,
+            passRate: data.summary?.passRate || null,
+            deviceIp: data.deviceInfo?.ip || null,
           };
         } catch (e) {}
         return {
@@ -252,7 +267,7 @@ class SensorReportService {
         <td>${i + 1}</td>
         <td>${s.scenarioId}</td>
         <td>${s.scenarioName}</td>
-        <td style="color: ${s.conclusion === '通过' ? passColor : failColor}; font-weight: bold;">${s.conclusion}</td>
+        <td style="color: ${s.conclusion === '通过' ? passColor : (s.conclusion === '跳过' ? '#faad14' : failColor)}; font-weight: bold;">${s.conclusion}${s.skipReason ? ` (${s.skipReason})` : ''}</td>
         <td>${s.duration}ms</td>
         <td>${s.assertionCount}</td>
         <td style="color: ${s.failureCount > 0 ? failColor : passColor}">${s.failureCount}</td>

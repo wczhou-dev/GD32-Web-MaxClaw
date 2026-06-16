@@ -48,11 +48,6 @@
               <el-icon><Checked /></el-icon>
               <span>自动化检定</span>
             </el-menu-item>
-            <!-- P1 传感器自动测试入口 -->
-            <el-menu-item index="/sensor-test">
-              <el-icon><DataLine /></el-icon>
-              <span>传感器测试</span>
-            </el-menu-item>
           </el-menu>
         </nav>
 
@@ -71,7 +66,7 @@ import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { useRoute } from 'vue-router'
 import { useDeviceStore } from './stores/deviceStore'
 import zhCn from 'element-plus/dist/locale/zh-cn.mjs'
-import { Monitor, Upload, Setting, Checked, DataLine } from '@element-plus/icons-vue'
+import { Monitor, Upload, Setting, Checked } from '@element-plus/icons-vue'
 
 // 获取当前路由实例和全局设备状态库
 const route = useRoute()

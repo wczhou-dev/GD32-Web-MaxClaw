@@ -321,23 +321,61 @@ class TestManager extends EventEmitter {
    * @param {string[]} options.scenarioIds - 场景 ID 列表
    * @param {string} options.deviceKey
    * @param {string} [options.fieldType='A']
+   * @param {string} [options.taskId] - 任务 ID（用于状态跟踪）
+   * @param {function} [options.onProgress] - 进度回调
+   * @param {function} [options.onScenarioFinished] - 单项完成回调
    * @returns {Promise<{total: number, passed: number, failed: number, results: object[]}>}
    */
   async runSensorBatch(options) {
-    const { scenarioIds, deviceKey, fieldType = 'A' } = options;
+    const { scenarioIds, deviceKey, fieldType = 'A', taskId, onProgress, onScenarioFinished } = options;
     const results = [];
     let passed = 0;
     let failed = 0;
 
-    for (const scenarioId of scenarioIds) {
+    for (let i = 0; i < scenarioIds.length; i++) {
+      // 检查停止标记
+      if (taskId && this._sensorTaskStopFlags && this._sensorTaskStopFlags.has(taskId)) {
+        this._sensorTaskStopFlags.delete(taskId);
+        break;
+      }
+
+      const scenarioId = scenarioIds[i];
+
+      // 广播进度
+      if (onProgress) {
+        onProgress({
+          index: i,
+          total: scenarioIds.length,
+          scenarioId,
+          progress: Math.round((i / scenarioIds.length) * 100),
+        });
+      }
+
       try {
         const result = await this.runSensorScenario({ scenarioId, deviceKey, fieldType });
         results.push(result);
         if (result.pass) passed++;
         else failed++;
+
+        // 广播单项完成
+        if (onScenarioFinished) {
+          onScenarioFinished({
+            scenarioId,
+            status: result.pass ? 'pass' : 'fail',
+            assertions: result.results,
+          });
+        }
       } catch (err) {
         results.push({ pass: false, scenarioId, error: err.message });
         failed++;
+
+        if (onScenarioFinished) {
+          onScenarioFinished({
+            scenarioId,
+            status: 'error',
+            error: err.message,
+          });
+        }
       }
     }
 
@@ -347,6 +385,58 @@ class TestManager extends EventEmitter {
       failed,
       results,
     };
+  }
+
+  // ============================================================
+  // 传感器任务状态管理
+  // ============================================================
+
+  /**
+   * 设置传感器任务状态
+   * @param {string} taskId
+   * @param {object} state
+   */
+  setSensorTaskState(taskId, state) {
+    if (!this._sensorTaskStates) this._sensorTaskStates = new Map();
+    this._sensorTaskStates.set(taskId, { ...state });
+  }
+
+  /**
+   * 更新传感器任务状态
+   * @param {string} taskId
+   * @param {object} partial
+   */
+  updateSensorTaskState(taskId, partial) {
+    if (!this._sensorTaskStates) this._sensorTaskStates = new Map();
+    const existing = this._sensorTaskStates.get(taskId);
+    if (existing) {
+      this._sensorTaskStates.set(taskId, { ...existing, ...partial });
+    }
+  }
+
+  /**
+   * 获取传感器任务状态
+   * @param {string} taskId
+   * @returns {object|null}
+   */
+  getSensorTaskState(taskId) {
+    if (!this._sensorTaskStates) return null;
+    return this._sensorTaskStates.get(taskId) || null;
+  }
+
+  /**
+   * 停止传感器任务
+   * @param {string} taskId
+   * @returns {boolean}
+   */
+  stopSensorTask(taskId) {
+    if (!this._sensorTaskStopFlags) this._sensorTaskStopFlags = new Set();
+    const state = this.getSensorTaskState(taskId);
+    if (state && state.status === 'running') {
+      this._sensorTaskStopFlags.add(taskId);
+      return true;
+    }
+    return false;
   }
 
   // ============================================================

@@ -89,6 +89,9 @@ class SensorTestExecutor extends EventEmitter {
       // 2. 按场景类型执行
       let result;
       switch (scenario.type) {
+        case 'pre-check':
+          result = await this._executePreCheck(scenario, allAssertions);
+          break;
         case 'normal-read':
           result = await this._executeNormalRead(scenario, allAssertions);
           break;
@@ -160,6 +163,103 @@ class SensorTestExecutor extends EventEmitter {
       // 3. 清理
       await this._cleanup(scenario);
     }
+  }
+
+  // ============================================================
+  // 前置检查
+  // ============================================================
+
+  /**
+   * 执行前置检查场景 (PRE-FIELD-001, PRE-INSTALL-001, PRE-ENV-001)
+   */
+  async _executePreCheck(scenario, assertions) {
+    if (scenario.id === 'PRE-FIELD-001') {
+      return await this._execPreFieldZone(scenario, assertions);
+    }
+    if (scenario.id === 'PRE-INSTALL-001') {
+      return await this._execPreInstallStatus(scenario, assertions);
+    }
+    if (scenario.id === 'PRE-ENV-001') {
+      return await this._execPreEnvBlock(scenario, assertions);
+    }
+    throw new Error(`未知前置检查场景: ${scenario.id}`);
+  }
+
+  /**
+   * 场区类型读取
+   */
+  async _execPreFieldZone(scenario, assertions) {
+    const zoneValue = await this._stateReader.readFieldZone();
+    this._log(`场区类型: ${zoneValue}`);
+
+    if (zoneValue === 0) {
+      assertions.push({
+        pass: false,
+        code: 'FIELD_NOT_CONFIGURED',
+        message: '环控器未配置场区，请先通过 HMI 设置',
+        expected: '非零',
+        actual: 0,
+      });
+      return { skipReason: 'field_not_configured' };
+    }
+
+    assertions.push({
+      pass: true,
+      code: 'FIELD_ZONE_OK',
+      message: `场区类型: ${zoneValue}`,
+      expected: '非零',
+      actual: zoneValue,
+    });
+
+    // 加载对应场区的模拟器配置
+    const fieldTypes = { 1: 'A', 2: 'B', 3: 'C' };
+    const ft = fieldTypes[zoneValue];
+    if (ft) {
+      this._fieldType = ft;
+      this._simulator.loadFieldConfig(ft);
+      this._log(`已加载场区配置: ${ft}`);
+    }
+  }
+
+  /**
+   * 传感器安装状态读取
+   */
+  async _execPreInstallStatus(scenario, assertions) {
+    const installStatus = await this._stateReader.readInstallStatus();
+    this._log(`安装状态: temp=${installStatus.temp.filter(Boolean).length}路, humi=${installStatus.humi.filter(Boolean).length}路`);
+
+    const totalInstalled = [
+      ...installStatus.temp, ...installStatus.humi,
+      ...installStatus.co2, ...installStatus.press,
+    ].filter(Boolean).length;
+
+    assertions.push({
+      pass: totalInstalled > 0,
+      code: totalInstalled > 0 ? 'INSTALL_OK' : 'NO_SENSOR_INSTALLED',
+      message: `已安装传感器: ${totalInstalled} 路`,
+      expected: '> 0',
+      actual: totalInstalled,
+    });
+
+    // 存储安装状态供后续场景使用
+    this._installStatus = installStatus;
+  }
+
+  /**
+   * 传感器数据块读取
+   */
+  async _execPreEnvBlock(scenario, assertions) {
+    const sensorData = await this._stateReader.readSensorData();
+    this._log(`数据块读取: temp=${sensorData.temp.length}路, humi=${sensorData.humi.length}路`);
+
+    const hasData = sensorData && sensorData.temp && sensorData.temp.length > 0;
+    assertions.push({
+      pass: hasData,
+      code: hasData ? 'ENV_BLOCK_OK' : 'ENV_BLOCK_EMPTY',
+      message: hasData ? '数据块读取成功' : '数据块为空',
+      expected: '数据完整',
+      actual: hasData ? '完整' : '空',
+    });
   }
 
   // ============================================================
@@ -289,8 +389,18 @@ class SensorTestExecutor extends EventEmitter {
     this._log('等待 ErMax 触发 (约 300 秒)...');
     await this._waitCollect(300000);
 
-    // TODO: 读取 ErMax 告警寄存器并断言
-    // 暂时只验证数据仍在
+    // 读取 ErMax 告警状态
+    const alarmStatus = await this._stateReader.readAlarmStatus();
+    const hasErMax = alarmStatus && (alarmStatus.erMax === true || alarmStatus.erMaxTemp === true);
+    assertions.push({
+      pass: hasErMax,
+      code: hasErMax ? 'ERMAX_SET' : 'ERMAX_NOT_SET',
+      message: hasErMax ? 'ErMax 告警已置位' : 'ErMax 告警未置位',
+      expected: true,
+      actual: hasErMax,
+    });
+
+    // 验证数据仍在（固定值）
     const regValue = await this._stateReader.readRegister(0x1001);
     assertions.push(this._assertEngine.assertClose(
       regValue / 10, fixedValue.value, 0.1,
@@ -382,7 +492,27 @@ class SensorTestExecutor extends EventEmitter {
       }
 
       // 读取历史确认
-      // TODO: 需要 readHistoryTail 实现后才能断言历史值
+      try {
+        const history = await this._stateReader.readHistoryTail(3);
+        if (history && history.length > 0) {
+          const latest = history.find(h => h.tm_hour === group.verifyHour);
+          if (latest) {
+            assertions.push(this._assertEngine.assertClose(
+              latest.temp, group.temp, tolerance,
+              `历史冻结 temp (tm_hour=${group.verifyHour})`
+            ));
+            assertions.push(this._assertEngine.assertClose(
+              latest.humi, group.humi, tolerance,
+              `历史冻结 humi (tm_hour=${group.verifyHour})`
+            ));
+            this._log(`历史确认: tm_hour=${latest.tm_hour}, temp=${latest.temp}, humi=${latest.humi}`);
+          } else {
+            this._log(`历史缓冲中未找到 tm_hour=${group.verifyHour} 的条目`);
+          }
+        }
+      } catch (e) {
+        this._log(`读取历史缓冲失败: ${e.message}，跳过历史确认`);
+      }
       this._log(`跨小时成功: ${group.verifyHour}`);
     }
 
@@ -476,8 +606,32 @@ class SensorTestExecutor extends EventEmitter {
     }
 
     // 读取历史确认
-    // TODO: 需要 readHistoryTail 实现
+    try {
+      const history = await this._stateReader.readHistoryTail(3);
+      if (history && history.length > 0) {
+        const latest = history.find(h => h.tm_hour === verifyHour);
+        if (latest) {
+          assertions.push(this._assertEngine.assertClose(
+            latest.temp, sensorValues.temp, tolerance,
+            `跨小时冻结 temp (tm_hour=${verifyHour})`
+          ));
+          assertions.push(this._assertEngine.assertClose(
+            latest.humi, sensorValues.humi, tolerance,
+            `跨小时冻结 humi (tm_hour=${verifyHour})`
+          ));
+        }
+      }
+    } catch (e) {
+      this._log(`读取历史缓冲失败: ${e.message}`);
+    }
     this._log(`跨小时成功: ${verifyHour}`);
+
+    // 记录跳变前历史条目数
+    let historyCountBefore = 0;
+    try {
+      const h = await this._stateReader.readHistoryTail(25);
+      historyCountBefore = h ? h.length : 0;
+    } catch (_) {}
 
     // 立即对时到另一个时间，检查是否产生非预期历史
     this._log('执行对时跳变测试...');
@@ -490,7 +644,22 @@ class SensorTestExecutor extends EventEmitter {
       second: 0,
     });
 
-    // TODO: 读取历史缓冲，检查条目数和值
+    // 检查对时跳变是否产生了非预期历史条目
+    try {
+      const historyAfter = await this._stateReader.readHistoryTail(25);
+      const historyCountAfter = historyAfter ? historyAfter.length : 0;
+      const polluted = historyCountAfter > historyCountBefore + 1; // 允许 +1（正常的跨小时）
+      assertions.push({
+        pass: !polluted,
+        code: polluted ? 'TIME_JUMP_POLLUTION' : 'NO_POLLUTION',
+        message: polluted ? '对时跳变产生了非预期历史条目' : '对时跳变未污染历史缓冲',
+        expected: `条目数 <= ${historyCountBefore + 1}`,
+        actual: historyCountAfter,
+      });
+    } catch (e) {
+      this._log(`读取历史缓冲失败: ${e.message}`);
+    }
+
     // 恢复时间
     await this._stateReader.restoreRealTime();
   }
@@ -844,7 +1013,51 @@ class SensorTestExecutor extends EventEmitter {
           } else if (action === 'restoreRealTime') {
             await this._stateReader.restoreRealTime().catch(() => {});
           } else if (action === 'restoreInstallConfig') {
-            // TODO: 恢复安装配置
+            // 恢复安装配置（如果有缓存的原始值）
+            if (this._originalInstallConfig) {
+              try {
+                await this._stateReader.writeRegister(0x700A, this._originalInstallConfig[0]);
+                await this._stateReader.writeRegister(0x700B, this._originalInstallConfig[1]);
+                this._log('安装配置已恢复');
+              } catch (e) {
+                this._log(`恢复安装配置失败: ${e.message}`);
+              }
+            }
+          } else if (action === 'restoreThreshold') {
+            // 恢复阈值（如果有缓存的原始值）
+            if (this._originalThresholds) {
+              try {
+                for (const [type, val] of Object.entries(this._originalThresholds)) {
+                  await this._stateReader.writeThreshold(type, val);
+                }
+                this._log('阈值已恢复');
+              } catch (e) {
+                this._log(`恢复阈值失败: ${e.message}`);
+              }
+            }
+          } else if (action.startsWith('restoreCompensation:')) {
+            // 恢复补偿值为 0
+            const compType = action.split(':')[1];
+            try {
+              const idx = 0; // 默认第 1 路
+              await this._stateReader.writeCompensation(compType.includes('temp') ? 'temp' : 'humi', idx, 0);
+              this._log(`补偿已恢复: ${compType}`);
+            } catch (e) {
+              this._log(`恢复补偿失败: ${e.message}`);
+            }
+          } else if (action === 'restorePortConfig') {
+            // 恢复端口配置
+            if (this._originalPortConfig != null) {
+              try {
+                await this._stateReader.writePortConfig(0, this._originalPortConfig);
+                this._log(`端口已恢复: ${this._originalPortConfig}`);
+              } catch (e) {
+                this._log(`恢复端口失败: ${e.message}`);
+              }
+            }
+          } else if (action === 'restoreDynamicValue:temp_1') {
+            // 恢复动态值
+            this._simulator.clearFault('temp_1');
           } else if (action === 'batchClearFault') {
             this._simulator.clearAllFaults();
           }
