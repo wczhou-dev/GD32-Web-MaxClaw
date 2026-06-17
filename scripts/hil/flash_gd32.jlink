@@ -1,0 +1,9 @@
+si 1
+speed 4000
+device GD32F407VG
+connect
+r
+h
+loadfile build/bin/rtthread.hex 0x08020000
+g
+q

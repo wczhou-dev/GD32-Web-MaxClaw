@@ -1,0 +1,27 @@
+{
+  "firmware": {
+    "projectDir": "E:/2.EnvCtrl/18.develop_centerctrl/sj-encontrol-220712-v1-0/bsp/stm32/stm32f407-atk-explorer",
+    "buildCommand": "scons -j8",
+    "artifact": "build/bin/rtthread.hex",
+    "appBaseAddress": "0x08020000",
+    "rttExecPath": "D:/soft/down/env/tools/gnu_gcc/arm_gcc/mingw/bin"
+  },
+  "flash": {
+    "tool": "JLink.exe",
+    "device": "GD32F407VG",
+    "interface": "SWD",
+    "speed": 4000,
+    "script": "scripts/hil/flash_gd32.jlink",
+    "timeoutMs": 60000
+  },
+  "monitor": {
+    "debugSerialPort": "COM4",
+    "baudRate": 115200,
+    "logFile": "logs/firmware_runtime.log"
+  },
+  "test": {
+    "deviceIp": "192.168.110.125",
+    "devicePort": 502,
+    "ateApiUrl": "http://localhost:3000"
+  }
+}

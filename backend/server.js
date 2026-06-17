@@ -25,8 +25,10 @@ const OTAHandler = require('./OTAHandler');
 const createOtaRouter = require('./api/ota');
 const TestManager = require('./ate/TestManager');
 const SensorSimulator = require('./ate/SensorSimulator');
+const HilSessionManager = require('./ate/HilSessionManager');
 const testApiRouter = require('./api/test');
 const sensorTestApiRouter = require('./api/sensor-test');
+const sensorSimulatorRouter = require('./api/sensor-simulator');
 
 // ==================== 配置加载 ====================
 
@@ -187,6 +189,17 @@ async function main() {
     app.set('testManager', testManager);
     app.set('wsManager', wsManager);
     app.set('pollingEngine', pollingEngine);
+    app.set('sensorSimulator', sensorSimulator);
+
+    // 初始化 HIL 会话管理器
+    const hilSessionManager = new HilSessionManager({
+      testManager,
+      sensorSimulator,
+      wsManager,
+      devicePool,
+    });
+    app.set('hilSessionManager', hilSessionManager);
+    console.log('[HilSession] 初始化完成');
 
     // 注意：TestManager._emitSessionUpdate() 已经通过 wsManager.broadcast() 直接推送
     // 标准 WebSocket 消息（test_progress_update, test_finished_notification, test_error），
@@ -197,6 +210,15 @@ async function main() {
         console.log(`[WS] Client message: ${message.type}`);
 
         switch (message.type) {
+            case 'set_log_save_config':
+                try {
+                    global.autoSaveMcuLogs = message.autoSave;
+                    console.log(`[Config] 串口日志本地自动保存已切换为: ${global.autoSaveMcuLogs}`);
+                    wsManager.sendResponse(clientId, 'set_log_save_config', true);
+                } catch (err) {
+                    wsManager.sendResponse(clientId, 'set_log_save_config', false, { error: err.message });
+                }
+                break;
             case 'relay_control':
                 try {
                     // 查找设备
@@ -365,6 +387,9 @@ async function main() {
     // 注册传感器自动测试路由
     app.use('/api/sensor-test', sensorTestApiRouter);
 
+    // 注册传感器模拟器控制路由
+    app.use('/api/sensor-simulator', sensorSimulatorRouter);
+
     // 设备列表API
     app.get('/api/devices', (req, res) => {
         res.json({ success: true, devices: devicePool.getAllDevices() });
@@ -430,6 +455,9 @@ async function main() {
 
     // 启动心跳检测
     wsManager.startHeartbeat();
+
+    // [HIL 自动化开发] 启动 MCU 物理调试串口日志监听与广播转发
+    initMcuSerialMonitor(wsManager);
 }
 
 // 错误处理
@@ -453,3 +481,144 @@ main().catch(err => {
     console.error('[Error] Fatal error:', err);
     process.exit(1);
 });
+
+
+/**
+ * [嵌入式与 Web 桥接类比]
+ * initMcuSerialMonitor 相当于初始化一个独立的 DMA 串口接收通道加中断队列，
+ * 当调试串口缓冲区有新数据时触发回调，一方面写入本地环形日志文件，另一方面通过全双工 WebSocket (WS) 推送至人机界面。
+ */
+function initMcuSerialMonitor(wsManager) {
+    const configPath = path.join(__dirname, 'config', 'hil.config.json');
+    if (!fs.existsSync(configPath)) {
+        console.log('[Monitor] 提示：未检测到 config/hil.config.json 配置文件，跳过物理串口日志监听。');
+        return;
+    }
+
+    let hilConfig;
+    try {
+        hilConfig = JSON.parse(fs.readFileSync(configPath, 'utf8'));
+    } catch (err) {
+        console.error('[Monitor] 解析 HIL 配置文件失败:', err.message);
+        return;
+    }
+
+    const monitorConfig = hilConfig.monitor || {};
+    const portPath = monitorConfig.debugSerialPort;
+    const baudRate = monitorConfig.baudRate || 115200;
+    const logFile = monitorConfig.logFile || 'logs/firmware_runtime.log';
+
+    if (!portPath) {
+        console.log('[Monitor] HIL 配置中未指定 debugSerialPort，跳过物理串口监听。');
+        return;
+    }
+
+    const logFilePath = path.isAbsolute(logFile) ? logFile : path.join(__dirname, '..', logFile);
+    
+    // 确保日志文件夹存在
+    try {
+        fs.mkdirSync(path.dirname(logFilePath), { recursive: true });
+    } catch (err) {
+        console.error('[Monitor] 创建日志归档目录失败:', err.message);
+    }
+
+    // 以追加模式打开写入 file 流
+    const logStream = fs.createWriteStream(logFilePath, { flags: 'a' });
+
+    const { SerialPort } = require('serialport');
+    const { ReadlineParser } = require('@serialport/parser-readline');
+
+    let port = null;
+    let reconnectTimer = null;
+
+    function connect() {
+        if (reconnectTimer) {
+            clearTimeout(reconnectTimer);
+            reconnectTimer = null;
+        }
+
+        console.log('[Monitor] 串口监视器：正在尝试打开物理调试串口 ' + portPath + ' (波特率: ' + baudRate + ')...');
+        
+        port = new SerialPort({
+            path: portPath,
+            baudRate: baudRate,
+            autoOpen: false
+        });
+
+        const parser = port.pipe(new ReadlineParser({ delimiter: '\r\n' }));
+
+        port.open((err) => {
+            if (err) {
+                let errMsg = '[Monitor] 打开串口 ' + portPath + ' 失败: ' + err.message;
+                if (err.message.includes('Access denied')) {
+                    errMsg += '。请确保关闭了电脑上其他正在使用该串口的调试终端或串口助手（如 SSCOM、Xshell 等），并等待 5 秒重连自愈。';
+                } else {
+                    errMsg += '。5秒后将尝试重新连接...';
+                }
+                console.error(errMsg);
+                
+                // 同时也向前端广播该报错信息，提示用户关闭串口助手
+                wsManager.broadcast({
+                    type: 'mcu_log',
+                    data: errMsg
+                });
+                
+                // 本地离线测试：如果串口未打开，每3秒模拟广播一次日志数据，方便前端调试 WebSocket 日志输出
+                if (!global.mockSerialInterval) {
+                    global.mockSerialInterval = setInterval(() => {
+                        const timeStr = new Date().toLocaleTimeString();
+                        wsManager.broadcast({
+                            type: 'mcu_log',
+                            data: '[Mock UART ' + timeStr + '] [Info] rtthread_main_thread init success, MSH shell active'
+                        });
+                    }, 3000);
+                }
+
+                reconnectTimer = setTimeout(connect, 5000);
+                return;
+            }
+
+            // 成功连接后关闭 Mock 定时器
+            if (global.mockSerialInterval) {
+                clearInterval(global.mockSerialInterval);
+                global.mockSerialInterval = null;
+            }
+
+            console.log('[Monitor] 成功连接至调试物理串口: ' + portPath + '，启动实时日志监听与广播。');
+        });
+
+        parser.on('data', (line) => {
+            const timestamp = new Date().toISOString();
+            const formattedLine = '[' + timestamp + '] [MCU] ' + line;
+            
+            // 1. 本地持久化追加
+            if (global.autoSaveMcuLogs !== false) {
+                logStream.write(formattedLine + '\n');
+            }
+            
+            // 2. 通过 WebSocket 实时广播给前端
+            wsManager.broadcast({
+                type: 'mcu_log',
+                data: line
+            });
+        });
+
+        port.on('error', (err) => {
+            console.error('[Monitor] 串口 ' + portPath + ' 发生内部异常: ' + err.message);
+        });
+
+        port.on('close', () => {
+            console.log('[Monitor] 串口 ' + portPath + ' 连接关闭或拔出。5秒后进入重连就绪队列...');
+            reconnectTimer = setTimeout(connect, 5000);
+        });
+    }
+
+    connect();
+
+    // 注册进程退出时的优雅释放动作，防止句柄僵死占用 COM 端口
+    process.on('SIGINT', () => {
+        if (port && port.isOpen) {
+            port.close();
+        }
+    });
+}

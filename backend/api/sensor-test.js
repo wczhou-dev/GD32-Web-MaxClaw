@@ -275,6 +275,82 @@ router.get('/reports', (req, res) => {
 });
 
 /**
+ * POST /api/sensor-test/run-batch
+ * HIL 模式：启动批量测试
+ * Body: { sessionName, caseIds, device, simulator, options }
+ */
+router.post('/run-batch', async (req, res) => {
+  try {
+    const hilSessionManager = req.app.get('hilSessionManager');
+    if (!hilSessionManager) {
+      return res.status(500).json({ success: false, error: 'HilSessionManager 未初始化' });
+    }
+
+    const result = await hilSessionManager.startBatch(req.body);
+
+    if (result.success) {
+      res.json(result);
+    } else {
+      res.status(400).json(result);
+    }
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+/**
+ * GET /api/sensor-test/current-session
+ * HIL 模式：查询当前测试会话状态
+ * Query: ?sessionId=xxx
+ */
+router.get('/current-session', (req, res) => {
+  try {
+    const hilSessionManager = req.app.get('hilSessionManager');
+    if (!hilSessionManager) {
+      return res.status(500).json({ success: false, error: 'HilSessionManager 未初始化' });
+    }
+
+    const { sessionId } = req.query;
+    const session = hilSessionManager.getSession(sessionId);
+
+    if (!session) {
+      return res.status(404).json({ success: false, error: '会话未找到' });
+    }
+
+    res.json({
+      sessionId: session.sessionId,
+      status: session.status,
+      currentCaseId: session.currentCaseId,
+      progress: session.progress,
+      cases: session.cases,
+      startTime: session.startTime,
+      endTime: session.endTime,
+    });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+/**
+ * POST /api/sensor-test/recover
+ * HIL 模式：触发公共恢复动作
+ * Body: { sessionId, actions: string[] }
+ */
+router.post('/recover', async (req, res) => {
+  try {
+    const hilSessionManager = req.app.get('hilSessionManager');
+    if (!hilSessionManager) {
+      return res.status(500).json({ success: false, error: 'HilSessionManager 未初始化' });
+    }
+
+    const result = await hilSessionManager.recover(req.body);
+    res.json(result);
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+/**
  * GET /api/sensor-test/reports/:filename
  * 下载传感器测试报告
  */

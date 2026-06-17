@@ -101,7 +101,7 @@
         <!-- 右侧：数据监控区 -->
         <div class="right-panel">
           <!-- 右侧上部：实时寄存器监控表 -->
-          <div class="register-panel">
+          <div class="register-panel" :style="{ height: registerPanelHeight + '%' }">
             <div class="panel-header">
               <span class="panel-title">检定信息</span>
               <span class="current-item">当前执行: {{ testEngine.currentItemName || '无' }}</span>
@@ -114,6 +114,13 @@
               </el-table>
             </div>
           </div>
+
+          <!-- 拖拽调节器 -->
+          <div 
+            class="panel-resizer" 
+            :class="{ active: isResizing }" 
+            @mousedown="startResize"
+          ></div>
 
           <!-- 右侧下部：Tab 切换终端 -->
           <div class="terminal-panel">
@@ -134,6 +141,18 @@
               </div>
               <div class="tab-spacer"></div>
               <div class="tab-tools">
+                <label class="auto-save-checkbox">
+                  <input type="checkbox" v-model="autoSaveLogs" />
+                  <span>自动保存日志</span>
+                </label>
+                <span v-if="autoSaveLogs" class="auto-save-tip">
+                  <i class="fa-solid fa-circle-info"></i>
+                  已保存至 logs/firmware_runtime.log
+                </span>
+                <span v-else class="auto-save-tip disabled">
+                  <i class="fa-solid fa-circle-xmark"></i>
+                  已关闭自动保存
+                </span>
                 <a href="#" @click.prevent="exportLogs" class="tool-link">
                   <i class="fa-solid fa-download"></i> 导出日志
                 </a>
@@ -147,7 +166,7 @@
             <div class="terminal-content" :class="activeLogTab === 'system' ? 'terminal-system' : 'terminal-device'">
               <!-- 系统运行日志 (黑底) -->
               <div v-show="activeLogTab === 'system'" ref="systemTerminal" class="terminal-body">
-                <div v-for="(log, idx) in systemLogs" :key="'sys'+idx" :class="log.color">
+                <div v-for="(log, idx) in systemLogs" :key="'sys'+idx" :style="{ color: log.styleColor }">
                   <span class="log-time">[{{ log.time }}]</span><span>{{ log.text }}</span>
                 </div>
               </div>
@@ -156,7 +175,7 @@
                 <div v-if="!enableRealtimeLogs" class="text-gray-400 italic mb-2">
                   请在上方工具栏勾选"启用报文"以通过浏览器 Web Serial API 监听物理串口数据...
                 </div>
-                <div v-for="(log, idx) in deviceLogs" :key="'dev'+idx" :class="log.color">
+                <div v-for="(log, idx) in deviceLogs" :key="'dev'+idx" :style="{ color: log.styleColor }">
                   <span class="log-time">[{{ log.time }}]</span><span>{{ log.text }}</span>
                 </div>
               </div>
@@ -350,7 +369,9 @@ const deviceStore = useDeviceStore()
 // ==================== 视图状态 ====================
 const currentView = ref('test')
 const treeRef = ref(null)
-const activeLogTab = ref('system')
+const activeLogTab = ref('device')
+const isResizing = ref(false)
+const registerPanelHeight = ref(45)
 
 // ==================== 配置状态 ====================
 const currentCmd = ref('就绪')
@@ -363,7 +384,7 @@ const comPorts = ref({
 const manualRelays = ref(Array(22).fill(false))
 
 // ==================== 串口日志相关 ====================
-const enableRealtimeLogs = ref(false)
+const enableRealtimeLogs = ref(true)
 let serialPortObj = null
 let serialReader = null
 let mockInterval = null
@@ -553,28 +574,127 @@ const systemTerminal = ref(null)
 const deviceTerminal = ref(null)
 
 const addLog = (text, type = 'info', target = 'system') => {
+  let logColorType = type
+  let cleanText = text
+
+  if (typeof text === 'string') {
+    // 1. 如果是来自 MCU 且包含特定 ANSI 颜色转义，则动态调整前景色类型
+    if (text.includes('[31m') || text.includes('\u001b[31m') || text.includes('\x1b[31m')) {
+      logColorType = 'mcu_red'
+    } else if (text.includes('[32m') || text.includes('\u001b[32m') || text.includes('\x1b[32m')) {
+      logColorType = 'mcu_green'
+    } else if (text.includes('[33m') || text.includes('\u001b[33m') || text.includes('\x1b[33m')) {
+      logColorType = 'mcu_yellow'
+    } else if (text.includes('[35m') || text.includes('\u001b[35m') || text.includes('\x1b[35m')) {
+      logColorType = 'mcu_purple'
+    } else if (text.includes('[36m') || text.includes('\u001b[36m') || text.includes('\x1b[36m')) {
+      logColorType = 'mcu_cyan'
+    }
+
+    // 2. 备用智能前缀规则：若未匹配到 ANSI 转义，根据 RT-Thread / 环控器经典调试等级前缀分类染色
+    if (logColorType === type) {
+      if (text.includes('[E/') || text.includes('[E ]') || text.includes('[ERROR]')) {
+        logColorType = 'mcu_red'
+      } else if (text.includes('[W/') || text.includes('[W ]') || text.includes('[WARN]')) {
+        logColorType = 'mcu_yellow'
+      } else if (text.includes('[I/') || text.includes('[I ]') || text.includes('[INFO]')) {
+        logColorType = 'mcu_green'
+      } else if (text.includes('[D/') || text.includes('[D ]') || text.includes('[DEBUG]')) {
+        logColorType = 'mcu_cyan'
+      }
+    }
+
+    // 2. 清洗掉所有的 ANSI 颜色控制字符（包含未闭合或不规范写法）
+    cleanText = text
+      .replace(/\x1b\[[0-9;]*m/g, '')
+      .replace(/\u001b\[[0-9;]*m/g, '')
+      .replace(/\[[0-9;]*m/g, '')
+  }
+
   const colors = {
     info: 'text-white',
     success: 'text-green-400 font-bold',
     warn: 'text-yellow-400 font-bold',
-    error: 'text-red-400 font-bold'
+    error: 'text-red-400 font-bold',
+    mcu_green: 'text-green-400',
+    mcu_red: 'text-red-400 font-bold',
+    mcu_yellow: 'text-yellow-400',
+    mcu_cyan: 'text-cyan-400',
+    mcu_purple: 'text-purple-400'
+  }
+  const hexColors = {
+    info: '#ffffff',
+    success: '#4ade80',
+    warn: '#facc15',
+    error: '#f87171',
+    mcu_green: '#4ade80',
+    mcu_red: '#f87171',
+    mcu_yellow: '#facc15',
+    mcu_cyan: '#22d3ee',
+    mcu_purple: '#c084fc'
   }
   const timeStr = new Date().toLocaleTimeString('en-US', { hour12: false }) + '.' + String(new Date().getMilliseconds()).padStart(3, '0')
 
   if (target === 'system') {
     if (systemLogs.value.length > 500) systemLogs.value.shift()
-    systemLogs.value.push({ time: timeStr, text, color: colors[type], rawText: text })
+    systemLogs.value.push({ time: timeStr, text: cleanText, color: colors[logColorType], styleColor: hexColors[logColorType] || '#ffffff', rawText: cleanText })
     nextTick(() => {
       if (systemTerminal.value) systemTerminal.value.scrollTop = systemTerminal.value.scrollHeight
     })
   } else {
     if (deviceLogs.value.length > 1000) deviceLogs.value.shift()
-    deviceLogs.value.push({ time: timeStr, text, color: colors[type], rawText: text })
+    deviceLogs.value.push({ time: timeStr, text: cleanText, color: colors[logColorType], styleColor: hexColors[logColorType] || '#ffffff', rawText: cleanText })
     nextTick(() => {
       if (deviceTerminal.value) deviceTerminal.value.scrollTop = deviceTerminal.value.scrollHeight
     })
   }
 }
+
+// ==================== 拖拽调整大小 ====================
+const startResize = (e) => {
+  e.preventDefault()
+  isResizing.value = true
+  document.body.style.cursor = 'ns-resize'
+  document.body.style.userSelect = 'none'
+
+  const startY = e.clientY
+  const rightPanel = document.querySelector('.right-panel')
+  const totalHeight = rightPanel.clientHeight
+  const startHeightPx = (totalHeight * registerPanelHeight.value) / 100
+
+  const doResize = (moveEvent) => {
+    if (!isResizing.value) return
+    const deltaY = moveEvent.clientY - startY
+    const newHeightPx = startHeightPx + deltaY
+    let newPercent = (newHeightPx / totalHeight) * 100
+    if (newPercent < 15) newPercent = 15
+    if (newPercent > 85) newPercent = 85
+    registerPanelHeight.value = newPercent
+  }
+
+  const stopResize = () => {
+    isResizing.value = false
+    document.body.style.cursor = ''
+    document.body.style.userSelect = ''
+    window.removeEventListener('mousemove', doResize)
+    window.removeEventListener('mouseup', stopResize)
+  }
+
+  window.addEventListener('mousemove', doResize)
+  window.addEventListener('mouseup', stopResize)
+}
+
+// ==================== 日志自动保存控制 ====================
+const autoSaveLogs = ref(true)
+
+watch([autoSaveLogs, () => deviceStore.wsConnected], () => {
+  if (deviceStore.wsConnected) {
+    deviceStore.sendWsMessage({
+      type: 'set_log_save_config',
+      autoSave: autoSaveLogs.value
+    })
+  }
+}, { immediate: true })
 
 const clearLogs = () => {
   if (activeLogTab.value === 'system') systemLogs.value = []
@@ -1070,7 +1190,9 @@ let sensorWsReconnectTimer = null
 
 const connectSensorWebSocket = () => {
   const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:'
-  const wsUrl = `${protocol}//${window.location.host}`
+  const wsUrl = window.location.port === '5173'
+    ? `${protocol}//127.0.0.1:3001`
+    : `${protocol}//${window.location.host}`
   try {
     sensorWs = new WebSocket(wsUrl)
     sensorWs.onopen = () => {
@@ -1091,6 +1213,11 @@ const connectSensorWebSocket = () => {
 
 const handleSensorWsMessage = (msg) => {
   switch (msg.type) {
+    case 'mcu_log':
+      // 启用实时日志显示，并将来自后端的串口日志 append 到设备日志中
+      enableRealtimeLogs.value = true
+      addLog(msg.data, 'info', 'device')
+      break
     case 'sensor_test_progress':
       addLog(`[传感器] 进度: ${msg.scenarioId} (${(msg.index || 0) + 1}/${msg.total})`, 'info', 'system')
       break
@@ -1516,7 +1643,6 @@ watch(manualRelays, (newVal) => {
   flex-direction: column;
   background: white;
   border: 1px solid #808080;
-  margin-top: 4px;
 }
 
 .terminal-tabs {
@@ -1595,11 +1721,14 @@ watch(manualRelays, (newVal) => {
 
 .terminal-content {
   flex: 1;
-  overflow: auto;
-  padding: 4px;
+  height: 0;
+  min-height: 0;
+  overflow: hidden;
+  padding: 0;
   font-family: 'Consolas', 'Courier New', monospace;
   font-size: 12px;
   line-height: 1.4;
+  position: relative;
 }
 
 .terminal-system {
@@ -1608,13 +1737,19 @@ watch(manualRelays, (newVal) => {
 }
 
 .terminal-device {
-  background: #000080;
+  background: #121212;
   color: white;
 }
 
 .terminal-body {
-  height: 100%;
-  overflow-y: auto;
+  position: absolute;
+  left: 0;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  overflow-y: scroll;
+  padding: 8px;
+  box-sizing: border-box;
 }
 
 .log-time {
@@ -2090,4 +2225,74 @@ watch(manualRelays, (newVal) => {
 ::-webkit-scrollbar-track { background: #f0f0f0; border-left: 1px solid #ccc; }
 ::-webkit-scrollbar-thumb { background: #cdd5df; border: 1px solid #aeb5be; }
 ::-webkit-scrollbar-thumb:hover { background: #b0b8c0; }
+
+/* 拖拽调节器 */
+.panel-resizer {
+  height: 6px;
+  background: #cbd5e1;
+  cursor: ns-resize;
+  width: 100%;
+  user-select: none;
+  flex-shrink: 0;
+  border-top: 1px solid #94a3b8;
+  border-bottom: 1px solid #94a3b8;
+  margin: 2px 0;
+}
+.panel-resizer:hover, .panel-resizer.active {
+  background: #3b82f6;
+  border-color: #2563eb;
+}
+
+/* 自动保存日志友情提示 */
+.auto-save-tip {
+  color: #166534;
+  font-size: 11px;
+  margin-right: 12px;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-weight: bold;
+}
+.auto-save-tip.disabled {
+  color: #c2410c;
+}
+
+/* 自动保存复选框样式 */
+.auto-save-checkbox {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11px;
+  font-weight: bold;
+  color: #334155;
+  cursor: pointer;
+  margin-right: 12px;
+  user-select: none;
+}
+.auto-save-checkbox input[type="checkbox"] {
+  width: 13px;
+  height: 13px;
+  cursor: pointer;
+  accent-color: #0078d7;
+}
+
+</style>
+
+<style>
+/* 全局滚动条样式：避开 scoped 编译导致自定义滚动条伪元素属性不识别问题 */
+.terminal-body::-webkit-scrollbar {
+  width: 16px;
+}
+.terminal-body::-webkit-scrollbar-track {
+  background: #f1f5f9;
+  border-left: 1px solid #cbd5e1;
+}
+.terminal-body::-webkit-scrollbar-thumb {
+  background: #94a3b8;
+  border: 3px solid #f1f5f9;
+  border-radius: 4px;
+}
+.terminal-body::-webkit-scrollbar-thumb:hover {
+  background: #64748b;
+}
 </style>
