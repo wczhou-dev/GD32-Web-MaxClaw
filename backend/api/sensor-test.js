@@ -364,10 +364,10 @@ router.get('/reports/:filename', (req, res) => {
       }
       res.json(report);
     } else if (filename.endsWith('.html')) {
-      const htmlPath = require('path').join(
-        require('../ate/SensorReportService').prototype._reportDir || '',
-        filename
-      );
+      const htmlPath = reportService.getReportPath(filename);
+      if (!htmlPath) {
+        return res.status(404).json({ success: false, error: '报告未找到' });
+      }
       res.sendFile(htmlPath);
     } else {
       res.status(400).json({ success: false, error: '不支持的文件格式' });

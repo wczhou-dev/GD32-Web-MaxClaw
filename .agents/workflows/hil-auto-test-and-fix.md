@@ -18,8 +18,8 @@
 | 编译固件 | Bash | `node scripts/hil/build-firmware.js` |
 | 烧录固件 | Bash | `node scripts/hil/flash-firmware.js` |
 | 检测设备在线 | Bash | `node scripts/hil/check-device-online.js` |
-| 触发 ATE 测试 | Bash | `curl -X POST http://localhost:3000/api/sensor-test/run-batch` |
-| 轮询结果 | Bash | `curl http://localhost:3000/api/sensor-test/current-session` |
+| 触发 ATE 测试 | Bash | `node scripts/run-hil-test-runner.js --config config/hil.config.json --case T-READ-001 --skip-build --skip-flash --force-unlock` |
+| 轮询结果 | Bash | 由 `scripts/run-hil-test-runner.js` 按 `config/hil.config.json` 自动轮询 |
 | 读取失败上下文 | Read | `logs/last_test_error.json` |
 | 搜索固件源码 | Grep / Glob | 在 `applications/app/environment/` 下搜索 |
 | 修改固件代码 | Edit | 直接编辑 `.c/.h` 文件 |
@@ -89,7 +89,7 @@ const buildResult = await agent(
 phase('触发测试')
 const testResult = await agent(
   '执行以下步骤：\n' +
-  '1. node scripts/run-hil-test-runner.js --case T-READ-001\n' +
+  '1. node scripts/run-hil-test-runner.js --config config/hil.config.json --case T-READ-001 --skip-build --skip-flash --force-unlock\n' +
   '2. 输出测试结果（PASS/FAIL）和报告路径',
   { label: 'run-test', phase: '触发测试' }
 )
@@ -114,7 +114,7 @@ if (testResult.includes('FAIL')) {
     '1. node scripts/hil/build-firmware.js\n' +
     '2. node scripts/hil/flash-firmware.js\n' +
     '3. node scripts/hil/check-device-online.js\n' +
-    '4. node scripts/run-hil-test-runner.js --case T-READ-001\n' +
+    '4. node scripts/run-hil-test-runner.js --config config/hil.config.json --case T-READ-001 --skip-build --skip-flash --force-unlock\n' +
     '5. 输出最终结果',
     { label: 'retest', phase: '复测验证' }
   )

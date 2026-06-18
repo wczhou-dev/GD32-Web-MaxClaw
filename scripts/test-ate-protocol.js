@@ -294,9 +294,11 @@ function testCatalog() {
   console.log('\n5. 项目树生成');
 
   const tree = catalog.getProjectTree();
-  assertEqual(tree.length, 2, '项目树有 2 个分组');
+  assertEqual(tree.length, 3, '项目树有 3 个分组');
   assertEqual(tree[0].id, 'basic', '第 1 组为 basic');
   assertEqual(tree[0].children.length, 9, 'basic 组有 9 个子项');
+  assertEqual(tree[2].id, 'sensor', '第 3 组为 sensor');
+  assert(tree[2].children.length > 0, 'sensor 组有传感器测试项');
 
   // 测试掩码验证
   console.log('\n6. 掩码验证');

@@ -28,6 +28,7 @@ export const meta = {
 // ══════════════════════════════════════════════════════════
 
 const MAX_FIX_ROUNDS = 3  // 最大自动修复轮次
+const HIL_CONFIG = 'config/hil.config.json'
 const FIRMWARE_SRC_DIR = 'applications/app/environment'
 const ALLOWED_FILES = [
   'sensoracquire.c',
@@ -53,6 +54,7 @@ const BLOCKED_DIRS = [
 // ══════════════════════════════════════════════════════════
 
 const caseIds = (args || 'T-READ-001').split(',').map(s => s.trim())
+const caseArg = caseIds.join(',')
 log(`目标测试用例: ${caseIds.join(', ')}`)
 log(`最大自动修复轮次: ${MAX_FIX_ROUNDS}`)
 
@@ -103,9 +105,9 @@ const readyResult = await agent(
 3. 如果设备不在线，重试 1 次（间隔 5 秒）。
 
 4. 检查 ATE 后端是否在线:
-   执行命令: node -e "const http=require('http');http.get('http://localhost:3000/api/health',r=>{let d='';r.on('data',c=>d+=c);r.on('end',()=>console.log(d))}).on('error',e=>{console.error(e.message);process.exit(1)})"
+   从 ${HIL_CONFIG} 读取 ate.baseUrl，并请求 <ate.baseUrl>/api/health。
 
-5. 如果后端不在线，停止并提示 "请先启动后端: node backend/server.js"
+5. 如果后端不在线，停止并提示 "请先启动后端: node backend/server.js"，同时输出当前读取到的 ate.baseUrl。
 
 6. 输出最终结果: "READY_OK" 或 "READY_FAIL: <原因>"`,
   { label: 'device-ready', phase: '设备就绪' }
@@ -127,18 +129,15 @@ phase('执行测试')
 const testResult = await agent(
   `你是 HIL 测试执行器。执行以下步骤：
 
-1. 启动批量测试（使用 curl）:
+1. 使用配置驱动的 HIL runner 执行测试，不要手写 curl、端口或设备 IP：
    执行命令:
-   curl -s -X POST http://localhost:3000/api/sensor-test/run-batch \\
-     -H "Content-Type: application/json" \\
-     -d '{"sessionName":"hil-wf-DATE","mode":"hil","caseIds":${JSON.stringify(caseIds)},"device":{"ip":"192.168.110.125","modbusTcpPort":502},"options":{"stopOnFail":false,"collectModbusFrames":true,"collectFirmwareLog":true}}'
+   node scripts/run-hil-test-runner.js --config ${HIL_CONFIG} --case ${caseArg} --skip-build --skip-flash --force-unlock
 
-2. 从响应中提取 sessionId。
+2. 根据命令退出码和输出判断测试结果。
 
-3. 轮询测试结果（每 3 秒一次，最多 60 次 = 3 分钟）:
-   执行命令: curl -s "http://localhost:3000/api/sensor-test/current-session?sessionId=<sessionId>"
+3. 如果命令退出码为 0 且输出中没有失败项，输出 "TEST_PASS"。
 
-4. 当 status 变为 "completed" 时，读取最终结果。
+4. 如果命令退出码非 0，或 reports/latest-hil-summary.json 中 failed > 0，输出 "TEST_FAIL"。
 
 5. 输出:
    - 测试结果摘要: "TEST_PASS" 或 "TEST_FAIL"
@@ -247,11 +246,9 @@ ${diagnosis}
 
 5. 重新执行测试:
    执行命令:
-   curl -s -X POST http://localhost:3000/api/sensor-test/run-batch \\
-     -H "Content-Type: application/json" \\
-     -d '{"sessionName":"hil-fix-round-${fixRound}","mode":"hil","caseIds":${JSON.stringify(caseIds)},"device":{"ip":"192.168.110.125","modbusTcpPort":502},"options":{"stopOnFail":false}}'
+   node scripts/run-hil-test-runner.js --config ${HIL_CONFIG} --case ${caseArg} --skip-build --skip-flash --force-unlock
 
-6. 轮询结果（同 Phase 3 方式）。
+6. 根据 runner 退出码和 reports/latest-hil-summary.json 判断复测结果。
 
 7. 输出:
    - 修改了哪些文件的哪些行

@@ -1,0 +1,6 @@
+si 1
+speed 4000
+device GD32F407VG
+connect
+savebin C:/Users/ASUS/AppData/Local/Temp/flash_dump.bin 0x08020000 0x100
+q

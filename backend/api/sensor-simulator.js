@@ -18,6 +18,22 @@
 const express = require('express');
 const router = express.Router();
 
+function buildSensorKey(sensor = {}, type = 'temp') {
+  if (type === 'temp' && sensor.tempKey) return sensor.tempKey;
+  if (type === 'humi' && sensor.humiKey) return sensor.humiKey;
+  if (sensor.key && sensor.key.startsWith(`${type}_`)) return sensor.key;
+  if (sensor.sensorKey && sensor.sensorKey.startsWith(`${type}_`)) return sensor.sensorKey;
+  if (sensor.index != null) return `${type}_${sensor.index}`;
+
+  const sensorIdText = String(sensor.sensorId || '');
+  const sensorIdNumber = sensorIdText.match(/\d+/)?.[0];
+  if (sensorIdNumber) return `${type}_${sensorIdNumber}`;
+
+  // 兼容旧调用：历史接口曾把 slaveAddress 当作 temp_N/humi_N 的 N 使用。
+  if (sensor.slaveAddress != null) return `${type}_${sensor.slaveAddress}`;
+  return `${type}_1`;
+}
+
 /**
  * POST /api/sensor-simulator/profile
  * 设置模拟器正常值（温湿度等）
@@ -44,8 +60,8 @@ router.post('/profile', (req, res) => {
 
       // 设置温湿度值
       if (temperature !== undefined && humidity !== undefined) {
-        const tempKey = `temp_${slaveAddress || 1}`;
-        const humiKey = `humi_${slaveAddress || 1}`;
+        const tempKey = buildSensorKey(sensor, 'temp');
+        const humiKey = buildSensorKey(sensor, 'humi');
 
         try {
           simulator.setTempHumiPair(tempKey, temperature, humiKey, humidity);
@@ -56,7 +72,7 @@ router.post('/profile', (req, res) => {
 
       // 如果指定了 responseMode 且不是 normal，注入故障
       if (responseMode && responseMode !== 'normal') {
-        const key = `temp_${slaveAddress || 1}`;
+        const key = buildSensorKey(sensor, 'temp');
         switch (responseMode) {
           case 'timeout':
             simulator.injectTimeout({ key });
@@ -99,10 +115,8 @@ router.post('/abnormal', (req, res) => {
       return res.status(400).json({ success: false, error: '请指定 sensorId 和 responseMode' });
     }
 
-    // sensorId 可能是 "temp-humi-1" 或 "1"，转换为 key
-    const key = sensorId.startsWith('temp_') || sensorId.startsWith('humi_')
-      ? sensorId
-      : `temp_${sensorId.replace(/[^0-9]/g, '') || '1'}`;
+    // sensorId 可以是 "temp_1"、"temp-humi-1" 或 "1"。
+    const key = buildSensorKey({ sensorId }, 'temp');
 
     switch (responseMode) {
       case 'timeout':

@@ -20,3 +20,11 @@ yarn-debug.log*
 yarn-error.log*
 pnpm-debug.log*
 lerna-debug.log*
+
+# HIL runtime artifacts
+logs/hil.lock
+logs/last_test_error*.json
+logs/modbus_trace.log
+logs/firmware_runtime.log
+reports/hil-*.json
+reports/latest-hil-summary.json

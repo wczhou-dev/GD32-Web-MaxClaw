@@ -176,6 +176,17 @@ class SensorReportService {
     }
   }
 
+  /**
+   * 获取报告文件绝对路径，供 API 下载 JSON/HTML 使用。
+   * @param {string} fileName
+   * @returns {string|null}
+   */
+  getReportPath(fileName) {
+    const fullPath = path.join(this._reportDir, fileName);
+    if (!fs.existsSync(fullPath)) return null;
+    return fullPath;
+  }
+
   // ============================================================
   // HTML 报告生成
   // ============================================================

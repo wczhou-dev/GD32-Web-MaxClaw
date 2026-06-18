@@ -104,11 +104,24 @@ const LOCK_FILE = path.join(__dirname, '../logs/hil.lock');
 function acquireLock() {
   if (fs.existsSync(LOCK_FILE)) {
     const lockData = JSON.parse(fs.readFileSync(LOCK_FILE, 'utf-8'));
-    console.error(`[HIL] 资源锁已存在，由进程 ${lockData.pid} 创建于 ${lockData.createdAt}`);
-    if (process.argv.includes('--force-unlock')) {
-      console.log('[HIL] --force-unlock: 强制删除锁文件');
+    let stale = false;
+    try {
+      process.kill(lockData.pid, 0);
+    } catch {
+      stale = true;
+    }
+
+    if (stale) {
+      console.warn(`[HIL] 检测到残留资源锁，原进程已不存在: pid=${lockData.pid}, createdAt=${lockData.createdAt}`);
       fs.unlinkSync(LOCK_FILE);
     } else {
+      console.error(`[HIL] 资源锁已存在，由进程 ${lockData.pid} 创建于 ${lockData.createdAt}`);
+    }
+
+    if (process.argv.includes('--force-unlock')) {
+      console.log('[HIL] --force-unlock: 强制删除锁文件');
+      if (fs.existsSync(LOCK_FILE)) fs.unlinkSync(LOCK_FILE);
+    } else if (!stale) {
       console.error('[HIL] 使用 --force-unlock 可强制覆盖（请确认无其他 HIL 进程运行）');
       process.exit(1);
     }
@@ -131,33 +144,35 @@ function releaseLock() {
 // ── 设备上线检测 ──────────────────────────────────────────
 function checkDeviceOnline(config, retries = 3) {
   const { controller } = config;
+  const net = require('net');
   console.log(`[HIL] 检测设备上线: ${controller.ip}:${controller.modbusTcpPort}`);
 
-  for (let i = 0; i < retries; i++) {
-    try {
-      // 使用 Modbus TCP 探测（简单 TCP 连接测试）
-      const net = require('net');
-      const result = execSync(
-        `node -e "const net=require('net');const c=net.createConnection(${controller.modbusTcpPort},'${controller.ip}');c.on('connect',()=>{console.log('ONLINE');c.destroy()});c.on('error',()=>{console.log('OFFLINE');process.exit(1)});setTimeout(()=>{console.log('TIMEOUT');process.exit(1)},5000)"`,
-        { encoding: 'utf-8', timeout: 10000 }
-      );
+  function probe() {
+    return new Promise((resolve) => {
+      const c = net.createConnection({ host: controller.ip, port: controller.modbusTcpPort }, () => {
+        c.destroy();
+        resolve(true);
+      });
+      c.on('error', () => { c.destroy(); resolve(false); });
+      c.setTimeout(5000, () => { c.destroy(); resolve(false); });
+    });
+  }
 
-      if (result.trim().includes('ONLINE')) {
+  return (async () => {
+    for (let i = 0; i < retries; i++) {
+      const ok = await probe();
+      if (ok) {
         console.log(`[HIL] 设备在线 ✓`);
         return true;
       }
-    } catch {
-      // 继续重试
+      if (i < retries - 1) {
+        console.log(`[HIL] 设备未响应，5 秒后重试 (${i + 1}/${retries})...`);
+        await new Promise(r => setTimeout(r, 5000));
+      }
     }
-
-    if (i < retries - 1) {
-      console.log(`[HIL] 设备未响应，${5} 秒后重试 (${i + 1}/${retries})...`);
-      execSync('sleep 5', { stdio: 'ignore' });
-    }
-  }
-
-  console.error(`[HIL] 设备不在线，已重试 ${retries} 次`);
-  return false;
+    console.error(`[HIL] 设备不在线，已重试 ${retries} 次`);
+    return false;
+  })();
 }
 
 // ── 触发 ATE 测试 ─────────────────────────────────────────
@@ -247,7 +262,7 @@ async function pollTestResult(config, sessionId) {
           process.stdout.write(`\r[HIL] 进度: ${progress.finished}/${progress.total} (${pct}%) | 当前: ${currentCaseId || '-'} | 通过: ${progress.passed} 失败: ${progress.failed}   `);
         }
 
-        if (status === 'completed' || status === 'finished') {
+        if (['completed', 'completed-with-failures', 'finished', 'error', 'stopped'].includes(status)) {
           console.log('\n[HIL] 测试完成!');
           return resp.data;
         }
@@ -322,15 +337,16 @@ async function main() {
       }
 
       // 等待设备重启
-      console.log(`[HIL] 等待设备重启 (${config.controller.rebootWaitMs / 1000}s)...`);
-      execSync(`sleep ${Math.ceil(config.controller.rebootWaitMs / 1000)}`, { stdio: 'ignore' });
+      const rebootSec = Math.ceil(config.controller.rebootWaitMs / 1000);
+      console.log(`[HIL] 等待设备重启 (${rebootSec}s)...`);
+      await new Promise(r => setTimeout(r, config.controller.rebootWaitMs));
     } else {
       console.log('\n── Step 2/4: 烧录固件 [跳过] ──');
     }
 
     // ── Step 3: 检测上线 ──
     console.log('\n── Step 3/4: 检测设备上线 ──');
-    const online = checkDeviceOnline(config);
+    const online = await checkDeviceOnline(config);
     if (!online) {
       console.error('[HIL] 设备未上线，终止测试');
       process.exit(1);
@@ -375,7 +391,7 @@ async function main() {
   // 更新 latest 摘要
   const latestPath = path.join(reportsDir, 'latest-hil-summary.json');
   const passed = results.cases.filter(c => c.status === 'pass').length;
-  const failed = results.cases.filter(c => c.status === 'fail').length;
+  const failed = results.cases.filter(c => c.status === 'fail' || c.status === 'error').length;
   const summary = {
     sessionId: results.sessionId,
     timestamp: results.endTime,
@@ -397,7 +413,7 @@ async function main() {
   // 如果有失败，触发失败上下文归集
   if (failed > 0) {
     console.log('\n[HIL] 检测到失败用例，归集失败上下文...');
-    const failCase = results.cases.find(c => c.status === 'fail');
+    const failCase = results.cases.find(c => c.status === 'fail' || c.status === 'error');
     if (failCase) {
       try {
         execSync(
