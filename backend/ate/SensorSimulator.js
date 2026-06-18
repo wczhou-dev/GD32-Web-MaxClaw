@@ -720,7 +720,19 @@ class SensorSimulator extends EventEmitter {
     resp[2 + data.length] = crc & 0xFF;
     resp[3 + data.length] = (crc >> 8) & 0xFF;
 
-    this._serialPort.write(resp);
+    // Modbus RTU 要求：从站等待 3.5 字符时间静默后才发送响应
+    // 9600bps 下 3.5 字符 ≈ 3.64ms，这里用 5ms 保证余量
+    setTimeout(() => {
+      if (this._serialPort && this._serialPort.isOpen) {
+        console.log(`[SimTX] slave=0x${slaveAddr.toString(16)} resp=${resp.toString('hex')}`);
+        this._serialPort.write(resp, (err) => {
+          if (err) console.error(`[SimTX] Write error: ${err.message}`);
+          else console.log(`[SimTX] Write OK, ${resp.length} bytes`);
+        });
+      } else {
+        console.log(`[SimTX] SKIPPED: port not open`);
+      }
+    }, 20);
   }
 
   /**
@@ -737,7 +749,17 @@ class SensorSimulator extends EventEmitter {
     resp[3] = crc & 0xFF;
     resp[4] = (crc >> 8) & 0xFF;
 
-    this._serialPort.write(resp);
+    setTimeout(() => {
+      if (this._serialPort && this._serialPort.isOpen) {
+        console.log(`[SimTX] slave=0x${slaveAddr.toString(16)} resp=${resp.toString('hex')}`);
+        this._serialPort.write(resp, (err) => {
+          if (err) console.error(`[SimTX] Write error: ${err.message}`);
+          else console.log(`[SimTX] Write OK, ${resp.length} bytes`);
+        });
+      } else {
+        console.log(`[SimTX] SKIPPED: port not open`);
+      }
+    }, 20);
   }
 
   /**
