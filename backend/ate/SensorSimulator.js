@@ -210,17 +210,17 @@ class SensorSimulator extends EventEmitter {
       this._initSensor(`humi_${idx}`, sensor.slaveAddr, 0x0001, 1, 10);  // humi → register 1 (匹配固件 HUM_INDEX)
     }
 
-    // 初始化 CO2 传感器 (固件 CO2_START_ADDR=0x0002)
+    // 初始化 CO2 传感器 (固件从站读取 register 0x0000，1 个寄存器，原值 ppm 无缩放)
     for (const sensor of config.co2) {
-      this._initSensor(sensor.key, sensor.slaveAddr, 0x0002, 1, 1);
+      this._initSensor(sensor.key, sensor.slaveAddr, 0x0000, 1, 1);
     }
 
-    // 初始化压差传感器
+    // 初始化压差传感器 (固件从站读取 register 0x0000，val/10 换算)
     for (const sensor of config.pressure.indoor) {
       this._initSensor(sensor.key, sensor.slaveAddr, 0x0000, 1, 10);
     }
 
-    // 初始化氨气传感器
+    // 初始化氨气传感器 (固件从站读取 register 0x0000，原值 ppm)
     for (const sensor of config.nh3) {
       this._initSensor(sensor.key, sensor.slaveAddr, 0x0000, 1, 1);
     }
@@ -512,6 +512,7 @@ class SensorSimulator extends EventEmitter {
 
   /**
    * Mock 模式：获取指定传感器 key 的当前值（工程值）
+   * registerAddr 已由 loadFieldConfig 或 server.js 设置为正确地址
    * @param {string} key
    * @returns {number|null}
    */
@@ -523,9 +524,8 @@ class SensorSimulator extends EventEmitter {
     const slaveRegs = this._shadowRegisters.get(slaveAddr);
     if (!slaveRegs) return null;
 
-    // 湿度在 registerAddr + 1
-    const reg = key.startsWith('humi_') ? registerAddr + 1 : registerAddr;
-    const raw = slaveRegs.get(reg);
+    // 直接使用 registerAddr（已包含正确的寄存器偏移）
+    const raw = slaveRegs.get(registerAddr);
     if (raw == null) return null;
 
     // 处理有符号值

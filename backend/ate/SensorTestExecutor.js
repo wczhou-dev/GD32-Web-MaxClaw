@@ -269,6 +269,7 @@ class SensorTestExecutor extends EventEmitter {
 
   /**
    * 执行正常抄读场景 (T-READ-001~004)
+   * 温湿度传感器在轮询队列前部，CO2/压差在中后部，需要更长等待时间
    */
   async _executeNormalRead(scenario, assertions) {
     const sensors = scenario.inputs.sensors;
@@ -280,14 +281,32 @@ class SensorTestExecutor extends EventEmitter {
     }
     this._log(`设置 ${sensors.length} 个传感器值`);
 
-    // 等待采集周期
-    await this._waitCollect(15000);
+    // 根据传感器类型确定等待时间：
+    // 固件轮询队列包含所有已安装传感器（~28路），每路约1秒
+    // CO2/压差在队列中后部，需要至少2个完整轮询周期才能稳定采集
+    const sensorType = scenario.id.startsWith('T-READ-001') || scenario.id.startsWith('T-READ-002')
+      ? 'temp' : scenario.id.startsWith('T-READ-003') ? 'press' : 'co2';
+    const waitMs = sensorType === 'temp' ? 15000
+      : sensorType === 'co2' ? 45000   // CO2轮询较晚，需等2个完整周期
+      : 35000;                          // 压差有POLL_QUERY_SEC=6插队，稍短
 
-    // 读取环控器数据
-    const sensorData = await this._stateReader.readSensorData();
+    this._log(`等待采集 (${sensorType}, ${waitMs/1000}秒)...`);
+    await this._waitCollect(waitMs);
+
+    // 读取环控器数据（带重试）
+    let sensorData = await this._stateReader.readSensorData();
     const actual = await this._stateReader.readActualTempHumi();
 
+    // 检查是否有未读到的数据，若全为0则重试一次
+    const hasZeroData = this._checkAllZero(sensorData, sensorType);
+    if (hasZeroData) {
+      this._log('部分传感器数据为0，等待额外采集周期...');
+      await this._waitCollect(30000);
+      sensorData = await this._stateReader.readSensorData();
+    }
+
     // 逐路断言
+    let passedCount = 0;
     for (const sensor of sensors) {
       let actualValue;
       const idx = this._getSensorIndex(sensor.key);
@@ -302,27 +321,52 @@ class SensorTestExecutor extends EventEmitter {
         actualValue = sensorData.press[idx];
       }
 
-      if (actualValue != null) {
+      if (actualValue != null && actualValue !== 0) {
         assertions.push(this._assertEngine.assertSensorValue(
           actualValue, sensor.value, tolerance, sensor.key
         ));
+        passedCount++;
+      } else {
+        // 数据为0或null，记录为失败但不阻断
+        assertions.push({
+          pass: false,
+          code: 'SENSOR_DATA_ZERO',
+          message: `${sensor.key} 数据为 ${actualValue}，可能未被轮询到`,
+          expected: sensor.value,
+          actual: actualValue,
+        });
       }
     }
 
+    this._log(`${sensorType} 抄读: ${passedCount}/${sensors.length} 路有效`);
+
     // 平均值断言
     if (scenario.id === 'T-READ-001') {
-      const valids = sensorData.temp.slice(0, sensors.length);
-      const expectedAvg = valids.reduce((a, b) => a + b, 0) / valids.length;
-      assertions.push(this._assertEngine.assertActualValue(
-        actual.actualTemp, expectedAvg, tolerance, 'temp'
-      ));
+      const valids = sensorData.temp.slice(0, sensors.length).filter(v => v !== 0);
+      if (valids.length > 0) {
+        const expectedAvg = valids.reduce((a, b) => a + b, 0) / valids.length;
+        assertions.push(this._assertEngine.assertActualValue(
+          actual.actualTemp, expectedAvg, tolerance, 'temp'
+        ));
+      }
     } else if (scenario.id === 'T-READ-002') {
-      const valids = sensorData.humi.slice(0, sensors.length);
-      const expectedAvg = valids.reduce((a, b) => a + b, 0) / valids.length;
-      assertions.push(this._assertEngine.assertActualValue(
-        actual.actualHumi, expectedAvg, tolerance, 'humi'
-      ));
+      const valids = sensorData.humi.slice(0, sensors.length).filter(v => v !== 0);
+      if (valids.length > 0) {
+        const expectedAvg = valids.reduce((a, b) => a + b, 0) / valids.length;
+        assertions.push(this._assertEngine.assertActualValue(
+          actual.actualHumi, expectedAvg, tolerance, 'humi'
+        ));
+      }
     }
+  }
+
+  /**
+   * 检查指定类型传感器数据是否全为0
+   */
+  _checkAllZero(sensorData, type) {
+    if (type === 'co2') return sensorData.co2.every(v => v === 0);
+    if (type === 'press') return sensorData.press.every(v => v === 0);
+    return false;
   }
 
   // ============================================================
@@ -347,6 +391,8 @@ class SensorTestExecutor extends EventEmitter {
 
   /**
    * ErRead：通信失败 10 次触发
+   * 固件每轮轮询~1秒/传感器，16路传感器temp_1每~16秒被查询一次
+   * 10次失败需约 160 秒
    */
   async _execErRead(scenario, assertions) {
     const { preCondition, fault } = scenario.inputs;
@@ -356,22 +402,35 @@ class SensorTestExecutor extends EventEmitter {
     this._log(`设置正常值: ${preCondition.key} = ${preCondition.value}`);
     await this._waitCollect(10000);
 
-    // 注入超时
-    this._simulator.injectTimeout({ key: fault.key, persist: fault.persist });
-    this._log(`注入超时: ${fault.key}`);
+    // 注入超时（persist=true 确保持续超时）
+    this._simulator.injectTimeout({ key: fault.key, persist: fault.persist || true });
+    this._log(`注入超时: ${fault.key} (persist=true)`);
 
-    // 等待 10 次轮询失败（轮询周期约 2~6 秒/路，10 次约 20~60 秒）
-    this._log('等待 ErRead 触发 (约 90 秒)...');
-    await this._waitCollect(90000);
+    // 等待 10 次轮询失败（16路×1秒/轮≈16秒/轮，10次≈160秒，保守等200秒）
+    this._log('等待 ErRead 触发 (约 200 秒)...');
+    await this._waitCollect(200000);
 
     // 读取结果
-    const regValue = await this._stateReader.readRegister(0x1001);
+    let regValue;
+    try {
+      regValue = await this._stateReader.readRegister(0x1001);
+    } catch (err) {
+      this._log(`读取 ErRead 结果失败: ${err.message}，尝试重连...`);
+      await this._stateReader._ensureConnected();
+      regValue = await this._stateReader.readRegister(0x1001);
+    }
     assertions.push(this._assertEngine.assertInvalid(regValue,
       `ErRead 后 temp_1 应为 INVALID: ${regValue}`));
+
+    // 清除故障
+    this._simulator.clearFault(fault.key);
   }
 
   /**
    * ErMax：数值不变 100 次触发
+   * 固件每轮轮询~1秒/传感器，temp_1每~16秒被查询一次
+   * 100次不变需约 1600 秒，但 ErMax 使用 Data_Invariant_Counter
+   * 如果只启用少量传感器（如2路），每轮约2秒，100次约200秒
    */
   async _execErMax(scenario, assertions) {
     const { fixedValue } = scenario.inputs;
@@ -381,14 +440,13 @@ class SensorTestExecutor extends EventEmitter {
     this._simulator.injectFixedValue({
       key: fixedValue.key,
       value: fixedValue.value,
-      repeat: fixedValue.repeat,
+      repeat: fixedValue.repeat || 200,  // 增加repeat确保足够次数
     });
-    this._log(`注入固定值: ${fixedValue.key} = ${fixedValue.value} (repeat=${fixedValue.repeat})`);
+    this._log(`注入固定值: ${fixedValue.key} = ${fixedValue.value} (repeat=${fixedValue.repeat || 200})`);
 
-    // 等待 100 次轮询（轮询周期约 2~6 秒/路，100 次约 200~600 秒）
-    // 为缩短测试时间，这里等待 300 秒（模拟器会持续返回固定值）
-    this._log('等待 ErMax 触发 (约 300 秒)...');
-    await this._waitCollect(300000);
+    // 等待 ErMax 触发（保守等 400 秒，给固件足够时间累积100次不变）
+    this._log('等待 ErMax 触发 (约 400 秒)...');
+    await this._waitCollect(400000);
 
     // 读取 ErMax 告警状态
     const alarmStatus = await this._stateReader.readAlarmStatus();
@@ -396,7 +454,7 @@ class SensorTestExecutor extends EventEmitter {
     assertions.push({
       pass: hasErMax,
       code: hasErMax ? 'ERMAX_SET' : 'ERMAX_NOT_SET',
-      message: hasErMax ? 'ErMax 告警已置位' : 'ErMax 告警未置位',
+      message: hasErMax ? 'ErMax 告警已置位' : `ErMax 告警未置位 (raw: ${JSON.stringify(alarmStatus.raw)})`,
       expected: true,
       actual: hasErMax,
     });
@@ -411,6 +469,8 @@ class SensorTestExecutor extends EventEmitter {
 
   /**
    * 偏差剔除：离群值不参与平均
+   * 固件 indoorth_deviation_check() 需要连续多次检测到偏差才剔除
+   * 每个轮询周期约 28 秒，固件需要连续 3~5 次检测到偏差才生效
    */
   async _execDeviation剔除(scenario, assertions) {
     const { sensors } = scenario.inputs;
@@ -422,16 +482,33 @@ class SensorTestExecutor extends EventEmitter {
     }
     this._log(`设置 ${sensors.length} 个传感器值 (含 1 个离群值)`);
 
-    // 等待采集（固件偏差检测需要连续 5 次偏差，每轮约 30 秒，共需 ~150 秒）
-    this._log('等待偏差剔除检测 (约 180 秒)...');
-    await this._waitCollect(180000);
+    // 固件偏差检测：每个轮询周期约28秒，需连续检测多次才剔除
+    // 至少等待 3 个完整周期 = 3 * 30秒 = 90秒，保守等 120 秒
+    this._log('等待偏差剔除检测 (约 120 秒)...');
+    await this._waitCollect(120000);
 
-    // 读取 ActualTemp
-    const actual = await this._stateReader.readActualTempHumi();
+    // 读取 ActualTemp，若仍不符合则追加等待
+    let actual = await this._stateReader.readActualTempHumi();
+    let deviationPass = Math.abs(actual.actualTemp - expectedActual) <= tolerance;
+
+    if (!deviationPass) {
+      this._log(`首次检查 ActualTemp=${actual.actualTemp}，期望 ${expectedActual}，偏差未剔除，追加等待 60 秒...`);
+      await this._waitCollect(60000);
+      actual = await this._stateReader.readActualTempHumi();
+    }
+
     assertions.push(this._assertEngine.assertActualValue(
       actual.actualTemp, expectedActual, tolerance, 'temp'
     ));
-    this._log(`ActualTemp: ${actual.actualTemp}, 期望: ${expectedActual}`);
+    this._log(`ActualTemp: ${actual.actualTemp}, 期望: ${expectedActual} (容差: ${tolerance})`);
+
+    // 同时验证原始数据是否都被采集到（可选信息性断言）
+    const sensorData = await this._stateReader.readSensorData();
+    for (const s of sensors) {
+      const idx = this._getSensorIndex(s.key);
+      const rawVal = sensorData.temp[idx];
+      this._log(`  原始 ${s.key}: ${rawVal}℃ (模拟: ${s.value}℃)`);
+    }
   }
 
   // ============================================================
@@ -708,14 +785,23 @@ class SensorTestExecutor extends EventEmitter {
     // 设置模拟器值
     this._simulator.setSensorValue(sensorValue.key, sensorValue.value);
 
-    // 等待轮询队列重建
-    await this._waitCollect(5000);
+    // 等待轮询队列重建（固件检测到配置变化后重建队列，需等完整轮询周期）
+    this._log('等待轮询队列重建 (15 秒)...');
+    await this._waitCollect(15000);
 
     // 验证数据采集
     const data = await this._stateReader.readRegister(scenario.expected.dataRegister);
     const expectedRaw = Math.round(sensorValue.value * 10);
-    assertions.push(this._assertEngine.assertClose(data, expectedRaw, 2,
-      `启用后数据: ${data}, 期望: ${expectedRaw}`));
+    if (data === 0) {
+      this._log(`启用后数据为0，追加等待 10 秒...`);
+      await this._waitCollect(10000);
+      const retryData = await this._stateReader.readRegister(scenario.expected.dataRegister);
+      assertions.push(this._assertEngine.assertClose(retryData, expectedRaw, 2,
+        `启用后数据: ${retryData}, 期望: ${expectedRaw}`));
+    } else {
+      assertions.push(this._assertEngine.assertClose(data, expectedRaw, 2,
+        `启用后数据: ${data}, 期望: ${expectedRaw}`));
+    }
 
     // 恢复原配置
     await this._stateReader.writeRegister(configRegister, current);
@@ -727,10 +813,11 @@ class SensorTestExecutor extends EventEmitter {
   async _execHotDisable(scenario, assertions) {
     const { configRegister, disableBit, sensorValue } = scenario.inputs;
 
-    // 先设置模拟器值
+    // 先设置模拟器值并确认正常采集
     this._simulator.setSensorValue(sensorValue.key, sensorValue.value);
-    await this._waitCollect(5000);
+    await this._waitCollect(10000);
     const beforeValue = await this._stateReader.readRegister(scenario.expected.dataRegister);
+    this._log(`禁用前数据: ${beforeValue}`);
 
     // 写入禁用位
     const current = await this._stateReader.readRegister(configRegister);
@@ -742,12 +829,13 @@ class SensorTestExecutor extends EventEmitter {
     assertions.push(this._assertEngine.assertEqual(readback, newConfig,
       `配置回读: 写入 0x${newConfig.toString(16)}, 读回 0x${readback.toString(16)}`));
 
-    // 等待
-    await this._waitCollect(5000);
+    // 等待轮询队列重建
+    this._log('等待轮询队列重建 (10 秒)...');
+    await this._waitCollect(10000);
 
     // 验证数据不再更新（改变模拟器值后读取应不变）
     this._simulator.setSensorValue(sensorValue.key, sensorValue.value + 5);
-    await this._waitCollect(5000);
+    await this._waitCollect(10000);
     const afterValue = await this._stateReader.readRegister(scenario.expected.dataRegister);
 
     // 禁用后数据不应变化
@@ -792,6 +880,7 @@ class SensorTestExecutor extends EventEmitter {
 
   /**
    * 阈值热更新 (温度/湿度)
+   * Alarm_Check() 在通风主循环中周期调用，需等待足够时间
    */
   async _execHotThreshold(scenario, assertions, type) {
     const { newThreshold, testValue, recoverValue } = scenario.inputs;
@@ -813,21 +902,37 @@ class SensorTestExecutor extends EventEmitter {
     const sensorKey = type === 'temp' ? 'temp_1' : 'humi_1';
     this._simulator.setSensorValue(sensorKey, testValue);
     this._log(`设置超阈值: ${sensorKey} = ${testValue}`);
-    await this._waitCollect(10000);  // 告警触发需等待完整轮询+判断周期
 
-    // 读取告警状态
-    const alarmAfterExceed = await this._stateReader.readAlarmStatus();
+    // 等待 Alarm_Check() 周期（固件约 3~5 秒/轮，需等多轮确保检测到）
+    this._log('等待告警触发 (20 秒)...');
+    await this._waitCollect(20000);
+
+    // 读取告警状态（带重试）
+    let alarmAfterExceed = await this._stateReader.readAlarmStatus();
     const alarmField = type === 'temp' ? 'tempHigh' : 'humiHigh';
+    if (!alarmAfterExceed[alarmField]) {
+      this._log(`告警未触发，追加等待 15 秒...`);
+      await this._waitCollect(15000);
+      alarmAfterExceed = await this._stateReader.readAlarmStatus();
+    }
     assertions.push(this._assertEngine.assertEqual(alarmAfterExceed[alarmField], true,
-      `超阈值后告警: ${alarmAfterExceed[alarmField]}`));
+      `超阈值后告警: ${alarmAfterExceed[alarmField]} (raw: ${JSON.stringify(alarmAfterExceed.raw)})`));
 
     // 恢复正常值
     this._simulator.setSensorValue(sensorKey, recoverValue);
     this._log(`恢复正常值: ${sensorKey} = ${recoverValue}`);
-    await this._waitCollect(5000);
 
-    // 读取告警状态
-    const alarmAfterRecover = await this._stateReader.readAlarmStatus();
+    // 等待告警恢复（SET_ALARM_TIMEOUT=180秒，但恢复通常较快）
+    this._log('等待告警恢复 (30 秒)...');
+    await this._waitCollect(30000);
+
+    // 读取告警状态（带重试）
+    let alarmAfterRecover = await this._stateReader.readAlarmStatus();
+    if (alarmAfterRecover[alarmField]) {
+      this._log(`告警未恢复，追加等待 30 秒...`);
+      await this._waitCollect(30000);
+      alarmAfterRecover = await this._stateReader.readAlarmStatus();
+    }
     assertions.push(this._assertEngine.assertEqual(alarmAfterRecover[alarmField], false,
       `恢复后告警清除: ${alarmAfterRecover[alarmField]}`));
 
@@ -837,53 +942,88 @@ class SensorTestExecutor extends EventEmitter {
 
   /**
    * 补偿热更新 (温度/湿度)
+   * 补偿值写入后，需等待固件完整轮询周期（~28秒）才能在 BLOCK_ENV 中生效
    */
   async _execHotCompensation(scenario, assertions, type) {
     const { compensationValue, baseSensor } = scenario.inputs;
     const { beforeCompensation, afterCompensation, afterRestore, tolerance } = scenario.expected;
     const idx = this._getSensorIndex(baseSensor.key);
 
-    // 设置基础值
+    // 设置基础值并等待稳定采集
     this._simulator.setSensorValue(baseSensor.key, baseSensor.value);
-    await this._waitCollect(90000);  // 等待传感器完整轮询周期（28路×2秒≈56秒+余量）
+    this._log(`设置基础值: ${baseSensor.key} = ${baseSensor.value}`);
 
-    // 读取补偿前值
-    const sensorData = await this._stateReader.readSensorData();
-    const beforeVal = type === 'temp' ? sensorData.temp[idx] : sensorData.humi[idx];
+    // 等待2个完整轮询周期确保采集稳定
+    this._log('等待采集稳定 (60 秒)...');
+    await this._waitCollect(60000);
+
+    // 读取补偿前值（带重试）
+    let sensorData = await this._stateReader.readSensorData();
+    let beforeVal = type === 'temp' ? sensorData.temp[idx] : sensorData.humi[idx];
+    if (Math.abs(beforeVal - beforeCompensation) > tolerance) {
+      this._log(`补偿前值 ${beforeVal} 不在容差内，追加等待 30 秒...`);
+      await this._waitCollect(30000);
+      sensorData = await this._stateReader.readSensorData();
+      beforeVal = type === 'temp' ? sensorData.temp[idx] : sensorData.humi[idx];
+    }
     assertions.push(this._assertEngine.assertClose(beforeVal, beforeCompensation, tolerance,
       `补偿前: ${beforeVal}, 期望: ${beforeCompensation}`));
+    this._log(`补偿前: ${beforeVal}`);
 
     // 写入补偿值（负值转 uint16 二进制补码）
     const rawComp = compensationValue < 0 ? compensationValue + 65536 : compensationValue;
     await this._stateReader.writeCompensation(type, idx, rawComp);
-    await this._waitCollect(60000);  // 补偿生效需等待完整轮询周期
+    this._log(`写入补偿值: ${type}[${idx}] = ${rawComp} (${compensationValue/10}℃)`);
+
+    // 等待2个完整轮询周期（补偿在采集链路中实时应用，但BLOCK_ENV更新需轮询）
+    this._log('等待补偿生效 (60 秒)...');
+    await this._waitCollect(60000);
 
     // Mock 模式下模拟补偿效果
     if (this._simulator.isMockMode()) {
       const compVal = compensationValue > 32767 ? (compensationValue - 65536) / 10 : compensationValue / 10;
       this._simulator.setSensorValue(baseSensor.key, baseSensor.value + compVal);
+      await this._waitCollect(1000);
     }
 
-    // 读取补偿后值
-    const sensorDataAfter = await this._stateReader.readSensorData();
-    const afterVal = type === 'temp' ? sensorDataAfter.temp[idx] : sensorDataAfter.humi[idx];
+    // 读取补偿后值（带重试）
+    let sensorDataAfter = await this._stateReader.readSensorData();
+    let afterVal = type === 'temp' ? sensorDataAfter.temp[idx] : sensorDataAfter.humi[idx];
+    if (Math.abs(afterVal - afterCompensation) > tolerance) {
+      this._log(`补偿后值 ${afterVal} 不在容差内，追加等待 30 秒...`);
+      await this._waitCollect(30000);
+      sensorDataAfter = await this._stateReader.readSensorData();
+      afterVal = type === 'temp' ? sensorDataAfter.temp[idx] : sensorDataAfter.humi[idx];
+    }
     assertions.push(this._assertEngine.assertClose(afterVal, afterCompensation, tolerance,
       `补偿后: ${afterVal}, 期望: ${afterCompensation}`));
+    this._log(`补偿后: ${afterVal}`);
 
     // 恢复补偿为 0
     await this._stateReader.writeCompensation(type, idx, 0);
-    await this._waitCollect(90000);  // 恢复补偿也需等待完整轮询周期
+    this._log('恢复补偿为 0');
 
     // Mock 模式下恢复原值
     if (this._simulator.isMockMode()) {
       this._simulator.setSensorValue(baseSensor.key, baseSensor.value);
     }
 
-    // 读取恢复后值
-    const sensorDataRestored = await this._stateReader.readSensorData();
-    const restoredVal = type === 'temp' ? sensorDataRestored.temp[idx] : sensorDataRestored.humi[idx];
+    // 等待恢复
+    this._log('等待恢复 (60 秒)...');
+    await this._waitCollect(60000);
+
+    // 读取恢复后值（带重试）
+    let sensorDataRestored = await this._stateReader.readSensorData();
+    let restoredVal = type === 'temp' ? sensorDataRestored.temp[idx] : sensorDataRestored.humi[idx];
+    if (Math.abs(restoredVal - afterRestore) > tolerance) {
+      this._log(`恢复后值 ${restoredVal} 不在容差内，追加等待 30 秒...`);
+      await this._waitCollect(30000);
+      sensorDataRestored = await this._stateReader.readSensorData();
+      restoredVal = type === 'temp' ? sensorDataRestored.temp[idx] : sensorDataRestored.humi[idx];
+    }
     assertions.push(this._assertEngine.assertClose(restoredVal, afterRestore, tolerance,
       `恢复后: ${restoredVal}, 期望: ${afterRestore}`));
+    this._log(`恢复后: ${restoredVal}`);
   }
 
   // ============================================================
@@ -905,17 +1045,30 @@ class SensorTestExecutor extends EventEmitter {
 
   /**
    * 异常恢复
+   * 固件 ErRead 阈值=10次，每轮轮询~1秒/传感器，temp_1每~16秒被查询一次
+   * 10次失败需约 160 秒，加上恢复等待，总计需约 200 秒
    */
   async _execRecovery(scenario, assertions) {
     const { faultPhase, recoverPhase } = scenario.inputs;
 
-    // 注入故障
-    this._simulator.injectTimeout({ key: faultPhase.key });
-    this._log(`注入故障: ${faultPhase.key}`);
-    await this._waitCollect(60000);
+    // 注入故障（persist=true 确保持续超时）
+    this._simulator.injectTimeout({ key: faultPhase.key, persist: true });
+    this._log(`注入故障: ${faultPhase.key} (persist=true)`);
+
+    // 等待 ErRead 触发：16路传感器每轮~16秒，10次需约160秒，保守等200秒
+    this._log('等待 ErRead 触发 (约 200 秒)...');
+    await this._waitCollect(200000);
 
     // 验证离线状态
-    const offlineValue = await this._stateReader.readRegister(0x1001);
+    let offlineValue;
+    try {
+      offlineValue = await this._stateReader.readRegister(0x1001);
+    } catch (err) {
+      this._log(`读取离线值失败: ${err.message}，尝试重连...`);
+      await this._stateReader._ensureConnected();
+      offlineValue = await this._stateReader.readRegister(0x1001);
+    }
+    const isInvalid = offlineValue === 0x7FFF || offlineValue === 0;
     assertions.push(this._assertEngine.assertInvalid(offlineValue,
       `离线后 temp_1 应为 INVALID: ${offlineValue}`));
 
@@ -923,17 +1076,36 @@ class SensorTestExecutor extends EventEmitter {
     this._simulator.clearFault(faultPhase.key);
     this._simulator.setSensorValue(recoverPhase.key, recoverPhase.value);
     this._log(`恢复: ${faultPhase.key} = ${recoverPhase.value}`);
-    await this._waitCollect(15000);
 
-    // 验证恢复
-    const recoveredValue = await this._stateReader.readRegister(0x1001);
+    // 等待恢复：需等固件重新成功采集并清除 ErRead
+    this._log('等待恢复 (约 60 秒)...');
+    await this._waitCollect(60000);
+
+    // 验证恢复（带重试）
+    let recoveredValue;
+    try {
+      recoveredValue = await this._stateReader.readRegister(0x1001);
+    } catch (err) {
+      this._log(`读取恢复值失败: ${err.message}，尝试重连...`);
+      await this._stateReader._ensureConnected();
+      recoveredValue = await this._stateReader.readRegister(0x1001);
+    }
     const expectedRaw = Math.round(recoverPhase.value * 10);
+    if (recoveredValue === 0 || recoveredValue === 0x7FFF) {
+      // 可能还没恢复，追加等待
+      this._log(`恢复值 ${recoveredValue} 仍异常，追加等待 30 秒...`);
+      await this._waitCollect(30000);
+      recoveredValue = await this._stateReader.readRegister(0x1001);
+    }
     assertions.push(this._assertEngine.assertClose(recoveredValue, expectedRaw, 2,
       `恢复后 temp_1: ${recoveredValue}, 期望: ${expectedRaw}`));
+    this._log(`恢复后 temp_1: ${recoveredValue}`);
   }
 
   /**
    * 多路同时失效
+   * 8路超时 + 8路正常，固件需对8路各累积10次失败才标记 ErRead
+   * 每轮轮询~16秒，10次需约160秒
    */
   async _execMultiFault(scenario, assertions) {
     const { faultKeys, normalKeys, normalValue } = scenario.inputs;
@@ -943,22 +1115,37 @@ class SensorTestExecutor extends EventEmitter {
     for (const key of normalKeys) {
       this._simulator.setSensorValue(key, normalValue);
     }
+    this._log(`设置 ${normalKeys.length} 路正常值: ${normalValue}℃`);
 
-    // 注入故障
+    // 注入故障（persist=true 确保持续超时）
     for (const key of faultKeys) {
-      this._simulator.injectTimeout({ key });
+      this._simulator.injectTimeout({ key, persist: true });
     }
     this._log(`注入 ${faultKeys.length} 路故障, ${normalKeys.length} 路正常`);
 
-    // 等待 ErRead 触发
-    await this._waitCollect(60000);
+    // 等待 ErRead 触发：8路超时 × 10次 × ~16秒/轮 = ~160秒，保守等 200 秒
+    this._log('等待 ErRead 触发 (约 200 秒)...');
+    await this._waitCollect(200000);
 
-    // 读取 ActualTemp
-    const actual = await this._stateReader.readActualTempHumi();
+    // 读取 ActualTemp（带重试）
+    let actual;
+    try {
+      actual = await this._stateReader.readActualTempHumi();
+    } catch (err) {
+      this._log(`读取 ActualTemp 失败: ${err.message}，尝试重连...`);
+      await this._stateReader._ensureConnected();
+      actual = await this._stateReader.readActualTempHumi();
+    }
+
     assertions.push(this._assertEngine.assertActualValue(
       actual.actualTemp, expectedActual, tolerance, 'temp'
     ));
     this._log(`多路失效后 ActualTemp: ${actual.actualTemp}, 期望: ${expectedActual}`);
+
+    // 清除故障恢复
+    for (const key of faultKeys) {
+      this._simulator.clearFault(key);
+    }
   }
 
   // ============================================================

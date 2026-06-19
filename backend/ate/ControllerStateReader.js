@@ -245,31 +245,56 @@ class ControllerStateReader {
   // ============================================================
 
   /**
-   * 对时
-   * @param {object} time { year, month, day, hour, minute, second }
-   * @returns {Promise<{ok: boolean, targetTime: string, deviceTime: string}>}
+   * 对时（带重连保护）
+   * 固件处理对时可能关闭 TCP 连接，需在轮询 HR17 时处理断连重连
    */
   async syncTime(time) {
     const { year, month, day, hour, minute, second } = time;
 
-    // 写入 HR10~HR15
-    await this.writeRegisters(BLOCK_SENSOR_TIME.TIME_YEAR, [
-      year, month, day, hour, minute, second
-    ]);
-
-    // 写入 HR16=1 触发对时
-    await this.writeRegister(BLOCK_SENSOR_TIME.TIME_TRIGGER, 1);
-
-    // 等待对时完成（轮询 HR17）
-    let hr17 = 1;
-    for (let i = 0; i < 20; i++) {
-      await this._sleep(500);
-      hr17 = await this.readRegister(BLOCK_SENSOR_TIME.TIME_RESULT);
-      if (hr17 === 0) break;
+    // 写入 HR10~HR15 和 HR16=1（触发对时），在同一个 runExclusive 中完成
+    // 避免中间断连导致部分写入
+    try {
+      await this._devicePool.runExclusive(this._deviceKey, async () => {
+        await this._devicePool.writeRegisters(this._deviceKey, BLOCK_SENSOR_TIME.TIME_YEAR, [
+          year, month, day, hour, minute, second
+        ]);
+        await this._devicePool.writeRegister(this._deviceKey, BLOCK_SENSOR_TIME.TIME_TRIGGER, 1);
+      });
+    } catch (err) {
+      console.warn(`[ControllerStateReader] syncTime 写入失败: ${err.message}，尝试重连...`);
+      await this._ensureConnected();
+      // 重试写入
+      await this._devicePool.runExclusive(this._deviceKey, async () => {
+        await this._devicePool.writeRegisters(this._deviceKey, BLOCK_SENSOR_TIME.TIME_YEAR, [
+          year, month, day, hour, minute, second
+        ]);
+        await this._devicePool.writeRegister(this._deviceKey, BLOCK_SENSOR_TIME.TIME_TRIGGER, 1);
+      });
     }
 
-    // 读回设备时间确认
-    const devTime = await this.readRegisters(BLOCK_SENSOR_TIME.TIME_YEAR, 6);
+    // 等待对时完成（轮询 HR17），带重连保护
+    let hr17 = 1;
+    for (let i = 0; i < 30; i++) {
+      await this._sleep(500);
+      try {
+        hr17 = await this.readRegister(BLOCK_SENSOR_TIME.TIME_RESULT);
+        if (hr17 === 0) break;
+      } catch (err) {
+        console.warn(`[ControllerStateReader] HR17 轮询失败 (attempt ${i+1}): ${err.message}`);
+        // 尝试重连
+        await this._ensureConnected();
+      }
+    }
+
+    // 读回设备时间确认（带重连保护）
+    let devTime;
+    try {
+      devTime = await this.readRegisters(BLOCK_SENSOR_TIME.TIME_YEAR, 6);
+    } catch (err) {
+      console.warn(`[ControllerStateReader] 读取设备时间失败: ${err.message}，尝试重连...`);
+      await this._ensureConnected();
+      devTime = await this.readRegisters(BLOCK_SENSOR_TIME.TIME_YEAR, 6);
+    }
 
     const targetStr = `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')} ${String(hour).padStart(2, '0')}:${String(minute).padStart(2, '0')}:${String(second).padStart(2, '0')}`;
     const devStr = `${devTime[0]}-${String(devTime[1]).padStart(2, '0')}-${String(devTime[2]).padStart(2, '0')} ${String(devTime[3]).padStart(2, '0')}:${String(devTime[4]).padStart(2, '0')}:${String(devTime[5]).padStart(2, '0')}`;
@@ -615,6 +640,40 @@ class ControllerStateReader {
   // ============================================================
   // 工具方法
   // ============================================================
+
+  /**
+   * 确保设备已连接（带重连逻辑）
+   * 用于对时/重启等可能导致 TCP 断连的操作后恢复连接
+   */
+  async _ensureConnected() {
+    const MAX_RETRIES = 5;
+    const RETRY_INTERVAL = 3000;
+    const COOLDOWN_WAIT = 13000;  // DevicePool 冷却期约 12 秒
+
+    for (let i = 0; i < MAX_RETRIES; i++) {
+      try {
+        // 先检查是否在冷却期
+        const cooldownRemaining = this._devicePool.getCooldownRemaining
+          ? this._devicePool.getCooldownRemaining(this._deviceKey) : 0;
+        if (cooldownRemaining > 0) {
+          console.log(`[ControllerStateReader] 等待冷却期结束 (${cooldownRemaining}ms)...`);
+          await this._sleep(cooldownRemaining + 500);
+        }
+
+        const connected = await this._devicePool.connect(this._deviceKey);
+        if (connected) {
+          // 验证连接可用
+          await this.readRegister(BLOCK_SENSOR_TIME.TIME_HOUR);
+          console.log(`[ControllerStateReader] 重连成功 (attempt ${i+1})`);
+          return;
+        }
+      } catch (err) {
+        console.warn(`[ControllerStateReader] 重连失败 (attempt ${i+1}/${MAX_RETRIES}): ${err.message}`);
+      }
+      await this._sleep(RETRY_INTERVAL);
+    }
+    console.warn(`[ControllerStateReader] 重连 ${MAX_RETRIES} 次后放弃`);
+  }
 
   _sleep(ms) {
     return new Promise(resolve => setTimeout(resolve, ms));
