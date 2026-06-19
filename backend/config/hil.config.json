@@ -1,6 +1,6 @@
 {
   "firmware": {
-    "projectDir": "E:/2.EnvCtrl/18.develop_centerctrl/sj-encontrol-220712-v1-0/bsp/stm32/stm32f407-atk-explorer",
+    "projectDir": "E:/1. EnControl/chonggou/develop_zhouwc/sj-encontrol-220712-v1-0/bsp/stm32/stm32f407-atk-explorer",
     "buildCommand": "scons -j8",
     "artifact": "build/bin/rtthread.hex",
     "appBaseAddress": "0x08020000",

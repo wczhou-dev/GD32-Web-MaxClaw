@@ -964,9 +964,25 @@ class SensorTestExecutor extends EventEmitter {
 
   /**
    * 等待采集周期
+   * 在等待期间发送心跳保活，防止 GD32 的 Modbus TCP 连接超时断开
    */
   async _waitCollect(ms) {
-    return new Promise(resolve => setTimeout(resolve, ms));
+    // 每 10 秒发送一次心跳保活（GD32 超时为 15 秒）
+    const keepaliveInterval = 10000;
+    const keepaliveTimer = setInterval(async () => {
+      try {
+        if (this._stateReader && this._deviceKey) {
+          await this._stateReader.readRegister(0x0000); // 心跳寄存器保活
+        }
+      } catch (_) { /* 忽略保活失败 */ }
+    }, keepaliveInterval);
+
+    return new Promise(resolve => {
+      setTimeout(() => {
+        clearInterval(keepaliveTimer);
+        resolve();
+      }, ms);
+    });
   }
 
   /**

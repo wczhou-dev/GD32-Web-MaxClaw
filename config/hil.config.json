@@ -1,13 +1,13 @@
 {
   "firmware": {
-    "projectDir": "E:/2.EnvCtrl/18.develop_centerctrl/sj-encontrol-220712-v1-0/bsp/stm32/stm32f407-atk-explorer",
+    "projectDir": "E:/1. EnControl/chonggou/develop_zhouwc/sj-encontrol-220712-v1-0/bsp/stm32/stm32f407-atk-explorer",
     "buildCommand": "scons -j8",
     "artifact": "build/bin/rtthread.hex",
     "appBaseAddress": "0x08020000",
     "rttExecPath": "D:/soft/down/env/tools/gnu_gcc/arm_gcc/mingw/bin"
   },
   "flash": {
-    "tool": "JLink.exe",
+    "tool": "D:/soft/install/jlink/JLink.exe",
     "device": "GD32F407VG",
     "interface": "SWD",
     "speed": 4000,
@@ -16,13 +16,13 @@
   },
   "serial": {
     "firmwareLogPort": "COM4",
-    "sensorRs485Port": "COM3",
+    "sensorRs485Port": "COM8",
     "baudRate": 9600,
     "logFile": "logs/firmware_runtime.log",
     "logKeywords": ["[Assert]", "HardFault", "stack overflow", "sensor_acquire timeout"]
   },
   "controller": {
-    "ip": "192.168.10.233",
+    "ip": "192.168.110.125",
     "modbusTcpPort": 1502,
     "onlineTimeoutMs": 30000,
     "rebootWaitMs": 8000

@@ -180,6 +180,25 @@ async function main() {
     try {
       await sensorSimulator.start();
       console.log(`[SensorSimulator] 启动成功 (mode=${sensorSimMock ? 'mock' : 'serial'})`);
+      // 加载默认场区配置（A型场区），使模拟器能响应环控器的 RS485 轮询
+      const fieldType = process.env.SENSOR_FIELD_TYPE || 'A';
+      sensorSimulator.loadFieldConfig(fieldType);
+      console.log(`[SensorSimulator] 已加载场区配置: ${fieldType}`);
+
+      // 初始化全部 16 路传感器的影子寄存器
+      // 固件 sensor_map.c 默认从站地址表:
+      const fwSlaveAddrs = [0x01,0x02,0x03,0x07,0x08,0x09,0x19,0x1A,0x1B,0x1C,0x1D,0x1E,0x1F,0x20,0x21,0x22];
+      fwSlaveAddrs.forEach((addr, i) => {
+        if (!sensorSimulator._shadowRegisters.has(addr)) {
+          sensorSimulator._shadowRegisters.set(addr, new Map());
+        }
+        const regs = sensorSimulator._shadowRegisters.get(addr);
+        // 固件 RS485 寄存器顺序: reg0=湿度, reg1=温度 (HUM_INDEX=0, TEM_INDEX=1)
+        regs.set(0x0000, (40 + i * 2) * 10);   // 湿度: 40%, 42%, 44%, ...
+        regs.set(0x0001, (20 + i) * 10);         // 温度: 20°C, 21°C, 22°C, ...
+      });
+      console.log('[SensorSimulator] 已初始化 16 路传感器影子寄存器 (slave: ' +
+        fwSlaveAddrs.map(a => '0x' + a.toString(16)).join(',') + ')');
     } catch (err) {
       console.warn(`[SensorSimulator] 启动失败: ${err.message}，将以 Mock 模式运行`);
     }
@@ -452,6 +471,22 @@ async function main() {
 
     // 启动轮询
     pollingEngine.start();
+
+    // 配置 GD32 传感器安装掩码（使固件开始 RS485 轮询）
+    try {
+        const device = devicePool.getAllDevices().find(d => d.enabled);
+        if (device) {
+            // 0x700A = 温度传感器安装位掩码, 0x700B = 湿度传感器安装位掩码
+            // bit1 = 1 → 启用传感器 #2 (从站地址 0x02)
+            await devicePool.runExclusive(device.key, async () => {
+                await devicePool.writeRegister(device.key, 0x700A, 0x0002);  // 温度: sensor#2
+                await devicePool.writeRegister(device.key, 0x700B, 0x0002);  // 湿度: sensor#2
+            });
+            console.log('[SensorConfig] 已配置传感器安装掩码: temp=0x0002 humi=0x0002 (sensor#2 @ slave 0x02)');
+        }
+    } catch (err) {
+        console.warn('[SensorConfig] 传感器配置写入失败:', err.message);
+    }
 
     // 启动心跳检测
     wsManager.startHeartbeat();

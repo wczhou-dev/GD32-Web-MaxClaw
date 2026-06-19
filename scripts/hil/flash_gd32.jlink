@@ -4,6 +4,6 @@ device GD32F407VG
 connect
 r
 h
-loadfile E:/2.EnvCtrl/18.develop_centerctrl/develop_zhouwc/sj-encontrol-220712-v1-0/bsp/stm32/stm32f407-atk-explorer/build/bin/rtthread.hex 0x08020000
+loadfile E:/1. EnControl/chonggou/develop_zhouwc/sj-encontrol-220712-v1-0/bsp/stm32/stm32f407-atk-explorer/build/bin/rtthread.hex 0x08020000
 g
 q
