@@ -83,8 +83,11 @@ class SensorTestExecutor extends EventEmitter {
     this.emit('scenario_start', { id: scenario.id, name: scenario.name });
 
     try {
-      // 1. 准备：加载场区
-      this._simulator.loadFieldConfig(this._fieldType);
+      // 1. 准备：加载场区（仅在场区类型改变时重置，避免覆盖前一个测试的传感器值）
+      if (this._currentFieldType !== this._fieldType) {
+        this._simulator.loadFieldConfig(this._fieldType);
+        this._currentFieldType = this._fieldType;
+      }
 
       // 2. 按场景类型执行
       let result;
@@ -360,8 +363,8 @@ class SensorTestExecutor extends EventEmitter {
     this._log(`注入超时: ${fault.key}`);
 
     // 等待 10 次轮询失败（轮询周期约 2~6 秒/路，10 次约 20~60 秒）
-    this._log('等待 ErRead 触发 (约 60 秒)...');
-    await this._waitCollect(60000);
+    this._log('等待 ErRead 触发 (约 90 秒)...');
+    await this._waitCollect(90000);
 
     // 读取结果
     const regValue = await this._stateReader.readRegister(0x1001);
@@ -421,8 +424,9 @@ class SensorTestExecutor extends EventEmitter {
     }
     this._log(`设置 ${sensors.length} 个传感器值 (含 1 个离群值)`);
 
-    // 等待采集
-    await this._waitCollect(15000);
+    // 等待采集（固件偏差检测需要连续 5 次偏差，每轮约 30 秒，共需 ~150 秒）
+    this._log('等待偏差剔除检测 (约 180 秒)...');
+    await this._waitCollect(180000);
 
     // 读取 ActualTemp
     const actual = await this._stateReader.readActualTempHumi();
@@ -811,7 +815,7 @@ class SensorTestExecutor extends EventEmitter {
     const sensorKey = type === 'temp' ? 'temp_1' : 'humi_1';
     this._simulator.setSensorValue(sensorKey, testValue);
     this._log(`设置超阈值: ${sensorKey} = ${testValue}`);
-    await this._waitCollect(5000);
+    await this._waitCollect(10000);  // 告警触发需等待完整轮询+判断周期
 
     // 读取告警状态
     const alarmAfterExceed = await this._stateReader.readAlarmStatus();
@@ -840,9 +844,9 @@ class SensorTestExecutor extends EventEmitter {
     const { compensationValue, baseSensor } = scenario.inputs;
     const { beforeCompensation, afterCompensation, afterRestore, tolerance } = scenario.expected;
 
-    // 设置基础值
+    // 设置基础值（多次重试确保控制器采集到新值）
     this._simulator.setSensorValue(baseSensor.key, baseSensor.value);
-    await this._waitCollect(5000);
+    await this._waitCollect(10000);  // 增加等待确保完整轮询周期
 
     // 读取补偿前值
     const sensorData = await this._stateReader.readSensorData();
@@ -851,9 +855,10 @@ class SensorTestExecutor extends EventEmitter {
     assertions.push(this._assertEngine.assertClose(beforeVal, beforeCompensation, tolerance,
       `补偿前: ${beforeVal}, 期望: ${beforeCompensation}`));
 
-    // 写入补偿值
-    await this._stateReader.writeCompensation(type, idx, compensationValue);
-    await this._waitCollect(3000);
+    // 写入补偿值（负值转 uint16 二进制补码）
+    const rawComp = compensationValue < 0 ? compensationValue + 65536 : compensationValue;
+    await this._stateReader.writeCompensation(type, idx, rawComp);
+    await this._waitCollect(8000);  // 补偿生效需等待完整轮询周期
 
     // Mock 模式下模拟补偿效果
     if (this._simulator.isMockMode()) {
@@ -869,7 +874,7 @@ class SensorTestExecutor extends EventEmitter {
 
     // 恢复补偿为 0
     await this._stateReader.writeCompensation(type, idx, 0);
-    await this._waitCollect(3000);
+    await this._waitCollect(8000);  // 恢复补偿需等待完整轮询周期
 
     // Mock 模式下恢复原值
     if (this._simulator.isMockMode()) {

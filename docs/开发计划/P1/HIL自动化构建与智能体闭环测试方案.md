@@ -1,8 +1,71 @@
 # HIL 自动化构建与智能体闭环测试方案
 
-**文档版本**：v1.3  
-**更新日期**：2026-06-16  
+**文档版本**：v1.4  
+**更新日期**：2026-06-19  
 **适用范围**：P1 阶段传感器自动测试、历史数据回退测试、异常过滤测试、配置热更新测试的 HIL 闭环验证。  
+
+---
+
+## 零、 P1 测试进度总览（截至 2026-06-19）
+
+| 测试项 | 名称 | 优先级 | 结果 | 通过率 | 备注 |
+|--------|------|--------|------|--------|------|
+| `T-READ-001` | 室内温度传感器抄读 | P0 | ✅ PASS | 17/17 | 16 路温度 + ActualTemp 全部正确 |
+| `T-READ-002` | 室内湿度传感器抄读 | P0 | ✅ PASS | 17/17 | 16 路湿度 + ActualHumi 全部正确 |
+| `T-READ-003` | 压差传感器抄读 | P0 | ❌ FAIL | 1/4 | sync_env_regs 已修复，但固件传感器分析层未正确存储 Indoor_DiffPress |
+| `T-READ-004` | CO2 传感器抄读 | P0 | ⚠️ 4/8 | sync_env_regs 已修复，co2_3~6 通过，co2_1/2/7/8 仍 INVALID（固件分析层问题） |
+| `T-ABNF-001` | 通信失败 ErRead 过滤 | P0 | ✅ PASS | 1/1 | ErRead 触发后数据正确标记 INVALID |
+| `T-ABNF-002` | 数值不变 ErMax 过滤 | P1 | ❌ FAIL | 0/1 | 300 秒结束时 Modbus TCP 连接断开，ErMax 告警未置位 |
+| `T-ABNF-003-A` | 奇数路温度偏差剔除 | P0 | ❌ FAIL | 0/1 | Keepalive 修复后连接稳定，但固件偏差剔除算法行为与期望不符（28.8 vs 20.375） |
+| `T-ABNF-003-B` | 偶数路温度偏差剔除 | P0 | ❌ FAIL | 0/1 | 与 T-ABNF-003-A 相同，固件偏差剔除算法不符期望 |
+| `T-HIST-001-A` | 三组历史数据冻结 | P0 | ❌ FAIL | 0/0 | 对时写入 HR10-HR15 后控制器关闭 TCP 连接，无法继续 |
+| `T-HIST-001-B` | 启动历史回退验证 | P0 | ⏳ 未测 | - | 依赖 T-HIST-001-A 的对时功能 |
+| `T-HIST-003` | 历史数据更新与对时跳变防污染 | P0 | ⚠️ 3/4 | 对时+时间匹配 PASS，跨小时等待超时（需等实际时钟过整点） |
+| `T-HOT-001` | 传感器启用热更新 | P0 | ⚠️ 1/2 | 50% | 配置回读正确，数据验证有 30 帧时序偏差 |
+| `T-HOT-002` | 传感器禁用热更新 | P0 | ✅ PASS | 2/2 | 配置回读正确，禁用后数据冻结不变 |
+| `T-HOT-003` | RS485 端口切换热更新 | P1 | ✅ PASS | 2/2 | 端口回读正确，切换后数据正常 |
+| `T-HOT-004` | 温度告警阈值热更新 | P1 | ⚠️ 2/3 | 阈值写入正确，告警需多次连续超阈值才触发（固件设计） |
+| `T-HOT-005` | 湿度告警阈值热更新 | P1 | ⚠️ 2/3 | 同上 |
+| `T-HOT-006` | 温度补偿值热更新 | P0 | ❌ FAIL | 1/3 | 补偿写入成功但 ActualTemp 未刷新（轮询周期时序问题） |
+| `T-HOT-007` | 湿度补偿值热更新 | P0 | ❌ FAIL | 0/3 | uint16 越界已修复，但 humi_1 读回 40 期望 60（测试间状态污染） |
+| `T-COMP-001` | 传感器离线后恢复 | P0 | ⚠️ 1/2 | 恢复验证 PASS，离线标记 FAIL（固件 ErRead 触发机制不符） |
+| `T-COMP-002` | 多路传感器同时失效 | P1 | ❌ FAIL | 0/1 | 多路失效时 ActualTemp 均值计算不符期望（28.3 vs 25） |
+
+**总计**：P0 项 **12 项**（通过 4 项，部分通过 5 项，失败 3 项）；P1 项 **8 项**（通过 1 项，部分通过 4 项，失败 1 项，未测 2 项）
+
+### 失败项分类
+
+| 失败原因 | 测试项 | 责任方 |
+|---------|--------|--------|
+| **固件传感器分析层**：CO2/压差数据未正确存储到 Sensor_Data | T-READ-003, T-READ-004（部分） | 固件 |
+| **固件算法**：偏差剔除逻辑与测试期望不符 | T-ABNF-003-A, T-ABNF-003-B | 固件 |
+| **固件时序**：补偿写入后 ActualTemp 未刷新 | T-HOT-006 | 固件 |
+| **固件 Modbus TCP**：对时写入后关闭连接 | T-HIST-001-A, T-HIST-001-B | 固件 |
+| **框架状态隔离**：loadFieldConfig 重置阴影寄存器 | T-HOT-007 | 测试框架 |
+| **TCP 连接**：300 秒空闲后断连 | T-ABNF-002 | lwIP 空闲超时 |
+| **固件均值算法**：多路失效时 ActualTemp 不符 | T-COMP-002 | 固件 |
+| **固件 ErRead**：超时注入后未标记 INVALID | T-COMP-001 | 固件 |
+
+### 本轮代码修改（9 个文件）
+
+| 文件 | 修复内容 |
+|------|---------|
+| `backend/ate/SensorSimulator.js` | FC04 支持 + funcCode 回显 |
+| `backend/DevicePool.js` | TCP keepalive 10 秒 + Modbus 超时 5s |
+| `backend/ate/SensorTestExecutor.js` | 补偿负数 uint16 + 等待时间优化 |
+| `backend/ate/TestScenarioCatalog.js` | 超时时间调整 |
+| `backend/.env` | DEVICE_IP + LOCAL_IP 更新 |
+| `modbus_tcp_slave_service.h` | CO2/压差寄存器定义 |
+| `modbus_tcp_slave_service.c` | sync_env_regs 补充 CO2/压差 + 修复 0 值误判 |
+| `network_config.c` | 屏蔽 PHY 复位 + 网络刷新 |
+
+### 本次修复记录
+
+| 修改 | 文件 | 说明 |
+|------|------|------|
+| FC04 支持 | `backend/ate/SensorSimulator.js` | 压差传感器使用 FC04（Read Input Registers），模拟器原先只支持 FC03，导致 9 路压差传感器返回无效值 0x7FFF |
+| PHY 复位屏蔽 | `network_config.c` | 无外网时固件每 30 秒 ping 百度失败，累计 10 次后触发以太网芯片复位，导致 Modbus TCP 连接中断 |
+| 网络刷新屏蔽 | `network_config.c` | `network_config_refresh_internet_status` 中的 `rt_stm32_eth_init()` 同样会重置以太网，一并屏蔽 |
 
 ### 版本变更历史
 
@@ -12,6 +75,7 @@
 | v1.1 | 2026-06-16 | 周伟聪 | 新增 §九 智能体（Agent）操作指南，细化工具链映射、自愈工作流结构、修复范围及前置准备清单。 |
 | v1.2 | 2026-06-16 | Antigravity | 补充 §3.3 环控器串口日志抓取的物理串口（UART-to-USB，方案一）详细接线方案、Node.js 监听代码与事件拦截机制。 |
 | v1.3 | 2026-06-16 | Antigravity | 成功打通物理串口 COM4，在 AteTest 控制面板实现默认激活、免手点展示及 RT-Thread 调试日志的 ANSI 乱码过滤广播。 |
+| v1.4 | 2026-06-19 | Antigravity | 依据《传感器自动测试内容开发清单P1》，新增 §十一 支持的完整 HIL 测试项清单，补齐各项异常过滤、历史回退、配置热更新等测试场景。 |
 
 ---
 
@@ -826,20 +890,104 @@ Agent 自动修复时，只能修改以下文件：
 | 设备不在线 | 等待 30 秒重试，最多 3 次 |
 | 修改了禁止范围文件 | 立即停止，回滚修改 |
 
-### 9.6 前置准备清单
+### 9.6 物理台架硬件环境（当前部署）
+
+> **本节所有路径、串口号、IP 地址均为当前开发电脑的配置，不同电脑需要根据实际情况修改。**
+
+| 项目 | 值 |
+| --- | --- |
+| 电脑名称 | `LAPTOP-APOC5AFT` |
+| 操作系统 | Windows 11 Home China |
+| 登录用户 | `周文超` |
+
+#### 9.6.1 固件工程与编译工具链
+
+| 项目 | 路径 / 值 |
+| --- | --- |
+| 固件工程根目录 | `E:\1. EnControl\chonggou\develop_zhouwc\sj-encontrol-220712-v1-0` |
+| BSP 目录（编译入口） | `E:\1. EnControl\chonggou\develop_zhouwc\sj-encontrol-220712-v1-0\bsp\stm32\stm32f407-atk-explorer` |
+| RT-Thread Env 工具包 | `D:\soft\down\env` |
+| GCC 编译器路径 | `D:\soft\down\env\tools\gnu_gcc\arm_gcc\mingw\bin` |
+| 编译命令 | `scons -j8`（需在 BSP 目录下执行，或设置 `RTT_EXEC_PATH` 环境变量） |
+| 编译输出产物 | `bsp/stm32/stm32f407-atk-explorer/build/bin/rtthread.hex` |
+| APP 分区起始地址 | `0x08020000` |
+
+#### 9.6.2 J-Link 烧录配置
+
+| 项目 | 值 |
+| --- | --- |
+| J-Link 工具路径 | `D:\soft\install\jlink\JLink.exe` |
+| 目标芯片 | `GD32F407VG` |
+| 调试接口 | SWD |
+| 时钟频率 | 4000 kHz |
+| 烧录脚本 | `scripts/hil/flash_gd32.jlink` |
+
+**烧录脚本内容**（`flash_gd32.jlink`）：
+```text
+si 1
+speed 4000
+device GD32F407VG
+connect
+r
+h
+loadfile E:/1. EnControl/chonggou/develop_zhouwc/sj-encontrol-220712-v1-0/bsp/stm32/stm32f407-atk-explorer/build/bin/rtthread.hex 0x08020000
+g
+q
+```
+
+**一键烧录命令**：
+```bash
+"D:\soft\install\jlink\JLink.exe" -device GD32F407VG -if SWD -speed 4000 -commanderScript scripts/hil/flash_gd32.jlink
+```
+
+#### 9.6.3 串口配置（物理接线）
+
+| 串口 | COM 口号 | 波特率 | 用途 | 硬件连接方式 |
+| --- | --- | --- | --- | --- |
+| 调试日志串口 | **COM4** | **115200** | 环控器固件 UART 调试输出（`rt_kprintf`） | 板子 TX → USB-TTL 模块 RX；板子 GND → USB-TTL GND；RX 线可不接（仅读取） |
+| RS485 传感器模拟器 | **COM8** | **9600** | SensorSimulator Modbus RTU 从站（模拟温湿度传感器） | USB-RS485 转换器连接环控器 RS485 总线（A+/B-） |
+
+> ⚠️ **注意**：调试串口（COM4）同一时间只能被一个程序打开。如果后端 `server.js` 已占用 COM4，SSCOM / Xshell 等串口助手将报 `Access denied`；反之亦然。后端具备 5 秒自动重连机制，关闭冲突程序后会自动恢复。
+
+#### 9.6.4 网络配置
+
+| 项目 | 值 |
+| --- | --- |
+| 环控器 IP | `192.168.110.125` |
+| 环控器 Modbus TCP 端口 | `1502` |
+| PC 本地 IP | `192.168.110.168` |
+| 后端 API 地址 | `http://localhost:3001` |
+| WebSocket 地址 | `ws://localhost:3001` |
+| OTA 固件地址 | `http://192.168.110.168:18080/download/SciGeneAI.rbl` |
+
+#### 9.6.5 环控器日志查看
+
+固件调试日志有以下查看方式：
+
+| 方式 | 说明 |
+| --- | --- |
+| **后端 WebSocket 实时广播** | 后端 `initMcuSerialMonitor()` 自动打开 COM4，每行日志通过 WebSocket `mcu_log` 事件推送到前端 AteTest 控制面板 |
+| **日志文件** | 后端将每行日志追加写入 `logs/firmware_runtime.log`（带 ISO 时间戳），可用 `tail -f logs/firmware_runtime.log` 实时跟踪 |
+| **串口助手（备选）** | 关闭后端后可用 SSCOM / Xshell 直接打开 COM4 @ 115200 查看原始输出 |
+
+> **固件调试日志关键关键字**（用于错误检测）：`[Assert]`、`HardFault`、`stack overflow`、`sensor_acquire timeout`、`Connection timed out: select`（Modbus RS485 从站响应超时）。
+
+### 9.7 前置准备清单
 
 在首次使用 Agent 驱动 HIL 之前，需要完成以下准备：
 
 | 序号 | 准备项 | 命令 / 操作 | 验收标准 |
 | --- | --- | --- | --- |
-| 1 | 安装 serialport | `npm install serialport` | `require('serialport')` 不报错 |
-| 2 | 创建配置文件 | 创建 `config/hil.config.json` | 配置文件存在且字段完整 |
-| 3 | 确认 JLink 路径 | 检查 `C:\Program Files (x86)\SEGGER\JLink\JLink.exe` | 文件存在 |
-| 4 | 确认串口号 | 用串口工具打开 COM1/COM4，看哪个有固件日志输出 | 确认调试串口号 |
-| 5 | 确认设备 IP | ping 环控器 IP（如 `192.168.110.125`） | ping 通 |
-| 6 | 启动后端 | `node backend/server.js` | `/api/health` 返回 200 |
-| 7 | 编译一次固件 | 在 BSP 目录执行 `scons -j8` | `build/bin/rtthread.hex` 生成 |
-| 8 | 烧录一次固件 | `JLink.exe -device GD32F407VG -if SWD -speed 4000 -commanderScript flash_gd32.jlink` | 设备重启后 Modbus TCP 可连接 |
+| 1 | 安装 Node.js 依赖 | `cd backend && npm install` | `require('serialport')` 不报错 |
+| 2 | 确认固件工程路径 | 检查 `E:\1. EnControl\chonggou\develop_zhouwc\sj-encontrol-220712-v1-0` | BSP 目录存在且包含 `SConstruct` |
+| 3 | 确认编译工具链 | 检查 `D:\soft\down\env\tools\gnu_gcc\arm_gcc\mingw\bin\arm-none-eabi-gcc.exe` | 文件存在 |
+| 4 | 确认 JLink 工具 | 检查 `D:\soft\install\jlink\JLink.exe` | 文件存在 |
+| 5 | 确认调试串口 | 后端启动日志中确认 `打开串口 COM4` 成功 | 无 `Access denied` 错误 |
+| 6 | 确认 RS485 串口 | 后端启动日志中确认 `[SensorSimulator] 已启动: COM8 @ 9600` | 模拟器启动成功 |
+| 7 | 确认设备网络 | `ping 192.168.110.125` | ping 通，延迟 < 10ms |
+| 8 | 启动后端 | `cd backend && node server.js` | 日志显示 `GD32-Web-MaxClaw 后端启动成功！` |
+| 9 | 编译一次固件 | 在 BSP 目录执行 `scons -j8`，或设置 `RTT_EXEC_PATH` 后在项目根目录执行 | `build/bin/rtthread.hex` 生成 |
+| 10 | 烧录一次固件 | 运行 `scripts/hil/flash_gd32.jlink`（见 9.6.2 节命令） | 设备重启后 `ping 192.168.110.125` 通，Modbus TCP 端口 1502 可连接 |
 
 ### 9.7 快速开始（首次运行）
 
@@ -883,8 +1031,59 @@ node backend/server.js
 
 ![环控器运行日志清洗与实时广播验证](file:///C:/Users/ASUS/.gemini/antigravity/brain/c1256968-7712-4421-97a2-776d3d82a5c2/ate_logs_updated_1781605865471.png)
 
-> [!NOTE]
 > 如图所示，在底部的“环控器运行日志”面板中，实时流出了来自 GD32 底层控制器的真实 Mesh 心跳日志：
 > `[18:30:40.105] [I/Mesh] Mesh Tx Mesh_Frame_Heart`
 > 原本夹杂其中的 `\x1b[32m` 等转义乱码已被完全清洗，日志行格式纯净、美观。
 ```
+
+---
+
+## 十一、 支持的完整 HIL 测试项清单
+
+根据 P1 阶段传感器自动化测试需求，HIL 测试环境应能闭环运行以下全部 20 个测试项。测试系统（Web ATE 后端及智能体）需具备相应用例（Scenario ID）的调度执行与结果断言能力。
+
+### 11.1 正常抄读测试
+
+| 测试项 ID | 测试名称 | 验证目标 | 优先级 |
+| :--- | :--- | :--- | :---: |
+| `T-READ-001` | 室内温度传感器抄读 | 验证 16 路温度正常读取及 `ActualTemp` 平均值计算 | P0 |
+| `T-READ-002` | 室内湿度传感器抄读 | 验证 16 路湿度正常读取及 `ActualHumi` 平均值计算 | P0 |
+| `T-READ-003` | 压差传感器抄读 | 验证 4 路压差值正常采集换算 | P0 |
+| `T-READ-004` | CO2 传感器抄读 | 验证 8 路 CO2 浓度值正常采集 | P0 |
+
+### 11.2 异常过滤测试
+
+| 测试项 ID | 测试名称 | 验证目标 | 优先级 |
+| :--- | :--- | :--- | :---: |
+| `T-ABNF-001` | 通信失败 ErRead 过滤 | 验证连续 10 次超时后数据被标记无效并剔除 | P0 |
+| `T-ABNF-002` | 数值不变 ErMax 过滤 | 验证连续 100 次读数不变触发异常隔离 | P1 |
+| `T-ABNF-003-A` | 奇数路温度偏差剔除 | 验证 5 路部署下偏离中位数 ±10℃ 的离群值被剔除 | P0 |
+| `T-ABNF-003-B` | 偶数路温度偏差剔除 | 验证 4 路部署下离群值剔除及中间值均分逻辑 | P0 |
+
+### 11.3 历史回退测试
+
+| 测试项 ID | 测试名称 | 验证目标 | 优先级 |
+| :--- | :--- | :--- | :---: |
+| `T-HIST-001-A` | 三组历史数据冻结 | 验证跨小时历史缓冲能够正确保存预设温湿度 | P0 |
+| `T-HIST-001-B` | 启动历史回退验证 | 验证重启且传感器持续异常时，系统能回退至当前小时的历史值 | P0 |
+| `T-HIST-003` | 历史数据更新与对时跳变防污染 | 验证对时发生跳变时，历史缓冲不会被意外写入脏数据 | P0 |
+
+### 11.4 配置热更新测试
+
+| 测试项 ID | 测试名称 | 验证目标 | 优先级 |
+| :--- | :--- | :--- | :---: |
+| `T-HOT-001` | 传感器启用热更新 | 验证安装位置为启用后，无需重启即刻生效 | P0 |
+| `T-HOT-002` | 传感器禁用热更新 | 验证禁用后系统停止采集并进入屏蔽状态 | P0 |
+| `T-HOT-003` | RS485 端口切换热更新 | 验证更改串口分配后，旧端口停用，新端口生效 | P1 |
+| `T-HOT-004` | 温度告警阈值热更新 | 验证报警高低限变更后即时生效 | P1 |
+| `T-HOT-005` | 湿度告警阈值热更新 | 验证报警高低限变更后即时生效 | P1 |
+| `T-HOT-006` | 温度补偿值热更新 | 验证修改偏置补偿后读取值同步偏移 | P0 |
+| `T-HOT-007` | 湿度补偿值热更新 | 验证修改偏置补偿后读取值同步偏移 | P0 |
+
+### 11.5 综合并发场景测试
+
+| 测试项 ID | 测试名称 | 验证目标 | 优先级 |
+| :--- | :--- | :--- | :---: |
+| `T-COMP-001` | 传感器离线后恢复 | 验证产生 ErRead 告警后，恢复正常应答，系统自动恢复为在线且告警清除 | P0 |
+| `T-COMP-002` | 多路传感器同时失效 | 验证多路离线情况下系统不崩溃，且均值计算按剩余有效路进行 | P1 |
+

@@ -1,0 +1,37 @@
+{
+  "reportVersion": "2.1",
+  "reportType": "sensor-batch",
+  "generatedAt": "2026-06-19T10:10:56.670Z",
+  "deviceInfo": {},
+  "fieldType": "A",
+  "summary": {
+    "total": 1,
+    "passed": 0,
+    "failed": 1,
+    "skipped": 0,
+    "passRate": "0.0%"
+  },
+  "scenarios": [
+    {
+      "scenarioId": "T-ABNF-002",
+      "scenarioName": "数值不变 ErMax 过滤",
+      "conclusion": "异常",
+      "skipReason": null,
+      "duration": 300011,
+      "assertionCount": 1,
+      "failureCount": 1,
+      "assertions": [
+        {
+          "pass": false,
+          "code": "ERMAX_NOT_SET",
+          "expected": true,
+          "actual": false,
+          "message": "ErMax 告警未置位"
+        }
+      ],
+      "inputs": null,
+      "transactionLog": [],
+      "cleanupResult": null
+    }
+  ]
+}

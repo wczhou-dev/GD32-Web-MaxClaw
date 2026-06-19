@@ -1,0 +1,29 @@
+{
+  "reportVersion": "2.1",
+  "reportType": "sensor-batch",
+  "generatedAt": "2026-06-19T09:49:42.533Z",
+  "deviceInfo": {},
+  "fieldType": "A",
+  "summary": {
+    "total": 1,
+    "passed": 0,
+    "failed": 1,
+    "skipped": 0,
+    "passRate": "0.0%"
+  },
+  "scenarios": [
+    {
+      "scenarioId": "T-HIST-003",
+      "scenarioName": "历史数据更新与对时跳变防污染",
+      "conclusion": "异常",
+      "skipReason": null,
+      "duration": 3001,
+      "assertionCount": 0,
+      "failureCount": 0,
+      "assertions": [],
+      "inputs": null,
+      "transactionLog": [],
+      "cleanupResult": null
+    }
+  ]
+}

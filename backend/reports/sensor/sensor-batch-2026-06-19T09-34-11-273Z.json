@@ -1,0 +1,51 @@
+{
+  "reportVersion": "2.1",
+  "reportType": "sensor-batch",
+  "generatedAt": "2026-06-19T09:34:11.273Z",
+  "deviceInfo": {},
+  "fieldType": "A",
+  "summary": {
+    "total": 1,
+    "passed": 0,
+    "failed": 1,
+    "skipped": 0,
+    "passRate": "0.0%"
+  },
+  "scenarios": [
+    {
+      "scenarioId": "T-HOT-004",
+      "scenarioName": "温度告警阈值热更新",
+      "conclusion": "异常",
+      "skipReason": null,
+      "duration": 25456,
+      "assertionCount": 3,
+      "failureCount": 1,
+      "assertions": [
+        {
+          "pass": true,
+          "code": null,
+          "expected": 280,
+          "actual": 280,
+          "message": "阈值回读: 280, 期望: 280"
+        },
+        {
+          "pass": false,
+          "code": "VALUE_NOT_EQUAL",
+          "expected": true,
+          "actual": false,
+          "message": "超阈值后告警: false"
+        },
+        {
+          "pass": true,
+          "code": null,
+          "expected": false,
+          "actual": false,
+          "message": "恢复后告警清除: false"
+        }
+      ],
+      "inputs": null,
+      "transactionLog": [],
+      "cleanupResult": null
+    }
+  ]
+}

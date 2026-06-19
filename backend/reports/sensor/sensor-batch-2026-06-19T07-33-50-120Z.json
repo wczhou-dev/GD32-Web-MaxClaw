@@ -1,0 +1,29 @@
+{
+  "reportVersion": "2.1",
+  "reportType": "sensor-batch",
+  "generatedAt": "2026-06-19T07:33:50.120Z",
+  "deviceInfo": {},
+  "fieldType": "A",
+  "summary": {
+    "total": 1,
+    "passed": 0,
+    "failed": 1,
+    "skipped": 0,
+    "passRate": "0.0%"
+  },
+  "scenarios": [
+    {
+      "scenarioId": "T-READ-002",
+      "scenarioName": "室内湿度传感器抄读",
+      "conclusion": "异常",
+      "skipReason": null,
+      "duration": 15009,
+      "assertionCount": 0,
+      "failureCount": 0,
+      "assertions": [],
+      "inputs": null,
+      "transactionLog": [],
+      "cleanupResult": null
+    }
+  ]
+}

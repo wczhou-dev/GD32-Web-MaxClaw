@@ -1,0 +1,29 @@
+{
+  "reportVersion": "2.1",
+  "reportType": "sensor-batch",
+  "generatedAt": "2026-06-19T09:29:02.982Z",
+  "deviceInfo": {},
+  "fieldType": "A",
+  "summary": {
+    "total": 1,
+    "passed": 0,
+    "failed": 1,
+    "skipped": 0,
+    "passRate": "0.0%"
+  },
+  "scenarios": [
+    {
+      "scenarioId": "T-HOT-006",
+      "scenarioName": "温度补偿值热更新",
+      "conclusion": "异常",
+      "skipReason": null,
+      "duration": 10015,
+      "assertionCount": 0,
+      "failureCount": 0,
+      "assertions": [],
+      "inputs": null,
+      "transactionLog": [],
+      "cleanupResult": null
+    }
+  ]
+}

@@ -46,7 +46,7 @@ class DevicePool {
 
         const client = new ModbusRTU();
         client.setID(config.unitId || 1);
-        client.setTimeout(config.timeoutMs || 3000);
+        client.setTimeout(config.timeoutMs || 5000);
 
         const deviceInfo = {
             ip: config.ip,
@@ -146,6 +146,14 @@ class DevicePool {
             await device.client.connectTCP(device.info.ip, {
                 port: device.info.port
             });
+
+            // 启用 TCP keepalive 防止 lwIP 空闲超时断连
+            try {
+                const sock = device.client._client;
+                if (sock && typeof sock.setKeepAlive === 'function') {
+                    sock.setKeepAlive(true, 10000);  // 10 秒 keepalive
+                }
+            } catch (_) { /* keepalive 设置失败不影响主流程 */ }
 
             device.status = 'CONNECTED';
             device.info.timeoutCount = 0;

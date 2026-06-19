@@ -186,9 +186,26 @@ async function main() {
       console.log(`[SensorSimulator] 已加载场区配置: ${fieldType}`);
 
       // 初始化全部 16 路传感器的影子寄存器
-      // 固件 sensor_map.c 默认从站地址表:
-      const fwSlaveAddrs = [0x01,0x02,0x03,0x07,0x08,0x09,0x19,0x1A,0x1B,0x1C,0x1D,0x1E,0x1F,0x20,0x21,0x22];
+      // 固件 sensor_map.c DONGYING/GUCHENG 版从站地址表 (匹配 rtconfig.h KEIL_VERSION_DONGYING):
+      const fwSlaveAddrs = [0x01,0x02,0x03,0x07,0x08,0x09,0x50,0x1A,0x1B,0x1C,0x1D,0x1E,0x1F,0x51,0x33,0x34];
       fwSlaveAddrs.forEach((addr, i) => {
+        // 注册 _sensorKeyMap（让 _findSensorKey 能找到）
+        const key = 'temp_' + (i + 1);
+        const humiKey = 'humi_' + (i + 1);
+        // 固件寄存器顺序: reg0=湿度(HUM_INDEX), reg1=温度(TEM_INDEX)
+        sensorSimulator._sensorKeyMap.set(key, {
+            slaveAddr: addr,
+            registerAddr: 0x0001,  // temp → register 1
+            registerCount: 1,
+            scale: 10,
+          });
+        sensorSimulator._sensorKeyMap.set(humiKey, {
+            slaveAddr: addr,
+            registerAddr: 0x0000,  // humi → register 0
+            registerCount: 1,
+            scale: 10,
+          });
+        // 初始化影子寄存器
         if (!sensorSimulator._shadowRegisters.has(addr)) {
           sensorSimulator._shadowRegisters.set(addr, new Map());
         }
@@ -476,13 +493,17 @@ async function main() {
     try {
         const device = devicePool.getAllDevices().find(d => d.enabled);
         if (device) {
-            // 0x700A = 温度传感器安装位掩码, 0x700B = 湿度传感器安装位掩码
-            // bit1 = 1 → 启用传感器 #2 (从站地址 0x02)
+            // 从环境变量或默认值读取传感器安装掩码
+            const tempMask = parseInt(process.env.SENSOR_TEMP_MASK || '0xFFFF', 16);
+            const humiMask = parseInt(process.env.SENSOR_HUMI_MASK || '0xFFFF', 16);
             await devicePool.runExclusive(device.key, async () => {
-                await devicePool.writeRegister(device.key, 0x700A, 0x0002);  // 温度: sensor#2
-                await devicePool.writeRegister(device.key, 0x700B, 0x0002);  // 湿度: sensor#2
+                await devicePool.writeRegister(device.key, 0x700A, tempMask);
+                await devicePool.writeRegister(device.key, 0x700B, humiMask);
+                // CO2: 8路 (bit0~7), 压差: 4路 (bit0~3)
+                await devicePool.writeRegister(device.key, 0x700C, 0x00FF);  // CO2 全部8路
+                await devicePool.writeRegister(device.key, 0x700E, 0x000F);  // 压差 全部4路
             });
-            console.log('[SensorConfig] 已配置传感器安装掩码: temp=0x0002 humi=0x0002 (sensor#2 @ slave 0x02)');
+            console.log(`[SensorConfig] 传感器安装掩码: temp=0x${tempMask.toString(16).padStart(4,'0')} humi=0x${humiMask.toString(16).padStart(4,'0')}`);
         }
     } catch (err) {
         console.warn('[SensorConfig] 传感器配置写入失败:', err.message);

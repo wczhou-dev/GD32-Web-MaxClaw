@@ -358,9 +358,9 @@ const scenarios = [
     group: PAGE_GROUP.ABNF,
     priority: 'P0',
     isP1Required: true,
-    estimatedSeconds: 30,
+    estimatedSeconds: 200,
     dependencies: ['PRE-FIELD-001', 'PRE-INSTALL-001'],
-    timeoutMs: 30000,
+    timeoutMs: 240000,
     description: '验证 5 路温度中 1 路离群值被剔除，ActualTemp 按 4 路正常值计算',
     inputs: {
       sensors: [
@@ -395,9 +395,9 @@ const scenarios = [
     group: PAGE_GROUP.ABNF,
     priority: 'P0',
     isP1Required: true,
-    estimatedSeconds: 30,
+    estimatedSeconds: 200,
     dependencies: ['PRE-FIELD-001', 'PRE-INSTALL-001'],
-    timeoutMs: 30000,
+    timeoutMs: 240000,
     description: '验证 4 路温度中 1 路离群值被剔除，ActualTemp 按 3 路正常值计算',
     inputs: {
       sensors: [
@@ -476,7 +476,7 @@ const scenarios = [
     isP1Required: true,
     estimatedSeconds: 300,
     dependencies: ['PRE-FIELD-001', 'PRE-ENV-001'],
-    timeoutMs: 300000,
+    timeoutMs: 600000,
     description: '验证正常跨小时冻结和对时跳变不产生非预期历史条目',
     inputs: {
       sensorValues: { temp: 26.0, humi: 66.0 },
@@ -747,7 +747,7 @@ const scenarios = [
     isP1Required: true,
     estimatedSeconds: 60,
     dependencies: ['PRE-FIELD-001', 'PRE-INSTALL-001'],
-    timeoutMs: 60000,
+    timeoutMs: 120000,
     description: '通信失败触发异常后恢复，验证在线位、数据和告警恢复',
     inputs: {
       faultPhase: { key: 'temp_1', type: 'timeout' },

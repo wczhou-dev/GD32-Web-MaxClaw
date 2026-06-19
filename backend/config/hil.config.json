@@ -20,7 +20,7 @@
     "logFile": "logs/firmware_runtime.log"
   },
   "test": {
-    "deviceIp": "192.168.110.125",
+    "deviceIp": "192.168.10.110",
     "devicePort": 502,
     "ateApiUrl": "http://localhost:3000"
   }

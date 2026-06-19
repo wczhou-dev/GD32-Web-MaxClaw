@@ -187,6 +187,11 @@ class SensorSimulator extends EventEmitter {
     }
 
     this._currentFieldConfig = config;
+
+    // 保存已有的从站地址映射（固件 sensor_map.c 的地址可能与场区配置不同）
+    const prevShadow = new Map(this._shadowRegisters);
+    const prevKeyMap = new Map(this._sensorKeyMap);
+
     this._shadowRegisters.clear();
     this._sensorKeyMap.clear();
 
@@ -194,12 +199,12 @@ class SensorSimulator extends EventEmitter {
     for (const sensor of config.tempHumi.indoor) {
       const idx = sensor.index || parseInt(sensor.key.split('_')[1]);
       this._initSensor(sensor.key, sensor.slaveAddr, 0x0000, 2, 10);  // temp
-      this._initSensor(`humi_${idx}`, sensor.slaveAddr, 0x0000, 2, 10);  // humi（同一从站）
+      this._initSensor(`humi_${idx}`, sensor.slaveAddr, 0x0001, 1, 10);  // humi → register 1 (匹配固件 HUM_INDEX)
     }
 
-    // 初始化 CO2 传感器
+    // 初始化 CO2 传感器 (固件 CO2_START_ADDR=0x0002)
     for (const sensor of config.co2) {
-      this._initSensor(sensor.key, sensor.slaveAddr, 0x0000, 1, 1);
+      this._initSensor(sensor.key, sensor.slaveAddr, 0x0002, 1, 1);
     }
 
     // 初始化压差传感器
@@ -210,6 +215,14 @@ class SensorSimulator extends EventEmitter {
     // 初始化氨气传感器
     for (const sensor of config.nh3) {
       this._initSensor(sensor.key, sensor.slaveAddr, 0x0000, 1, 1);
+    }
+
+    // 合并回之前存在的从站地址（固件 sensor_map.c 的地址优先覆盖）
+    for (const [addr, regs] of prevShadow) {
+      this._shadowRegisters.set(addr, regs);
+    }
+    for (const [key, mapping] of prevKeyMap) {
+      this._sensorKeyMap.set(key, mapping);
     }
 
     console.log(`[SensorSimulator] 已加载场区: ${config.name} (${fieldType}), 影子寄存器: ${this._shadowRegisters.size} 从站`);
@@ -254,14 +267,8 @@ class SensorSimulator extends EventEmitter {
     // 温度：int16, val*scale；湿度/压差：uint16, val*scale
     const rawValue = Math.round(value * scale);
 
-    // 温湿度传感器：寄存器 0=温度, 1=湿度
-    if (key.startsWith('temp_')) {
-      slaveRegs.set(registerAddr, rawValue & 0xFFFF);
-    } else if (key.startsWith('humi_')) {
-      slaveRegs.set(registerAddr + 1, rawValue & 0xFFFF);
-    } else {
-      slaveRegs.set(registerAddr, rawValue & 0xFFFF);
-    }
+    // 温湿度传感器：直接写入 registerAddr（由 _sensorKeyMap 设置正确的寄存器地址）
+    slaveRegs.set(registerAddr, rawValue & 0xFFFF);
 
     // 清除该 key 的故障状态
     this._faults.delete(key);
@@ -563,8 +570,9 @@ class SensorSimulator extends EventEmitter {
     const slaveAddr = buf[0];
     const funcCode = buf[1];
 
-    // 功能码 0x03：读保持寄存器
-    if (funcCode === 0x03) {
+    // 功能码 0x03 / 0x04：读保持寄存器 / 读输入寄存器
+    // 帧格式完全一致，共用同一套影子寄存器（压差传感器等使用 FC04）
+    if (funcCode === 0x03 || funcCode === 0x04) {
       // 请求帧：从站地址(1) + 功能码(1) + 起始地址(2) + 寄存器数量(2) + CRC(2) = 8
       if (buf.length < 8) return -1;
 
@@ -579,7 +587,7 @@ class SensorSimulator extends EventEmitter {
         return 8;  // 跳过这个帧
       }
 
-      this._handleReadHoldingRegisters(slaveAddr, startAddr, regCount);
+      this._handleReadRegisters(slaveAddr, funcCode, startAddr, regCount);
       return 8;
     }
 
@@ -616,9 +624,9 @@ class SensorSimulator extends EventEmitter {
   }
 
   /**
-   * 处理读保持寄存器请求
+   * 处理读寄存器请求（FC03 保持寄存器 / FC04 输入寄存器）
    */
-  _handleReadHoldingRegisters(slaveAddr, startAddr, regCount) {
+  _handleReadRegisters(slaveAddr, funcCode, startAddr, regCount) {
     const key = this._findSensorKey(slaveAddr);
 
     // 检查故障状态
@@ -640,7 +648,7 @@ class SensorSimulator extends EventEmitter {
           // 发送错误 CRC 响应
           if (fault.params.sent < fault.params.count) {
             fault.params.sent++;
-            this._sendCrcErrorResponse(slaveAddr, 0x03, startAddr, regCount);
+            this._sendCrcErrorResponse(slaveAddr, funcCode, startAddr, regCount);
             this._logTransaction({
               action: 'crc_error_response',
               slaveAddr,
@@ -684,7 +692,7 @@ class SensorSimulator extends EventEmitter {
       respData[2 + i * 2] = values[i] & 0xFF;
     }
 
-    this._sendResponse(slaveAddr, 0x03, respData);
+    this._sendResponse(slaveAddr, funcCode, respData);
 
     this._logTransaction({
       action: 'read_response',
