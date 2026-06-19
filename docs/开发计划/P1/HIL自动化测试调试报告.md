@@ -1128,6 +1128,15 @@ node scripts/test-sensor-mock.js
 | 变更 | 增加 `historySupported` 标志；`readHistoryTail` 抛错时标记为跳过而非失败；T-HIST-003 在固件不支持历史缓冲时输出 `HISTORY_NOT_SUPPORTED` 并跳过污染检测 |
 | 预期效果 | 历史回退测试在固件不支持 0x7100-0x7111 时以 skip 通过，而非 fail |
 
+#### 修改 7：T-HOT-005 湿度告警 enableBit 写入
+
+| 项目 | 内容 |
+|:---|:---|
+| 文件 | `server.js`, `backend/ate/TestManager.js`, `backend/ate/SensorTestExecutor.js` |
+| 关键变更 | **server.js**: 新增 `AteTcpClient` 创建 (端口 9001)，注入 `testManager`。**TestManager**: 新增 `setAteClient()` 方法。**SensorTestExecutor**: 构造函数新增 `ateClient`；新增 `_writeAlarmEnable()` 方法；`_execHotThreshold` 湿度分支测试前写入 `highHumiRca: 1`，测试后恢复为 `0` |
+| 原理 | 湿度高限告警 enableBit 固件默认关闭，需通过 JSON 属性协议 (`AlarmThresholdSet`) 使能 |
+| 预期效果 | T-HOT-005 告警可在 30s 内正确触发 |
+
 ### 13.3 关键寄存器说明 (补充)
 
 | 寄存器 | 地址 | 类型 | 说明 |
@@ -1175,7 +1184,7 @@ node scripts/test-sensor-mock.js
 |:---|:---|:---|
 | 历史缓冲调试寄存器 | 实现 0x7100-0x7107 (读取) 和 0x7110-0x7111 (清空) | T-HIST-001, T-HIST-003 |
 
-### 13.7 告警使能位 (enableBit) 分析
+### 13.7 告警使能位 (enableBit) 分析与修复
 
 **发现**: 告警 enableBit 不是 Modbus 寄存器，而是通过 JSON 属性协议 (`AlarmThresholdSet`) 下发到固件 `App_Save.alarm.enableBit`。详见 [ModbusTCP寄存器映射表.md §5.8](../ModbusTCP寄存器映射表.md#58-告警使能位-enablebit--json-属性协议)。
 
@@ -1186,12 +1195,15 @@ node scripts/test-sensor-mock.js
 | `highTempRca` | 温度高限告警使能 | **1 (开启)** | T-HOT-004 可正常触发 |
 | `highHumiRca` | 湿度高限告警使能 | **0 (关闭)** | **T-HOT-005 无法触发** |
 
-**结论**: T-HOT-005 (湿度告警) 失败的根因是**湿度告警 enableBit 默认关闭**。测试前需通过 JSON 属性协议写入 `highHumiRca: 1` 使能。
+**结论**: T-HOT-005 (湿度告警) 失败的根因是**湿度告警 enableBit 默认关闭**。
 
-**修复方案**: 在 `_execHotThreshold` 方法中，湿度告警测试前增加 enableBit 写入步骤:
-1. 通过 `AteTcpClient.writeConfig()` 发送 `AlarmThresholdSet: { highHumiRca: 1 }`
-2. 测试完成后恢复原始 enableBit
-3. 需要将 `ateClient` 引入 `SensorTestExecutor` 依赖
+**已实施修复**:
+1. `server.js`: 创建 `AteTcpClient` (端口 9001)，通过 `testManager.setAteClient()` 注入
+2. `TestManager.js`: 新增 `setAteClient()` 方法，传递到 `SensorTestExecutor`
+3. `SensorTestExecutor.js`: 
+   - 构造函数新增 `ateClient` 参数
+   - 新增 `_writeAlarmEnable(config)` 方法，通过 `ateClient.writeConfig()` 发送 JSON 命令
+   - `_execHotThreshold` 湿度分支：测试前写入 `highHumiRca: 1`，测试后恢复为 `0`
 
 ---
 

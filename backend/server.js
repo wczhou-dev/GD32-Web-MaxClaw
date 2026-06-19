@@ -24,6 +24,7 @@ const WebSocketManager = require('./WebSocketMgr');
 const OTAHandler = require('./OTAHandler');
 const createOtaRouter = require('./api/ota');
 const AteTcpClient = require('./ate/AteTcpClient');
+const MshClient = require('./ate/MshClient');
 const TestManager = require('./ate/TestManager');
 const SensorSimulator = require('./ate/SensorSimulator');
 const HilSessionManager = require('./ate/HilSessionManager');
@@ -178,6 +179,14 @@ async function main() {
     });
     testManager.setAteClient(ateClient);
     console.log('[ATE] AteTcpClient 初始化完成 (端口 9001)');
+
+    // 初始化 MSH 调试串口客户端 (用于历史缓冲读写)
+    const mshClient = new MshClient({
+      port: process.env.DEBUG_UART_PORT || 'COM4',
+      baudRate: parseInt(process.env.DEBUG_UART_BAUD) || 115200,
+    });
+    testManager.setMshClient(mshClient);
+    console.log('[MSH] MshClient 初始化完成 (端口 ' + (process.env.DEBUG_UART_PORT || 'COM4') + ')');
 
     // 初始化传感器模拟器（支持 Mock 和真实串口模式）
     console.log('\n[Step 4.6] Initializing SensorSimulator...');

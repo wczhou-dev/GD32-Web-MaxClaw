@@ -267,6 +267,13 @@ class TestManager extends EventEmitter {
   }
 
   /**
+   * 设置 MSH 调试串口客户端 (用于历史缓冲读写)
+   */
+  setMshClient(mshClient) {
+    this._mshClient = mshClient;
+  }
+
+  /**
    * 获取场景目录
    * @returns {TestScenarioCatalog}
    */
@@ -306,6 +313,7 @@ class TestManager extends EventEmitter {
       deviceKey,
       fieldType,
       ateClient: this._ateClient,
+      mshClient: this._mshClient,
     });
 
     // 转发执行器事件

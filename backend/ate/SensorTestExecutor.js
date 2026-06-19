@@ -46,6 +46,7 @@ class SensorTestExecutor extends EventEmitter {
    * @param {string} options.deviceKey
    * @param {string} [options.fieldType='A']
    * @param {AteTcpClient} [options.ateClient] - ATE TCP 客户端 (JSON 协议)
+   * @param {MshClient} [options.mshClient] - MSH 调试串口客户端 (历史缓冲读写)
    */
   constructor(options = {}) {
     super();
@@ -54,6 +55,7 @@ class SensorTestExecutor extends EventEmitter {
     this._deviceKey = options.deviceKey;
     this._fieldType = options.fieldType || 'A';
     this._ateClient = options.ateClient || null;
+    this._mshClient = options.mshClient || null;
     this._currentFieldType = null;  // 跟踪当前场区类型，避免重复重置
     this._assertEngine = new AssertEngine();
     this._stateReader = new ControllerStateReader({
