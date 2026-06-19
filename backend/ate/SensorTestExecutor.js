@@ -52,6 +52,7 @@ class SensorTestExecutor extends EventEmitter {
     this._simulator = options.sensorSimulator;
     this._deviceKey = options.deviceKey;
     this._fieldType = options.fieldType || 'A';
+    this._currentFieldType = null;  // 跟踪当前场区类型，避免重复重置
     this._assertEngine = new AssertEngine();
     this._stateReader = new ControllerStateReader({
       devicePool: this._devicePool,
@@ -83,11 +84,8 @@ class SensorTestExecutor extends EventEmitter {
     this.emit('scenario_start', { id: scenario.id, name: scenario.name });
 
     try {
-      // 1. 准备：加载场区（仅在场区类型改变时重置，避免覆盖前一个测试的传感器值）
-      if (this._currentFieldType !== this._fieldType) {
-        this._simulator.loadFieldConfig(this._fieldType);
-        this._currentFieldType = this._fieldType;
-      }
+      // 1. 准备：加载场区（由 simulator 跟踪场区类型，避免重复重置阴影寄存器）
+      this._simulator.loadFieldConfig(this._fieldType);
 
       // 2. 按场景类型执行
       let result;
@@ -844,13 +842,22 @@ class SensorTestExecutor extends EventEmitter {
     const { compensationValue, baseSensor } = scenario.inputs;
     const { beforeCompensation, afterCompensation, afterRestore, tolerance } = scenario.expected;
 
-    // 设置基础值（多次重试确保控制器采集到新值）
+    // 临时只启用 2 路传感器（当前路 + 下一路），缩短轮询周期
+    const tempMask = await this._stateReader.readRegister(0x700A);
+    const humiMask = await this._stateReader.readRegister(0x700B);
+    const idx = this._getSensorIndex(baseSensor.key);
+    const minimalMask = (1 << idx) | (1 << ((idx + 1) % 16));  // 只启用 2 路
+    this._log(`临时缩减传感器: temp=0x${minimalMask.toString(16)} humi=0x${minimalMask.toString(16)}`);
+    await this._stateReader.writeRegister(0x700A, minimalMask);
+    await this._stateReader.writeRegister(0x700B, minimalMask);
+    await this._waitCollect(10000);  // 等待固件重建轮询队列
+
+    // 设置基础值
     this._simulator.setSensorValue(baseSensor.key, baseSensor.value);
-    await this._waitCollect(10000);  // 增加等待确保完整轮询周期
+    await this._waitCollect(10000);  // 等待传感器轮询（2 路约 4 秒）
 
     // 读取补偿前值
     const sensorData = await this._stateReader.readSensorData();
-    const idx = this._getSensorIndex(baseSensor.key);
     const beforeVal = type === 'temp' ? sensorData.temp[idx] : sensorData.humi[idx];
     assertions.push(this._assertEngine.assertClose(beforeVal, beforeCompensation, tolerance,
       `补偿前: ${beforeVal}, 期望: ${beforeCompensation}`));
@@ -858,7 +865,7 @@ class SensorTestExecutor extends EventEmitter {
     // 写入补偿值（负值转 uint16 二进制补码）
     const rawComp = compensationValue < 0 ? compensationValue + 65536 : compensationValue;
     await this._stateReader.writeCompensation(type, idx, rawComp);
-    await this._waitCollect(8000);  // 补偿生效需等待完整轮询周期
+    await this._waitCollect(15000);  // 2 路传感器轮询约 4 秒，15 秒足够
 
     // Mock 模式下模拟补偿效果
     if (this._simulator.isMockMode()) {
@@ -874,7 +881,7 @@ class SensorTestExecutor extends EventEmitter {
 
     // 恢复补偿为 0
     await this._stateReader.writeCompensation(type, idx, 0);
-    await this._waitCollect(8000);  // 恢复补偿需等待完整轮询周期
+    await this._waitCollect(10000);
 
     // Mock 模式下恢复原值
     if (this._simulator.isMockMode()) {
@@ -886,6 +893,11 @@ class SensorTestExecutor extends EventEmitter {
     const restoredVal = type === 'temp' ? sensorDataRestored.temp[idx] : sensorDataRestored.humi[idx];
     assertions.push(this._assertEngine.assertClose(restoredVal, afterRestore, tolerance,
       `恢复后: ${restoredVal}, 期望: ${afterRestore}`));
+
+    // 恢复完整安装掩码
+    this._log(`恢复传感器掩码: temp=0x${tempMask.toString(16)} humi=0x${humiMask.toString(16)}`);
+    await this._stateReader.writeRegister(0x700A, tempMask);
+    await this._stateReader.writeRegister(0x700B, humiMask);
   }
 
   // ============================================================

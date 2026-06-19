@@ -88,6 +88,9 @@ class SensorSimulator extends EventEmitter {
 
     /** 运行状态 */
     this._running = false;
+
+    /** 当前已加载的场区类型（避免重复加载） */
+    this._loadedFieldType = null;
   }
 
   // ============================================================
@@ -178,6 +181,11 @@ class SensorSimulator extends EventEmitter {
    * @param {string} fieldType 'A' | 'B' | 'C'
    */
   loadFieldConfig(fieldType) {
+    // 避免重复加载同一场区（保留已设置的传感器值）
+    if (this._loadedFieldType === fieldType && this._shadowRegisters.size > 0) {
+      console.log(`[SensorSimulator] 场区 ${fieldType} 已加载，跳过重置`);
+      return;
+    }
     const configPath = `./fieldConfigs/fieldType${fieldType}`;
     let config;
     try {
@@ -226,6 +234,7 @@ class SensorSimulator extends EventEmitter {
     }
 
     console.log(`[SensorSimulator] 已加载场区: ${config.name} (${fieldType}), 影子寄存器: ${this._shadowRegisters.size} 从站`);
+    this._loadedFieldType = fieldType;
     this.emit('fieldLoaded', { fieldType, name: config.name });
   }
 

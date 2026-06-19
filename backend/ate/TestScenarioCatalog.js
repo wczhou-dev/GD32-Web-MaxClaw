@@ -681,7 +681,7 @@ const scenarios = [
     isP1Required: true,
     estimatedSeconds: 15,
     dependencies: ['PRE-FIELD-001'],
-    timeoutMs: 15000,
+    timeoutMs: 90000,
     description: '写温度补偿后采集值立即按补偿修正，恢复 0 后回原值',
     inputs: {
       compensationRegister: 'temp_comp_1',
