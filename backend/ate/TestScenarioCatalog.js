@@ -164,7 +164,7 @@ const scenarios = [
     inputs: {
       sensors: Array.from({ length: 16 }, (_, i) => ({
         key: `temp_${i + 1}`,
-        value: 20.0 + i * 1.0,  // 20.0~35.0℃
+        value: 25.0 + i * 1.0,  // 25.0~40.0℃ (避开固件默认值 20℃)
         unit: 'C',
         scale: 10,
       })),
@@ -361,20 +361,33 @@ const scenarios = [
     estimatedSeconds: 200,
     dependencies: ['PRE-FIELD-001', 'PRE-INSTALL-001'],
     timeoutMs: 240000,
-    description: '验证 5 路温度中 1 路离群值被剔除，ActualTemp 按 4 路正常值计算',
+    description: '验证全部 16 路温度中 1 路离群值被剔除，ActualTemp 按 15 路正常值计算',
     inputs: {
+      // 固件用全部 16 路已安装传感器算平均，必须设置所有 16 路
+      // 正常值 30℃ (与固件默认值 20~35℃ 不重合), 离群值 70℃
       sensors: [
-        { key: 'temp_1', value: 20.0 },
-        { key: 'temp_2', value: 20.5 },
-        { key: 'temp_3', value: 20.2 },
-        { key: 'temp_4', value: 20.8 },
-        { key: 'temp_5', value: 50.0 },  // 离群值
+        { key: 'temp_1', value: 30.0 },
+        { key: 'temp_2', value: 30.0 },
+        { key: 'temp_3', value: 30.0 },
+        { key: 'temp_4', value: 30.0 },
+        { key: 'temp_5', value: 70.0 },  // 离群值
+        { key: 'temp_6', value: 30.0 },
+        { key: 'temp_7', value: 30.0 },
+        { key: 'temp_8', value: 30.0 },
+        { key: 'temp_9', value: 30.0 },
+        { key: 'temp_10', value: 30.0 },
+        { key: 'temp_11', value: 30.0 },
+        { key: 'temp_12', value: 30.0 },
+        { key: 'temp_13', value: 30.0 },
+        { key: 'temp_14', value: 30.0 },
+        { key: 'temp_15', value: 30.0 },
+        { key: 'temp_16', value: 30.0 },
       ],
-      enabledCount: 5,
+      enabledCount: 16,
     },
     expected: {
       actualRegister: 0x103B,
-      expectedActual: (20.0 + 20.5 + 20.2 + 20.8) / 4,  // 20.375
+      expectedActual: 30.0,
       tolerance: 0.2,
       deviation剔除Threshold: 10.0,
     },
@@ -398,19 +411,33 @@ const scenarios = [
     estimatedSeconds: 200,
     dependencies: ['PRE-FIELD-001', 'PRE-INSTALL-001'],
     timeoutMs: 240000,
-    description: '验证 4 路温度中 1 路离群值被剔除，ActualTemp 按 3 路正常值计算',
+    description: '验证全部 16 路温度中 1 路离群值被剔除，ActualTemp 按 15 路正常值计算',
     inputs: {
+      // 固件用全部 16 路已安装传感器算平均，必须设置所有 16 路
+      // 正常值 30℃ (与固件默认值 20~35℃ 不重合), 离群值 70℃
       sensors: [
-        { key: 'temp_1', value: 20.0 },
-        { key: 'temp_2', value: 20.5 },
-        { key: 'temp_3', value: 20.2 },
-        { key: 'temp_4', value: 50.0 },  // 离群值
+        { key: 'temp_1', value: 30.0 },
+        { key: 'temp_2', value: 30.0 },
+        { key: 'temp_3', value: 30.0 },
+        { key: 'temp_4', value: 70.0 },  // 离群值
+        { key: 'temp_5', value: 30.0 },
+        { key: 'temp_6', value: 30.0 },
+        { key: 'temp_7', value: 30.0 },
+        { key: 'temp_8', value: 30.0 },
+        { key: 'temp_9', value: 30.0 },
+        { key: 'temp_10', value: 30.0 },
+        { key: 'temp_11', value: 30.0 },
+        { key: 'temp_12', value: 30.0 },
+        { key: 'temp_13', value: 30.0 },
+        { key: 'temp_14', value: 30.0 },
+        { key: 'temp_15', value: 30.0 },
+        { key: 'temp_16', value: 30.0 },
       ],
-      enabledCount: 4,
+      enabledCount: 16,
     },
     expected: {
       actualRegister: 0x103B,
-      expectedActual: (20.0 + 20.5 + 20.2) / 3,  // 20.233
+      expectedActual: 30.0,
       tolerance: 0.2,
       deviation剔除Threshold: 10.0,
     },
@@ -442,9 +469,9 @@ const scenarios = [
     executeMode: 'caseAOnly',
     inputs: {
       freezeGroups: [
-        { name: 'group-1', freezeHour: 10, verifyHour: 11, temp: 20.0, humi: 60.0 },
-        { name: 'group-2', freezeHour: 14, verifyHour: 15, temp: 22.0, humi: 62.0 },
-        { name: 'group-3', freezeHour: 18, verifyHour: 19, temp: 24.0, humi: 64.0 },
+        { name: 'group-1', freezeHour: 10, verifyHour: 11, temp: 25.0, humi: 60.0 },
+        { name: 'group-2', freezeHour: 14, verifyHour: 15, temp: 27.0, humi: 62.0 },
+        { name: 'group-3', freezeHour: 18, verifyHour: 19, temp: 29.0, humi: 64.0 },
       ],
       sensorKeys: { temp: 'temp_1', humi: 'humi_1' },
       tolerance: 0.2,
@@ -453,9 +480,9 @@ const scenarios = [
       actualTempRegister: 0x103B,
       actualHumiRegister: 0x103C,
       groups: [
-        { verifyHour: 11, expectedTemp: 20.0, expectedHumi: 60.0 },
-        { verifyHour: 15, expectedTemp: 22.0, expectedHumi: 62.0 },
-        { verifyHour: 19, expectedTemp: 24.0, expectedHumi: 64.0 },
+        { verifyHour: 11, expectedTemp: 25.0, expectedHumi: 60.0 },
+        { verifyHour: 15, expectedTemp: 27.0, expectedHumi: 62.0 },
+        { verifyHour: 19, expectedTemp: 29.0, expectedHumi: 64.0 },
       ],
     },
     assertions: [
@@ -511,9 +538,9 @@ const scenarios = [
     executeMode: 'caseAOnly',
     tolerance: 0.2,
     freezeGroups: [
-      { name: 'group-1', freezeHour: 10, verifyHour: 11, temp: 20.0, humi: 60.0 },
-      { name: 'group-2', freezeHour: 14, verifyHour: 15, temp: 22.0, humi: 62.0 },
-      { name: 'group-3', freezeHour: 18, verifyHour: 19, temp: 24.0, humi: 64.0 },
+      { name: 'group-1', freezeHour: 10, verifyHour: 11, temp: 25.0, humi: 60.0 },
+      { name: 'group-2', freezeHour: 14, verifyHour: 15, temp: 27.0, humi: 62.0 },
+      { name: 'group-3', freezeHour: 18, verifyHour: 19, temp: 29.0, humi: 64.0 },
     ],
     sensorKeys: { temp: 'temp_1', humi: 'humi_1' },
     cleanup: ['clearFault:temp_1', 'clearFault:humi_1', 'restoreRealTime'],
@@ -776,10 +803,10 @@ const scenarios = [
     estimatedSeconds: 120,
     dependencies: ['PRE-FIELD-001', 'PRE-INSTALL-001'],
     timeoutMs: 120000,
-    description: '8 路传感器同时异常时系统仍基于有效路计算平均值',
+    description: '多路传感器同时异常时系统仍基于有效路计算平均值 (精简至 3+3 路加速 ErRead)',
     inputs: {
-      faultKeys: ['temp_1', 'temp_3', 'temp_5', 'temp_7', 'temp_9', 'temp_11', 'temp_13', 'temp_15'],
-      normalKeys: ['temp_2', 'temp_4', 'temp_6', 'temp_8', 'temp_10', 'temp_12', 'temp_14', 'temp_16'],
+      faultKeys: ['temp_1', 'temp_3', 'temp_5'],
+      normalKeys: ['temp_2', 'temp_4', 'temp_6'],
       normalValue: 25.0,
     },
     expected: {
@@ -794,7 +821,7 @@ const scenarios = [
       { type: '平均值正确', rule: 'actual_based_on_valid_only', tolerance: 0.1 },
       { type: '系统稳定', rule: 'system_not_crashed' },
     ],
-    cleanup: ['batchClearFault', 'restoreDefaultSensors'],
+    cleanup: ['batchClearFault', 'restoreDefaultSensors', 'restoreInstallConfig'],
   },
 ];
 

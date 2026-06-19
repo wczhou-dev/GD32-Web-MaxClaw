@@ -210,14 +210,29 @@ class SensorSimulator extends EventEmitter {
       this._initSensor(`humi_${idx}`, sensor.slaveAddr, 0x0001, 1, 10);  // humi → register 1 (匹配固件 HUM_INDEX)
     }
 
-    // 初始化 CO2 传感器 (固件从站读取 register 0x0000，1 个寄存器，原值 ppm 无缩放)
+    // 初始化 CO2 传感器 (固件 FC03 读 register 0x0002, 1 个寄存器, 原值 ppm)
     for (const sensor of config.co2) {
-      this._initSensor(sensor.key, sensor.slaveAddr, 0x0000, 1, 1);
+      this._initSensor(sensor.key, sensor.slaveAddr, 0x0002, 1, 1);
     }
 
-    // 初始化压差传感器 (固件从站读取 register 0x0000，val/10 换算)
+    // 初始化压差传感器 (固件 FC04 读 3 个输入寄存器:
+    //   offset 0 = 未使用, offset 1 = 原始压差值 (signed int16), offset 2 = 除数指数)
+    // 模拟器将值放在 register 0x0001, register 0x0002 = 1 (÷10^1 = ÷10)
     for (const sensor of config.pressure.indoor) {
-      this._initSensor(sensor.key, sensor.slaveAddr, 0x0000, 1, 10);
+      const slaveAddr = sensor.slaveAddr;
+      if (!this._shadowRegisters.has(slaveAddr)) {
+        this._shadowRegisters.set(slaveAddr, new Map());
+      }
+      const slaveRegs = this._shadowRegisters.get(slaveAddr);
+      slaveRegs.set(0x0000, 0);  // offset 0: 未使用
+      slaveRegs.set(0x0001, 0);  // offset 1: 压差原始值
+      slaveRegs.set(0x0002, 1);  // offset 2: 除数指数 (1 = ÷10)
+      this._sensorKeyMap.set(sensor.key, {
+        slaveAddr,
+        registerAddr: 0x0001,  // 值写到 offset 1
+        registerCount: 2,       // 占用 offset 1~2
+        scale: 10,              // val * 10 = raw
+      });
     }
 
     // 初始化氨气传感器 (固件从站读取 register 0x0000，原值 ppm)

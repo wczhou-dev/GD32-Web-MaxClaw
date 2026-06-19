@@ -23,6 +23,7 @@ const PollingEngine = require('./PollingEngine');
 const WebSocketManager = require('./WebSocketMgr');
 const OTAHandler = require('./OTAHandler');
 const createOtaRouter = require('./api/ota');
+const AteTcpClient = require('./ate/AteTcpClient');
 const TestManager = require('./ate/TestManager');
 const SensorSimulator = require('./ate/SensorSimulator');
 const HilSessionManager = require('./ate/HilSessionManager');
@@ -169,6 +170,15 @@ async function main() {
         wsManager,
     });
 
+    // 初始化 ATE TCP 客户端 (JSON 协议，端口 9001)
+    // 用于写入告警使能位等 JSON 属性配置
+    const ateClient = new AteTcpClient({
+      deviceIp: '192.168.110.125',
+      port: parseInt(process.env.ATE_TCP_PORT) || 9001,
+    });
+    testManager.setAteClient(ateClient);
+    console.log('[ATE] AteTcpClient 初始化完成 (端口 9001)');
+
     // 初始化传感器模拟器（支持 Mock 和真实串口模式）
     console.log('\n[Step 4.6] Initializing SensorSimulator...');
     const sensorSimMock = process.env.SENSOR_SIM_MOCK === 'true' || !process.env.SENSOR_SIM_PORT;
@@ -216,6 +226,28 @@ async function main() {
       });
       console.log('[SensorSimulator] 已初始化 16 路传感器影子寄存器 (slave: ' +
         fwSlaveAddrs.map(a => '0x' + a.toString(16)).join(',') + ')');
+
+      // 初始化 CO2 传感器默认值（固件用 FC03 读 register 0x0002）
+      const co2Defaults = [
+        { key: 'co2_1', val: 400 }, { key: 'co2_2', val: 600 },
+        { key: 'co2_3', val: 800 }, { key: 'co2_4', val: 1000 },
+        { key: 'co2_5', val: 1200 }, { key: 'co2_6', val: 500 },
+        { key: 'co2_7', val: 700 }, { key: 'co2_8', val: 900 },
+      ];
+      for (const c of co2Defaults) {
+        sensorSimulator.setSensorValue(c.key, c.val);
+      }
+      console.log('[SensorSimulator] 已初始化 8 路 CO2 默认值');
+
+      // 初始化压差传感器默认值（固件用 FC04 读 register 0x0000）
+      const pressDefaults = [
+        { key: 'press_1', val: 0 }, { key: 'press_2', val: 10 },
+        { key: 'press_3', val: 25 }, { key: 'press_4', val: 50 },
+      ];
+      for (const p of pressDefaults) {
+        sensorSimulator.setSensorValue(p.key, p.val);
+      }
+      console.log('[SensorSimulator] 已初始化 4 路压差默认值');
     } catch (err) {
       console.warn(`[SensorSimulator] 启动失败: ${err.message}，将以 Mock 模式运行`);
     }

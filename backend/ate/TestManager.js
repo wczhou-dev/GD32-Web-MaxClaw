@@ -260,6 +260,13 @@ class TestManager extends EventEmitter {
   }
 
   /**
+   * 设置 ATE TCP 客户端 (JSON 协议，用于告警使能位写入等)
+   */
+  setAteClient(ateClient) {
+    this._ateClient = ateClient;
+  }
+
+  /**
    * 获取场景目录
    * @returns {TestScenarioCatalog}
    */
@@ -298,6 +305,7 @@ class TestManager extends EventEmitter {
       sensorSimulator: this._sensorSimulator,
       deviceKey,
       fieldType,
+      ateClient: this._ateClient,
     });
 
     // 转发执行器事件
