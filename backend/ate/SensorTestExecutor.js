@@ -841,20 +841,11 @@ class SensorTestExecutor extends EventEmitter {
   async _execHotCompensation(scenario, assertions, type) {
     const { compensationValue, baseSensor } = scenario.inputs;
     const { beforeCompensation, afterCompensation, afterRestore, tolerance } = scenario.expected;
-
-    // 临时只启用 2 路传感器（当前路 + 下一路），缩短轮询周期
-    const tempMask = await this._stateReader.readRegister(0x700A);
-    const humiMask = await this._stateReader.readRegister(0x700B);
     const idx = this._getSensorIndex(baseSensor.key);
-    const minimalMask = (1 << idx) | (1 << ((idx + 1) % 16));  // 只启用 2 路
-    this._log(`临时缩减传感器: temp=0x${minimalMask.toString(16)} humi=0x${minimalMask.toString(16)}`);
-    await this._stateReader.writeRegister(0x700A, minimalMask);
-    await this._stateReader.writeRegister(0x700B, minimalMask);
-    await this._waitCollect(10000);  // 等待固件重建轮询队列
 
     // 设置基础值
     this._simulator.setSensorValue(baseSensor.key, baseSensor.value);
-    await this._waitCollect(10000);  // 等待传感器轮询（2 路约 4 秒）
+    await this._waitCollect(90000);  // 等待传感器完整轮询周期（28路×2秒≈56秒+余量）
 
     // 读取补偿前值
     const sensorData = await this._stateReader.readSensorData();
@@ -865,7 +856,7 @@ class SensorTestExecutor extends EventEmitter {
     // 写入补偿值（负值转 uint16 二进制补码）
     const rawComp = compensationValue < 0 ? compensationValue + 65536 : compensationValue;
     await this._stateReader.writeCompensation(type, idx, rawComp);
-    await this._waitCollect(15000);  // 2 路传感器轮询约 4 秒，15 秒足够
+    await this._waitCollect(60000);  // 补偿生效需等待完整轮询周期
 
     // Mock 模式下模拟补偿效果
     if (this._simulator.isMockMode()) {
@@ -881,7 +872,7 @@ class SensorTestExecutor extends EventEmitter {
 
     // 恢复补偿为 0
     await this._stateReader.writeCompensation(type, idx, 0);
-    await this._waitCollect(10000);
+    await this._waitCollect(90000);  // 恢复补偿也需等待完整轮询周期
 
     // Mock 模式下恢复原值
     if (this._simulator.isMockMode()) {
@@ -893,11 +884,6 @@ class SensorTestExecutor extends EventEmitter {
     const restoredVal = type === 'temp' ? sensorDataRestored.temp[idx] : sensorDataRestored.humi[idx];
     assertions.push(this._assertEngine.assertClose(restoredVal, afterRestore, tolerance,
       `恢复后: ${restoredVal}, 期望: ${afterRestore}`));
-
-    // 恢复完整安装掩码
-    this._log(`恢复传感器掩码: temp=0x${tempMask.toString(16)} humi=0x${humiMask.toString(16)}`);
-    await this._stateReader.writeRegister(0x700A, tempMask);
-    await this._stateReader.writeRegister(0x700B, humiMask);
   }
 
   // ============================================================

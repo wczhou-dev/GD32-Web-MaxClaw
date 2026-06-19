@@ -1,0 +1,29 @@
+{
+  "reportVersion": "2.1",
+  "reportType": "sensor-batch",
+  "generatedAt": "2026-06-19T13:57:36.439Z",
+  "deviceInfo": {},
+  "fieldType": "A",
+  "summary": {
+    "total": 1,
+    "passed": 0,
+    "failed": 1,
+    "skipped": 0,
+    "passRate": "0.0%"
+  },
+  "scenarios": [
+    {
+      "scenarioId": "T-HOT-007",
+      "scenarioName": "湿度补偿值热更新",
+      "conclusion": "异常",
+      "skipReason": null,
+      "duration": 90007,
+      "assertionCount": 0,
+      "failureCount": 0,
+      "assertions": [],
+      "inputs": null,
+      "transactionLog": [],
+      "cleanupResult": null
+    }
+  ]
+}

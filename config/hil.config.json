@@ -22,7 +22,7 @@
     "logKeywords": ["[Assert]", "HardFault", "stack overflow", "sensor_acquire timeout"]
   },
   "controller": {
-    "ip": "192.168.10.110",
+    "ip": "192.168.110.125",
     "modbusTcpPort": 1502,
     "onlineTimeoutMs": 30000,
     "rebootWaitMs": 8000
