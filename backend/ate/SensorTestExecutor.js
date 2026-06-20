@@ -47,6 +47,7 @@ class SensorTestExecutor extends EventEmitter {
    * @param {string} [options.fieldType='A']
    * @param {AteTcpClient} [options.ateClient] - ATE TCP 客户端 (JSON 协议)
    * @param {MshClient} [options.mshClient] - MSH 调试串口客户端 (历史缓冲读写)
+   * @param {PollingEngine} [options.pollingEngine] - 轮询引擎 (测试时暂停轮询避免干扰)
    */
   constructor(options = {}) {
     super();
@@ -56,6 +57,7 @@ class SensorTestExecutor extends EventEmitter {
     this._fieldType = options.fieldType || 'A';
     this._ateClient = options.ateClient || null;
     this._mshClient = options.mshClient || null;
+    this._pollingEngine = options.pollingEngine || null;
     this._currentFieldType = null;  // 跟踪当前场区类型，避免重复重置
     this._assertEngine = new AssertEngine();
     this._stateReader = new ControllerStateReader({
@@ -87,9 +89,15 @@ class SensorTestExecutor extends EventEmitter {
 
     this.emit('scenario_start', { id: scenario.id, name: scenario.name });
 
+    // 注意: 轮询引擎暂停由 API 层 (sensor-test.js) 负责
+    // executor 不再重复暂停，避免死锁
+
     try {
       // 1. 准备：加载场区（由 simulator 跟踪场区类型，避免重复重置阴影寄存器）
       this._simulator.loadFieldConfig(this._fieldType);
+
+      // 1.5 重置所有传感器值为默认值，避免上次测试残留
+      this._resetAllSensorValues();
 
       // 2. 按场景类型执行
       let result;
@@ -167,6 +175,7 @@ class SensorTestExecutor extends EventEmitter {
     } finally {
       // 3. 清理
       await this._cleanup(scenario);
+      // 注意: 轮询引擎恢复由 API 层负责
     }
   }
 
@@ -505,25 +514,47 @@ class SensorTestExecutor extends EventEmitter {
     }
     this._log(`设置 ${sensors.length} 个传感器值 (含 1 个离群值)`);
 
-    // 先让系统稳定运行 120 秒，确保偏差检测计数器从上次测试清零
-    this._log('预稳定 120 秒 (确保偏差检测计数器清零)...');
-    await this._waitCollect(120000);
+    // 先让系统稳定运行 60 秒，确保偏差检测计数器清零
+    // _resetAllSensorValues 已清除异常值，60秒足够固件重置计数器
+    // 使用 _waitCollect 保持心跳，防止 Modbus TCP 连接超时断开
+    this._log('预稳定 60 秒 (确保偏差检测计数器清零)...');
+    await this._waitCollect(60000);
 
     // 固件偏差检测：每个轮询周期约28秒，需连续检测5次才剔除
-    // 5 × 28 = 140秒，保守等 300 秒 (覆盖 10+ 轮检测周期)
-    this._log('等待偏差剔除检测 (约 300 秒)...');
-    await this._waitCollect(300000);
+    // 5 × 28 = 140秒，保守等 200 秒 (~1.4倍余量)
+    this._log('等待偏差剔除检测 (约 200 秒)...');
+    await this._waitCollect(200000);
 
-    // 读取 ActualTemp，若仍不符合则追加等待
-    let actual = await this._stateReader.readActualTempHumi();
+    // 读取 ActualTemp（带重试）
+    let actual;
+    try {
+      actual = await this._stateReader.readActualTempHumi();
+    } catch (err) {
+      this._log(`首次读取 ActualTemp 失败: ${err.message}，等待 10 秒重试...`);
+      await this._waitCollect(10000);
+      try {
+        await this._stateReader._ensureConnected();
+        actual = await this._stateReader.readActualTempHumi();
+      } catch (err2) {
+        this._log(`重试仍失败: ${err2.message}`);
+        assertions.push({ pass: false, code: 'READ_FAILED', message: `读取 ActualTemp 失败: ${err2.message}` });
+        return;
+      }
+    }
     let deviationPass = Math.abs(actual.actualTemp - expectedActual) <= tolerance;
     this._log(`首次检查: ActualTemp=${actual.actualTemp}, 期望=${expectedActual}, 偏差=${(actual.actualTemp - expectedActual).toFixed(2)}`);
 
-    if (!deviationPass) {
-      this._log(`偏差未剔除，追加等待 120 秒...`);
-      await this._waitCollect(120000);
-      actual = await this._stateReader.readActualTempHumi();
-      this._log(`重试: ActualTemp=${actual.actualTemp}, 期望=${expectedActual}`);
+    // 最多重试 2 次，每次追加 60 秒
+    for (let retry = 0; !deviationPass && retry < 2; retry++) {
+      this._log(`偏差未剔除，追加等待 60 秒 (重试 ${retry + 1}/2)...`);
+      await this._waitCollect(60000);
+      try {
+        actual = await this._stateReader.readActualTempHumi();
+        deviationPass = Math.abs(actual.actualTemp - expectedActual) <= tolerance;
+        this._log(`重试 ${retry + 1}: ActualTemp=${actual.actualTemp}, 偏差=${(actual.actualTemp - expectedActual).toFixed(2)}`);
+      } catch (err) {
+        this._log(`重试读取失败: ${err.message}`);
+      }
     }
 
     assertions.push(this._assertEngine.assertActualValue(
@@ -532,11 +563,15 @@ class SensorTestExecutor extends EventEmitter {
     this._log(`ActualTemp: ${actual.actualTemp}, 期望: ${expectedActual} (容差: ${tolerance})`);
 
     // 同时验证原始数据是否都被采集到（可选信息性断言）
-    const sensorData = await this._stateReader.readSensorData();
-    for (const s of sensors) {
-      const idx = this._getSensorIndex(s.key);
-      const rawVal = sensorData.temp[idx];
-      this._log(`  原始 ${s.key}: ${rawVal}℃ (模拟: ${s.value}℃)`);
+    try {
+      const sensorData = await this._stateReader.readSensorData();
+      for (const s of sensors) {
+        const idx = this._getSensorIndex(s.key);
+        const rawVal = sensorData.temp[idx];
+        this._log(`  原始 ${s.key}: ${rawVal}℃ (模拟: ${s.value}℃)`);
+      }
+    } catch (err) {
+      this._log(`读取原始数据失败: ${err.message}`);
     }
   }
 
@@ -557,14 +592,48 @@ class SensorTestExecutor extends EventEmitter {
 
   /**
    * 启动回退：冻结 → 重启 → 对时 → 验证回退值
-   * 依赖固件实现调试寄存器 0x7100-0x7111 (历史缓冲读写)
-   * 若固件不支持，历史冻结确认会跳过，但启动回退验证仍可执行
+   * 优先通过 MSH 串口读取历史缓冲，其次尝试 Modbus 调试寄存器 (0x7100)
+   * 若均不可用，历史冻结确认跳过，启动回退验证仍可执行
    */
   async _execBootFallback(scenario, assertions) {
     const groups = scenario.freezeGroups || scenario.inputs.freezeGroups;
     const sensorKeys = scenario.sensorKeys || scenario.inputs.sensorKeys;
     const tolerance = scenario.tolerance || scenario.inputs.tolerance || 0.2;
-    let historySupported = true; // 跟踪固件是否支持历史缓冲读取
+    let historyMethod = null;  // 'msh' | 'modbus' | null
+
+    // 探测历史读取方式
+    if (this._mshClient) {
+      try {
+        await this._mshClient.connect();
+        const pingOk = await this._mshClient.ping();
+        if (pingOk) {
+          historyMethod = 'msh';
+          this._log('历史读取方式: MSH 串口 (COM4)');
+          // 尝试清空历史缓冲
+          const cleared = await this._mshClient.clearHistory();
+          this._log(`历史清空: ${cleared ? '成功' : '不支持 (sensor_history_clear 未实现)'}`);
+        }
+      } catch (e) {
+        this._log(`MSH 串口连接失败: ${e.message}，尝试 Modbus 调试寄存器`);
+      }
+    }
+
+    if (!historyMethod) {
+      // 尝试 Modbus 调试寄存器
+      try {
+        const history = await this._stateReader.readHistoryTail(1);
+        if (history && history.length > 0) {
+          historyMethod = 'modbus';
+          this._log('历史读取方式: Modbus 调试寄存器 (0x7100)');
+        }
+      } catch (e) {
+        this._log(`Modbus 历史读取失败: ${e.message}`);
+      }
+    }
+
+    if (!historyMethod) {
+      this._log('历史读取不可用 (MSH + Modbus 均失败)，历史冻结确认将跳过');
+    }
 
     // === 冻结阶段 ===
     this._log('=== 冻结阶段 ===');
@@ -603,9 +672,15 @@ class SensorTestExecutor extends EventEmitter {
       }
 
       // 读取历史确认
-      if (historySupported) {
+      if (historyMethod) {
         try {
-          const history = await this._stateReader.readHistoryTail(3);
+          let history;
+          if (historyMethod === 'msh') {
+            history = await this._mshClient.readHistory();
+          } else {
+            history = await this._stateReader.readHistoryTail(3);
+          }
+
           if (history && history.length > 0) {
             const latest = history.find(h => h.tm_hour === group.verifyHour);
             if (latest) {
@@ -621,13 +696,14 @@ class SensorTestExecutor extends EventEmitter {
             } else {
               this._log(`历史缓冲中未找到 tm_hour=${group.verifyHour} 的条目`);
             }
+          } else {
+            this._log('历史缓冲为空');
           }
         } catch (e) {
-          this._log(`读取历史缓冲失败: ${e.message}，固件可能未实现调试寄存器 0x7100-0x7107，跳过历史确认`);
-          historySupported = false;
+          this._log(`读取历史缓冲失败: ${e.message}`);
         }
       } else {
-        this._log('历史缓冲读取不支持，跳过历史确认');
+        this._log('跳过历史确认 (无可用读取方式)');
       }
       this._log(`跨小时成功: ${group.verifyHour}`);
     }
@@ -683,17 +759,42 @@ class SensorTestExecutor extends EventEmitter {
     this._simulator.clearFault(sensorKeys.temp);
     this._simulator.clearFault(sensorKeys.humi);
     await this._stateReader.restoreRealTime();
+    // 断开 MSH 串口
+    if (this._mshClient) {
+      await this._mshClient.disconnect().catch(() => {});
+    }
     this._log('恢复完成');
   }
 
   /**
    * 历史更新与对时跳变防污染
-   * 依赖固件实现调试寄存器 0x7100-0x7111
+   * 优先通过 MSH 串口读取历史缓冲，其次尝试 Modbus 调试寄存器
    */
   async _execHistoryUpdate(scenario, assertions) {
     const { sensorValues, freezeHour, verifyHour } = scenario.inputs;
     const { tolerance } = scenario.expected;
-    let historySupported = true;
+    let historyMethod = null;
+
+    // 探测历史读取方式
+    if (this._mshClient) {
+      try {
+        await this._mshClient.connect();
+        const pingOk = await this._mshClient.ping();
+        if (pingOk) {
+          historyMethod = 'msh';
+          this._log('历史读取方式: MSH 串口');
+          await this._mshClient.clearHistory();
+        }
+      } catch (e) {
+        this._log(`MSH 连接失败: ${e.message}`);
+      }
+    }
+    if (!historyMethod) {
+      try {
+        const h = await this._stateReader.readHistoryTail(1);
+        if (h && h.length > 0) historyMethod = 'modbus';
+      } catch (_) {}
+    }
 
     // 设置模拟器值
     this._simulator.setSensorValue('temp_1', sensorValues.temp);
@@ -724,9 +825,14 @@ class SensorTestExecutor extends EventEmitter {
     }
 
     // 读取历史确认
-    if (historySupported) {
+    if (historyMethod) {
       try {
-        const history = await this._stateReader.readHistoryTail(3);
+        let history;
+        if (historyMethod === 'msh') {
+          history = await this._mshClient.readHistory();
+        } else {
+          history = await this._stateReader.readHistoryTail(3);
+        }
         if (history && history.length > 0) {
           const latest = history.find(h => h.tm_hour === verifyHour);
           if (latest) {
@@ -741,19 +847,17 @@ class SensorTestExecutor extends EventEmitter {
           }
         }
       } catch (e) {
-        this._log(`读取历史缓冲失败: ${e.message}，固件可能未实现调试寄存器，跳过历史确认`);
-        historySupported = false;
+        this._log(`读取历史缓冲失败: ${e.message}`);
       }
     }
     this._log(`跨小时成功: ${verifyHour}`);
 
-    if (!historySupported) {
-      // 固件不支持历史缓冲读取，跳过对时跳变防污染测试
-      this._log('固件不支持历史缓冲读取 (0x7100-0x7107)，跳过对时跳变防污染验证');
+    if (!historyMethod) {
+      this._log('历史读取不可用，跳过对时跳变防污染验证');
       assertions.push({
         pass: true,
         code: 'HISTORY_NOT_SUPPORTED',
-        message: '固件未实现历史调试寄存器，跨小时已成功但无法验证历史缓冲内容',
+        message: 'MSH 串口和 Modbus 调试寄存器均不可用，跨小时已成功但无法验证历史缓冲内容',
         expected: '历史缓冲读取支持',
         actual: '不支持 (跳过)',
       });
@@ -764,7 +868,9 @@ class SensorTestExecutor extends EventEmitter {
     // 记录跳变前历史条目数
     let historyCountBefore = 0;
     try {
-      const h = await this._stateReader.readHistoryTail(25);
+      const h = historyMethod === 'msh'
+        ? await this._mshClient.readHistory()
+        : await this._stateReader.readHistoryTail(25);
       historyCountBefore = h ? h.length : 0;
     } catch (_) {}
 
@@ -781,7 +887,9 @@ class SensorTestExecutor extends EventEmitter {
 
     // 检查对时跳变是否产生了非预期历史条目
     try {
-      const historyAfter = await this._stateReader.readHistoryTail(25);
+      const historyAfter = historyMethod === 'msh'
+        ? await this._mshClient.readHistory()
+        : await this._stateReader.readHistoryTail(25);
       const historyCountAfter = historyAfter ? historyAfter.length : 0;
       const polluted = historyCountAfter > historyCountBefore + 1; // 允许 +1（正常的跨小时）
       assertions.push({
@@ -795,8 +903,11 @@ class SensorTestExecutor extends EventEmitter {
       this._log(`读取历史缓冲失败: ${e.message}`);
     }
 
-    // 恢复时间
+    // 恢复时间并断开 MSH
     await this._stateReader.restoreRealTime();
+    if (this._mshClient) {
+      await this._mshClient.disconnect().catch(() => {});
+    }
   }
 
   // ============================================================
@@ -1093,22 +1204,22 @@ class SensorTestExecutor extends EventEmitter {
     this._log('等待采集稳定 (60 秒)...');
     await this._waitCollect(60000);
 
-    // 读取补偿前值（带重试）
-    let sensorData = await this._stateReader.readSensorData();
+    // 读取补偿前值（带重连重试）
+    let sensorData = await this._resilientReadSensorData();
     let beforeVal = type === 'temp' ? sensorData.temp[idx] : sensorData.humi[idx];
     if (Math.abs(beforeVal - beforeCompensation) > tolerance) {
       this._log(`补偿前值 ${beforeVal} 不在容差内，追加等待 30 秒...`);
       await this._waitCollect(30000);
-      sensorData = await this._stateReader.readSensorData();
+      sensorData = await this._resilientReadSensorData();
       beforeVal = type === 'temp' ? sensorData.temp[idx] : sensorData.humi[idx];
     }
     assertions.push(this._assertEngine.assertClose(beforeVal, beforeCompensation, tolerance,
       `补偿前: ${beforeVal}, 期望: ${beforeCompensation}`));
     this._log(`补偿前: ${beforeVal}`);
 
-    // 写入补偿值（负值转 uint16 二进制补码）
+    // 写入补偿值（负值转 uint16 二进制补码，带重连重试）
     const rawComp = compensationValue < 0 ? compensationValue + 65536 : compensationValue;
-    await this._stateReader.writeCompensation(type, idx, rawComp);
+    await this._resilientWriteCompensation(type, idx, rawComp);
     this._log(`写入补偿值: ${type}[${idx}] = ${rawComp} (${compensationValue/10}℃)`);
 
     // 等待2个完整轮询周期（补偿在采集链路中实时应用，但BLOCK_ENV更新需轮询）
@@ -1122,21 +1233,21 @@ class SensorTestExecutor extends EventEmitter {
       await this._waitCollect(1000);
     }
 
-    // 读取补偿后值（带重试）
-    let sensorDataAfter = await this._stateReader.readSensorData();
+    // 读取补偿后值（带重连重试）
+    let sensorDataAfter = await this._resilientReadSensorData();
     let afterVal = type === 'temp' ? sensorDataAfter.temp[idx] : sensorDataAfter.humi[idx];
     if (Math.abs(afterVal - afterCompensation) > tolerance) {
       this._log(`补偿后值 ${afterVal} 不在容差内，追加等待 30 秒...`);
       await this._waitCollect(30000);
-      sensorDataAfter = await this._stateReader.readSensorData();
+      sensorDataAfter = await this._resilientReadSensorData();
       afterVal = type === 'temp' ? sensorDataAfter.temp[idx] : sensorDataAfter.humi[idx];
     }
     assertions.push(this._assertEngine.assertClose(afterVal, afterCompensation, tolerance,
       `补偿后: ${afterVal}, 期望: ${afterCompensation}`));
     this._log(`补偿后: ${afterVal}`);
 
-    // 恢复补偿为 0
-    await this._stateReader.writeCompensation(type, idx, 0);
+    // 恢复补偿为 0（带重连重试）
+    await this._resilientWriteCompensation(type, idx, 0);
     this._log('恢复补偿为 0');
 
     // Mock 模式下恢复原值
@@ -1148,13 +1259,13 @@ class SensorTestExecutor extends EventEmitter {
     this._log('等待恢复 (60 秒)...');
     await this._waitCollect(60000);
 
-    // 读取恢复后值（带重试）
-    let sensorDataRestored = await this._stateReader.readSensorData();
+    // 读取恢复后值（带重连重试）
+    let sensorDataRestored = await this._resilientReadSensorData();
     let restoredVal = type === 'temp' ? sensorDataRestored.temp[idx] : sensorDataRestored.humi[idx];
     if (Math.abs(restoredVal - afterRestore) > tolerance) {
       this._log(`恢复后值 ${restoredVal} 不在容差内，追加等待 30 秒...`);
       await this._waitCollect(30000);
-      sensorDataRestored = await this._stateReader.readSensorData();
+      sensorDataRestored = await this._resilientReadSensorData();
       restoredVal = type === 'temp' ? sensorDataRestored.temp[idx] : sensorDataRestored.humi[idx];
     }
     assertions.push(this._assertEngine.assertClose(restoredVal, afterRestore, tolerance,
@@ -1247,7 +1358,7 @@ class SensorTestExecutor extends EventEmitter {
   /**
    * 多路同时失效
    * 固件 SENSOR_READ_ERROR_THRESHOLD = 30 次
-   * 精简传感器至 6 路 (3路超时 + 3路正常)：6路 × 1秒 ≈ 6秒/轮，30次 ≈ 180秒
+   * 精简传感器至 10 路 (4路超时 + 6路正常)：10路 × 1秒 ≈ 10秒/轮，30次 ≈ 300秒
    */
   async _execMultiFault(scenario, assertions) {
     const { faultKeys, normalKeys, normalValue } = scenario.inputs;
@@ -1256,7 +1367,8 @@ class SensorTestExecutor extends EventEmitter {
     // 精简传感器以加速 ErRead 触发
     await this._saveInstallConfig();
     try {
-      await this._setReducedSensors(6);
+      const totalSensors = faultKeys.length + normalKeys.length;
+      await this._setReducedSensors(totalSensors);
 
       // 设置所有正常路的值
       for (const key of normalKeys) {
@@ -1268,29 +1380,15 @@ class SensorTestExecutor extends EventEmitter {
       for (const key of faultKeys) {
         this._simulator.injectTimeout({ key, persist: true });
       }
-      this._log(`注入 ${faultKeys.length} 路故障, ${normalKeys.length} 路正常 (6路传感器)`);
+      this._log(`注入 ${faultKeys.length} 路故障, ${normalKeys.length} 路正常 (${totalSensors}路传感器)`);
 
-      // 等待 ErRead 触发：6路 × 1秒 ≈ 6秒/轮，30次 ≈ 180秒，保守等 300 秒
-      this._log('等待 ErRead 触发 (约 300 秒, 6路传感器 × 30次)...');
-      await this._waitCollect(300000);
+      // 等待 ErRead 触发：10路 × 1秒 ≈ 10秒/轮，30次 ≈ 300秒，保守等 360 秒
+      const waitSec = Math.ceil(totalSensors * 30 * 1.2);
+      this._log(`等待 ErRead 触发 (约 ${waitSec} 秒, ${totalSensors}路传感器 × 30次)...`);
+      await this._waitCollect(waitSec * 1000);
 
-      // 读取 ActualTemp（带重试）
-      let actual;
-      try {
-        actual = await this._stateReader.readActualTempHumi();
-      } catch (err) {
-        this._log(`读取 ActualTemp 失败: ${err.message}，等待 60 秒后重试...`);
-        await this._waitCollect(60000);
-        try {
-          await this._stateReader._ensureConnected();
-          actual = await this._stateReader.readActualTempHumi();
-        } catch (err2) {
-          this._log(`重试仍失败: ${err2.message}`);
-          assertions.push({ pass: false, code: 'READ_FAILED', message: `读取 ActualTemp 失败: ${err2.message}` });
-          for (const key of faultKeys) { this._simulator.clearFault(key); }
-          return;
-        }
-      }
+      // 读取 ActualTemp（强韧读取，带重连重试）
+      const actual = await this._resilientReadActualTempHumi();
 
       assertions.push(this._assertEngine.assertActualValue(
         actual.actualTemp, expectedActual, tolerance, 'temp'
@@ -1415,6 +1513,102 @@ class SensorTestExecutor extends EventEmitter {
       this._log(`告警使能位写入失败: ${e.message}`);
       return false;
     }
+  }
+
+  /**
+   * 重置所有传感器值为默认值
+   * 避免上次测试残留的值影响当前测试
+   */
+  /**
+   * 强韧读取传感器数据（带重连和重试）
+   * 长时间等待后 TCP 连接可能已断开，需先重连再读取
+   * @param {number} maxRetries 最大重试次数
+   * @returns {Promise<object>} sensorData
+   */
+  async _resilientReadSensorData(maxRetries = 3) {
+    for (let i = 0; i < maxRetries; i++) {
+      try {
+        return await this._stateReader.readSensorData();
+      } catch (err) {
+        this._log(`readSensorData 失败 (attempt ${i + 1}/${maxRetries}): ${err.message}`);
+        if (i < maxRetries - 1) {
+          this._log('尝试重连...');
+          await this._stateReader._ensureConnected();
+          await new Promise(r => setTimeout(r, 3000));
+        }
+      }
+    }
+    throw new Error(`readSensorData 连续 ${maxRetries} 次失败`);
+  }
+
+  /**
+   * 强韧写入补偿值（带重连和重试）
+   * @param {string} type 'temp'|'humi'
+   * @param {number} index 传感器索引
+   * @param {number} rawComp 原始补偿值
+   * @param {number} maxRetries 最大重试次数
+   */
+  async _resilientWriteCompensation(type, index, rawComp, maxRetries = 3) {
+    for (let i = 0; i < maxRetries; i++) {
+      try {
+        await this._stateReader.writeCompensation(type, index, rawComp);
+        return;
+      } catch (err) {
+        this._log(`writeCompensation 失败 (attempt ${i + 1}/${maxRetries}): ${err.message}`);
+        if (i < maxRetries - 1) {
+          this._log('尝试重连...');
+          await this._stateReader._ensureConnected();
+          await new Promise(r => setTimeout(r, 3000));
+        }
+      }
+    }
+    throw new Error(`writeCompensation 连续 ${maxRetries} 次失败`);
+  }
+
+  /**
+   * 强韧读取 ActualTemp/Humi（带重连和重试）
+   * @param {number} maxRetries
+   * @returns {Promise<object>}
+   */
+  async _resilientReadActualTempHumi(maxRetries = 3) {
+    for (let i = 0; i < maxRetries; i++) {
+      try {
+        return await this._stateReader.readActualTempHumi();
+      } catch (err) {
+        this._log(`readActualTempHumi 失败 (attempt ${i + 1}/${maxRetries}): ${err.message}`);
+        if (i < maxRetries - 1) {
+          this._log('尝试重连...');
+          await this._stateReader._ensureConnected();
+          await new Promise(r => setTimeout(r, 3000));
+        }
+      }
+    }
+    throw new Error(`readActualTempHumi 连续 ${maxRetries} 次失败`);
+  }
+
+  _resetAllSensorValues() {
+    if (!this._simulator) return;
+    // 温度: 20+i ℃ (i=0..15) → 200,210,...,350
+    for (let i = 0; i < 16; i++) {
+      this._simulator.setSensorValue(`temp_${i + 1}`, 20 + i);
+    }
+    // 湿度: 40+2i %RH (i=0..15) → 400,420,...,700
+    for (let i = 0; i < 16; i++) {
+      this._simulator.setSensorValue(`humi_${i + 1}`, 40 + i * 2);
+    }
+    // CO2: 400~1200 ppm
+    const co2Defaults = [400, 600, 800, 1000, 1200, 500, 700, 900];
+    for (let i = 0; i < 8; i++) {
+      this._simulator.setSensorValue(`co2_${i + 1}`, co2Defaults[i]);
+    }
+    // 压差: 0, 10, 25, 50 Pa
+    const pressDefaults = [0, 10, 25, 50];
+    for (let i = 0; i < 4; i++) {
+      this._simulator.setSensorValue(`press_${i + 1}`, pressDefaults[i]);
+    }
+    // 清除所有故障
+    this._simulator.clearAllFaults();
+    this._log('传感器值已重置为默认值');
   }
 
   /**

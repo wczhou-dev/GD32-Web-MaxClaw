@@ -188,6 +188,9 @@ async function main() {
     testManager.setMshClient(mshClient);
     console.log('[MSH] MshClient 初始化完成 (端口 ' + (process.env.DEBUG_UART_PORT || 'COM4') + ')');
 
+    // 注入轮询引擎引用 (测试时暂停轮询避免干扰)
+    testManager.setPollingEngine(pollingEngine);
+
     // 初始化传感器模拟器（支持 Mock 和真实串口模式）
     console.log('\n[Step 4.6] Initializing SensorSimulator...');
     const sensorSimMock = process.env.SENSOR_SIM_MOCK === 'true' || !process.env.SENSOR_SIM_PORT;
@@ -534,6 +537,20 @@ async function main() {
     try {
         const device = devicePool.getAllDevices().find(d => d.enabled);
         if (device) {
+            // 检查并写入场区类型 (若为 0 则写入默认值 B=2)
+            const zoneResult = await devicePool.runExclusive(device.key, async () => {
+                return await devicePool.readHoldingRegisters(device.key, 0x0019, 1);
+            });
+            const zoneVal = zoneResult?.data?.[0] ?? 0;
+            if (zoneVal === 0) {
+                const defaultZone = parseInt(process.env.DEFAULT_FIELD_ZONE || '2', 10);
+                await devicePool.runExclusive(device.key, async () => {
+                    await devicePool.writeRegister(device.key, 0x0019, defaultZone);
+                });
+                console.log(`[SensorConfig] 场区类型写入: ${defaultZone} (0x0019 原值为 0)`);
+            } else {
+                console.log(`[SensorConfig] 场区类型: ${zoneVal}`);
+            }
             // 从环境变量或默认值读取传感器安装掩码
             const tempMask = parseInt(process.env.SENSOR_TEMP_MASK || '0xFFFF', 16);
             const humiMask = parseInt(process.env.SENSOR_HUMI_MASK || '0xFFFF', 16);

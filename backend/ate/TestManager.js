@@ -274,6 +274,13 @@ class TestManager extends EventEmitter {
   }
 
   /**
+   * 设置轮询引擎 (测试时暂停轮询避免干扰)
+   */
+  setPollingEngine(pollingEngine) {
+    this._pollingEngine = pollingEngine;
+  }
+
+  /**
    * 获取场景目录
    * @returns {TestScenarioCatalog}
    */
@@ -314,6 +321,7 @@ class TestManager extends EventEmitter {
       fieldType,
       ateClient: this._ateClient,
       mshClient: this._mshClient,
+      pollingEngine: this._pollingEngine,
     });
 
     // 转发执行器事件
