@@ -165,6 +165,10 @@ const BLOCK_SENSOR_ALARM = {
   HUMI_HIGH_ALARM: 0x7033,    // 湿度高限告警：RO，uint16
   ONLINE_STATUS: 0x7034,      // 传感器在线状态：RO，uint16，bit0~bit15
   ALARM_ENABLE_BIT: 0x7035,   // 告警使能位：R/W，uint16，映射 App_Save.alarm.enableBit
+  HIL_PIG_COUNT: 0x7036,      // HIL 猪只数覆盖：R/W，uint16，0=使用实际值
+  HIL_ALARM_SET_TIMEOUT: 0x7037, // HIL 设置防抖覆盖秒：R/W，uint16，0=默认1800s
+  HIL_ALARM_CLR_TIMEOUT: 0x7038, // HIL 清除防抖覆盖秒：R/W，uint16，0=默认180s
+  HIL_ALARM_RESET: 0x7039,    // HIL 防抖重置：WO，写0xFFFF清零全部时间戳
 };
 
 /**

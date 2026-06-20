@@ -647,12 +647,12 @@ const scenarios = [
     estimatedSeconds: 30,
     dependencies: ['PRE-FIELD-001'],
     timeoutMs: 30000,
-    description: '修改温度告警阈值后新阈值立即参与判断（偏差判定: ActualTemp - Expected > TempHigh, Expected默认18℃）',
+    description: '修改温度告警阈值后新阈值立即参与判断（偏差判定: ActualTemp - Expected > TempHigh, Expected通常25℃）',
     inputs: {
       thresholdRegister: 'temp_high_limit',
-      alarmThreshold: 50,     // 偏差阈值 5.0℃ (单位 0.1℃, ActualTemp - Expected(18) > 5.0 时触发)
-      testValue: 30.0,        // 测试温度 30.0℃ (偏差=30-18=12 > 5 → 触发)
-      recoverValue: 20.0,     // 恢复温度 20.0℃ (偏差=20-18=2 < 5 → 清除)
+      alarmThreshold: 10,     // 偏差阈值 1.0℃ (单位 0.1℃, ActualTemp - Expected(25) > 1.0 时触发)
+      testValue: 28.0,        // 测试温度 28.0℃ (偏差=28-25=3 > 1 → 触发)
+      recoverValue: 24.0,     // 恢复温度 24.0℃ (偏差=24-25=-1, |偏差|<1 → 清除)
     },
     expected: {
       alarmSet: true,

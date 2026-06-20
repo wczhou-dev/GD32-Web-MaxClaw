@@ -1172,6 +1172,21 @@ class SensorTestExecutor extends EventEmitter {
   async _execHotThreshold(scenario, assertions, type) {
     const thresholdType = type === 'temp' ? 'temp_high' : 'humi_high';
 
+    // HIL 测试覆盖：绕过告警门控（猪只数量、防抖计时）
+    const HIL_PIG_COUNT = 0x7036;
+    const HIL_ALARM_SET_TIMEOUT = 0x7037;
+    const HIL_ALARM_CLR_TIMEOUT = 0x7038;
+    const HIL_ALARM_RESET = 0x7039;
+    try {
+      await this._stateReader.writeRegister(HIL_PIG_COUNT, 600);       // 猪只数=600
+      await this._stateReader.writeRegister(HIL_ALARM_SET_TIMEOUT, 2); // 设置防抖=2秒
+      await this._stateReader.writeRegister(HIL_ALARM_CLR_TIMEOUT, 2); // 清除防抖=2秒
+      await this._stateReader.writeRegister(HIL_ALARM_RESET, 0xFFFF);  // 清零所有时间戳
+      this._log('HIL 告警覆盖: pig=600, set_timeout=2s, clr_timeout=2s, timestamps reset');
+    } catch (e) {
+      this._log(`HIL 覆盖写入失败 (${e.message})，告警可能不触发`);
+    }
+
     // 读取原阈值
     const originalRaw = await this._stateReader.readThreshold(thresholdType);
     this._log(`原 ${type} 阈值: ${originalRaw} (${(originalRaw / 10).toFixed(1)})`);
