@@ -1,0 +1,93 @@
+{
+  "reportVersion": "2.1",
+  "reportType": "sensor-batch",
+  "generatedAt": "2026-06-20T16:24:46.326Z",
+  "deviceInfo": {},
+  "fieldType": "A",
+  "summary": {
+    "total": 1,
+    "passed": 0,
+    "failed": 1,
+    "skipped": 0,
+    "passRate": "0.0%"
+  },
+  "scenarios": [
+    {
+      "scenarioId": "T-HIST-001",
+      "scenarioName": "三组历史数据冻结",
+      "conclusion": "异常",
+      "skipReason": null,
+      "duration": 258718,
+      "assertionCount": 9,
+      "failureCount": 0,
+      "assertions": [
+        {
+          "pass": true,
+          "code": null,
+          "expected": 0,
+          "actual": 0,
+          "message": "对时结果: HR17=0, 期望=0"
+        },
+        {
+          "pass": true,
+          "code": null,
+          "expected": 10,
+          "actual": 10,
+          "message": "小时匹配: actual=10, expected=10"
+        },
+        {
+          "pass": true,
+          "code": null,
+          "expected": 59,
+          "actual": 59,
+          "message": "分钟匹配: actual=59, expected=59"
+        },
+        {
+          "pass": true,
+          "code": null,
+          "expected": 0,
+          "actual": 0,
+          "message": "对时结果: HR17=0, 期望=0"
+        },
+        {
+          "pass": true,
+          "code": null,
+          "expected": 14,
+          "actual": 14,
+          "message": "小时匹配: actual=14, expected=14"
+        },
+        {
+          "pass": true,
+          "code": null,
+          "expected": 59,
+          "actual": 59,
+          "message": "分钟匹配: actual=59, expected=59"
+        },
+        {
+          "pass": true,
+          "code": null,
+          "expected": 0,
+          "actual": 0,
+          "message": "对时结果: HR17=0, 期望=0"
+        },
+        {
+          "pass": true,
+          "code": null,
+          "expected": 18,
+          "actual": 18,
+          "message": "小时匹配: actual=18, expected=18"
+        },
+        {
+          "pass": true,
+          "code": null,
+          "expected": 59,
+          "actual": 59,
+          "message": "分钟匹配: actual=59, expected=59"
+        }
+      ],
+      "inputs": null,
+      "transactionLog": [],
+      "cleanupResult": null
+    }
+  ]
+}

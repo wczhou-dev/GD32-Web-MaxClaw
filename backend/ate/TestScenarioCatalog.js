@@ -462,9 +462,9 @@ const scenarios = [
     group: PAGE_GROUP.HIST,
     priority: 'P0',
     isP1Required: true,
-    estimatedSeconds: 300,
+    estimatedSeconds: 720,
     dependencies: ['PRE-FIELD-001', 'PRE-ENV-001'],
-    timeoutMs: 600000,
+    timeoutMs: 900000,
     description: '验证 3 组固定模拟值冻结后，启动回退按 tm_hour 匹配正确历史值 (精简传感器+59分对时加速)',
     executeMode: 'caseAOnly',
     inputs: {
@@ -663,7 +663,7 @@ const scenarios = [
       { type: '超阈值告警', rule: 'alarm_set_on_exceed' },
       { type: '恢复告警', rule: 'alarm_cleared_on_recover' },
     ],
-    cleanup: ['restoreThreshold', 'restoreDefaultSensors'],
+    cleanup: ['restoreThreshold', 'restoreDefaultSensors', 'restoreInstallConfig'],
   },
   {
     id: 'T-HOT-005',

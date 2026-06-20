@@ -749,16 +749,25 @@ class SensorTestExecutor extends EventEmitter {
 
     // === 用例 A 启动回退验证 ===
     this._log('=== 启动回退验证阶段 ===');
+
+    // 精简传感器到 3 路，使 ErRead 能在 ~90 秒内触发（3路×30次）
+    // 历史回退需要所有传感器都标记 INVALID 才生效
+    await this._setReducedSensors(3);
+    this._log('启动回退: 精简至 3 路传感器，加速 ErRead 触发');
+
     for (let i = 0; i < groups.length; i++) {
       const group = groups[i];
       this._log(`验证第 ${i + 1} 组: ${group.name}, 期望回退 temp=${group.temp}, humi=${group.humi}`);
 
-      // 设置传感器持续异常
-      this._simulator.injectTimeout({ key: sensorKeys.temp, persist: true });
-      this._simulator.injectTimeout({ key: sensorKeys.humi, persist: true });
+      // 设置全部 3 路传感器持续异常
+      for (let ch = 1; ch <= 3; ch++) {
+        this._simulator.injectTimeout({ key: `temp_${ch}`, persist: true });
+        this._simulator.injectTimeout({ key: `humi_${ch}`, persist: true });
+      }
+      this._log('注入 3 路传感器超时 (temp_1~3, humi_1~3)');
 
       // 重启
-      const rebootResult = await this._stateReader.reboot({ waitMs: 65000 });
+      const rebootResult = await this._stateReader.reboot({ waitMs: 90000 });
       if (!rebootResult.ok) {
         assertions.push({ pass: false, code: ERROR_CODE.SENSOR_REBOOT_FAIL, message: '重启失败' });
         return;
@@ -768,7 +777,7 @@ class SensorTestExecutor extends EventEmitter {
       // 重启后多次尝试重连（设备可能还在初始化）
       this._log('等待设备完全启动...');
       let reconnected = false;
-      for (let attempt = 1; attempt <= 5; attempt++) {
+      for (let attempt = 1; attempt <= 8; attempt++) {
         try {
           await this._stateReader._ensureConnected();
           // 验证连接可用
@@ -777,8 +786,8 @@ class SensorTestExecutor extends EventEmitter {
           this._log(`重启后重连成功 (attempt ${attempt})`);
           break;
         } catch (e) {
-          this._log(`重启后重连失败 (attempt ${attempt}/5): ${e.message}`);
-          await new Promise(r => setTimeout(r, attempt * 5000)); // 5s, 10s, 15s, 20s, 25s
+          this._log(`重启后重连失败 (attempt ${attempt}/8): ${e.message}`);
+          await new Promise(r => setTimeout(r, attempt * 5000)); // 5s, 10s, ..., 40s
         }
       }
       if (!reconnected) {
@@ -787,9 +796,9 @@ class SensorTestExecutor extends EventEmitter {
       }
 
       // 设备重启后 TCP 已重连，但固件可能还在初始化
-      // 等待固件完成启动（传感器轮询队列重建等）
-      this._log('等待固件完全初始化 (15 秒)...');
-      await this._waitCollect(15000);
+      // 需要等待 ErRead 触发（3路×30次≈90秒），传感器标记 INVALID 后历史回退才生效
+      this._log('等待固件完全初始化 + ErRead 触发 (120 秒)...');
+      await this._waitCollect(120000);
 
       // 对时到今天 verifyHour:05
       const today = new Date();
@@ -821,8 +830,10 @@ class SensorTestExecutor extends EventEmitter {
 
     // === 恢复阶段 ===
     this._log('=== 恢复阶段 ===');
-    this._simulator.clearFault(sensorKeys.temp);
-    this._simulator.clearFault(sensorKeys.humi);
+    for (let ch = 1; ch <= 3; ch++) {
+      this._simulator.clearFault(`temp_${ch}`);
+      this._simulator.clearFault(`humi_${ch}`);
+    }
     await this._stateReader.restoreRealTime();
     await this._restoreInstallConfig();
     // 断开 MSH 串口
@@ -1206,12 +1217,33 @@ class SensorTestExecutor extends EventEmitter {
         `阈值回读: ${readback}, 期望: ${newThresholdRaw}`));
       this._log(`写入温度高限: ${newThresholdRaw} (${(newThresholdRaw / 10).toFixed(1)}℃)`);
 
-      // 设置所有传感器超阈值: ActualTemp > TempHigh → 触发告警
-      const testValue = scenario.inputs.testValue ?? 30.0;
-      for (let i = 1; i <= 16; i++) {
+      // 精简传感器至 5 路，缩短轮询周期
+      await this._saveInstallConfig();
+      await this._setReducedSensors(5);
+      this._log('温度告警: 精简至 5 路传感器');
+
+      // 设置 5 路传感器超阈值: ActualTemp > TempHigh → 触发告警
+      const testValue = scenario.inputs.testValue ?? 28.0;
+      for (let i = 1; i <= 5; i++) {
         this._simulator.setSensorValue(`temp_${i}`, testValue);
       }
-      this._log(`设置全部 16 路温度 = ${testValue}℃ (阈值 ${(newThresholdRaw / 10).toFixed(1)}℃)`);
+      this._log(`设置 5 路温度 = ${testValue}℃`);
+
+      // 等待轮询完成 + 读取 ActualTemp 确认固件已采集到新值
+      this._log('等待固件采集 (30 秒)...');
+      await this._waitCollect(30000);
+
+      // 读取 ActualTemp 确认固件数据
+      let actualCheck = await this._resilientReadActualTempHumi();
+      this._log(`ActualTemp 确认: ${actualCheck.actualTemp} (期望 ≈${testValue})`);
+
+      // 如果 ActualTemp 还没更新，追加等待
+      if (Math.abs(actualCheck.actualTemp - testValue) > 1.0) {
+        this._log(`ActualTemp 未更新，追加等待 30 秒...`);
+        await this._waitCollect(30000);
+        actualCheck = await this._resilientReadActualTempHumi();
+        this._log(`ActualTemp 重试: ${actualCheck.actualTemp}`);
+      }
 
       // 等待 Alarm_Check() 检测
       this._log('等待告警触发 (30 秒)...');
@@ -1228,9 +1260,9 @@ class SensorTestExecutor extends EventEmitter {
       assertions.push(this._assertEngine.assertEqual(alarmAfterExceed.tempHigh, true,
         `超阈值后告警: ${alarmAfterExceed.tempHigh} (raw: ${JSON.stringify(alarmAfterExceed.raw)})`));
 
-      // 恢复: 所有传感器降到阈值以下 → 清除告警
-      const recoverValue = scenario.inputs.recoverValue ?? 25.0;
-      for (let i = 1; i <= 16; i++) {
+      // 恢复: 传感器降到阈值以下 → 清除告警
+      const recoverValue = scenario.inputs.recoverValue ?? 24.0;
+      for (let i = 1; i <= 5; i++) {
         this._simulator.setSensorValue(`temp_${i}`, recoverValue);
       }
       this._log(`恢复全部温度 = ${recoverValue}℃ (阈值 ${(newThresholdRaw / 10).toFixed(1)}℃)`);
