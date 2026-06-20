@@ -305,6 +305,10 @@ class ControllerStateReader {
       targetTime: targetStr,
       deviceTime: devStr,
       deviceTimeArray: devTime,
+      // 记录对时完成时刻的系统时间戳，供 _waitCrossHour 推算固件时钟
+      syncCompletedAt: Date.now(),
+      syncMinute: minute,
+      syncSecond: second,
     };
   }
 

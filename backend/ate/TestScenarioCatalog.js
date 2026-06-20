@@ -259,8 +259,8 @@ const scenarios = [
     isP1Required: true,
     estimatedSeconds: 20,
     dependencies: ['PRE-FIELD-001', 'PRE-INSTALL-001'],
-    timeoutMs: 20000,
-    description: '验证 8 路 CO2 浓度采集',
+    timeoutMs: 30000,
+    description: '验证 8 路 CO2 浓度采集（精简温湿度后轮询周期 ~6s）',
     inputs: {
       sensors: [
         { key: 'co2_1', value: 400, unit: 'ppm', scale: 1 },
@@ -411,7 +411,7 @@ const scenarios = [
     estimatedSeconds: 200,
     dependencies: ['PRE-FIELD-001', 'PRE-INSTALL-001'],
     timeoutMs: 240000,
-    description: '验证全部 16 路温度中 1 路离群值被剔除，ActualTemp 按 15 路正常值计算',
+    description: '验证全部 16 路温度中 1 路离群值被剔除，ActualTemp 按 15 路正常值计算 (固件偏差检测未生效，待排查)',
     inputs: {
       // 固件用全部 16 路已安装传感器算平均，必须设置所有 16 路
       // 正常值 30℃ (与固件默认值 20~35℃ 不重合), 离群值 70℃
@@ -419,7 +419,7 @@ const scenarios = [
         { key: 'temp_1', value: 30.0 },
         { key: 'temp_2', value: 30.0 },
         { key: 'temp_3', value: 30.0 },
-        { key: 'temp_4', value: 70.0 },  // 离群值
+        { key: 'temp_4', value: 70.0 },  // 离群值 (从站 0x07)
         { key: 'temp_5', value: 30.0 },
         { key: 'temp_6', value: 30.0 },
         { key: 'temp_7', value: 30.0 },
@@ -647,12 +647,12 @@ const scenarios = [
     estimatedSeconds: 30,
     dependencies: ['PRE-FIELD-001'],
     timeoutMs: 30000,
-    description: '修改温度告警阈值后新阈值立即参与判断',
+    description: '修改温度告警阈值后新阈值立即参与判断（绝对值判定: ActualTemp > TempHigh）',
     inputs: {
       thresholdRegister: 'temp_high_limit',
-      newThreshold: 28.0,  // 写入 280
-      testValue: 29.0,     // 超阈值
-      recoverValue: 25.0,  // 恢复正常
+      alarmThreshold: 280,    // 告警阈值 28.0℃ (单位 0.1℃, 绝对值判定)
+      testValue: 30.0,        // 测试温度 30.0℃ (ActualTemp > 28.0 → 触发)
+      recoverValue: 25.0,     // 恢复温度 25.0℃ (ActualTemp < 28.0 → 清除)
     },
     expected: {
       alarmSet: true,

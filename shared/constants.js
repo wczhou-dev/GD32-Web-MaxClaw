@@ -164,6 +164,7 @@ const BLOCK_SENSOR_ALARM = {
   TEMP_HIGH_ALARM: 0x7032,    // 温度高限告警：RO，uint16
   HUMI_HIGH_ALARM: 0x7033,    // 湿度高限告警：RO，uint16
   ONLINE_STATUS: 0x7034,      // 传感器在线状态：RO，uint16，bit0~bit15
+  ALARM_ENABLE_BIT: 0x7035,   // 告警使能位：R/W，uint16，映射 App_Save.alarm.enableBit
 };
 
 /**

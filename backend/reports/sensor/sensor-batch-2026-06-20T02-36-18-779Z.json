@@ -1,0 +1,55 @@
+{
+  "reportVersion": "2.1",
+  "reportType": "sensor-batch",
+  "generatedAt": "2026-06-20T02:36:18.779Z",
+  "deviceInfo": {},
+  "fieldType": "A",
+  "summary": {
+    "total": 3,
+    "passed": 0,
+    "failed": 3,
+    "skipped": 0,
+    "passRate": "0.0%"
+  },
+  "scenarios": [
+    {
+      "scenarioId": "T-READ-003",
+      "scenarioName": "压差传感器抄读",
+      "conclusion": "异常",
+      "skipReason": null,
+      "duration": 35015,
+      "assertionCount": 0,
+      "failureCount": 0,
+      "assertions": [],
+      "inputs": null,
+      "transactionLog": [],
+      "cleanupResult": null
+    },
+    {
+      "scenarioId": "T-READ-004",
+      "scenarioName": "CO2 传感器抄读",
+      "conclusion": "异常",
+      "skipReason": null,
+      "duration": 45003,
+      "assertionCount": 0,
+      "failureCount": 0,
+      "assertions": [],
+      "inputs": null,
+      "transactionLog": [],
+      "cleanupResult": null
+    },
+    {
+      "scenarioId": "T-ABNF-002",
+      "scenarioName": "数值不变 ErMax 过滤",
+      "conclusion": "异常",
+      "skipReason": null,
+      "duration": 4,
+      "assertionCount": 0,
+      "failureCount": 0,
+      "assertions": [],
+      "inputs": null,
+      "transactionLog": [],
+      "cleanupResult": null
+    }
+  ]
+}

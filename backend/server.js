@@ -554,14 +554,15 @@ async function main() {
             // 从环境变量或默认值读取传感器安装掩码
             const tempMask = parseInt(process.env.SENSOR_TEMP_MASK || '0xFFFF', 16);
             const humiMask = parseInt(process.env.SENSOR_HUMI_MASK || '0xFFFF', 16);
-            await devicePool.runExclusive(device.key, async () => {
-                await devicePool.writeRegister(device.key, 0x700A, tempMask);
-                await devicePool.writeRegister(device.key, 0x700B, humiMask);
-                // CO2: 8路 (bit0~7), 压差: 4路 (bit0~3)
-                await devicePool.writeRegister(device.key, 0x700C, 0x00FF);  // CO2 全部8路
-                await devicePool.writeRegister(device.key, 0x700E, 0x000F);  // 压差 全部4路
-            });
-            console.log(`[SensorConfig] 传感器安装掩码: temp=0x${tempMask.toString(16).padStart(4,'0')} humi=0x${humiMask.toString(16).padStart(4,'0')}`);
+            // 逐个写入安装掩码，中间加延迟防止 TCP 超时
+            await devicePool.writeRegister(device.key, 0x700A, tempMask);
+            await new Promise(r => setTimeout(r, 500));
+            await devicePool.writeRegister(device.key, 0x700B, humiMask);
+            await new Promise(r => setTimeout(r, 500));
+            await devicePool.writeRegister(device.key, 0x700C, 0x00FF);  // CO2 全部8路
+            await new Promise(r => setTimeout(r, 500));
+            await devicePool.writeRegister(device.key, 0x700E, 0x000F);  // 压差 全部4路
+            console.log(`[SensorConfig] 传感器安装掩码: temp=0x${tempMask.toString(16).padStart(4,'0')} humi=0x${humiMask.toString(16).padStart(4,'0')} CO2=0xFF press=0x0F`);
         }
     } catch (err) {
         console.warn('[SensorConfig] 传感器配置写入失败:', err.message);
@@ -571,7 +572,16 @@ async function main() {
     wsManager.startHeartbeat();
 
     // [HIL 自动化开发] 启动 MCU 物理调试串口日志监听与广播转发
-    initMcuSerialMonitor(wsManager);
+    // 同时将串口实例共享给 MshClient，避免两者争抢 COM4 端口
+    const sharedPortRef = { port: null };
+    initMcuSerialMonitor(wsManager, (port) => {
+        sharedPortRef.port = port;
+        mshClient.setExistingPort(port).then(() => {
+            console.log('[MSH] 已复用 MCU 监视器的串口实例，无需单独打开 COM4');
+        }).catch(err => {
+            console.warn('[MSH] 复用串口实例失败:', err.message, '将在测试时尝试独立打开');
+        });
+    });
 }
 
 // 错误处理
@@ -601,8 +611,12 @@ main().catch(err => {
  * [嵌入式与 Web 桥接类比]
  * initMcuSerialMonitor 相当于初始化一个独立的 DMA 串口接收通道加中断队列，
  * 当调试串口缓冲区有新数据时触发回调，一方面写入本地环形日志文件，另一方面通过全双工 WebSocket (WS) 推送至人机界面。
+ *
+ * @param {WebSocketManager} wsManager
+ * @param {function} [onPortReady] - 可选回调，串口打开成功后调用，参数为 SerialPort 实例。
+ *                                   用于将共享串口传递给 MshClient，避免端口冲突。
  */
-function initMcuSerialMonitor(wsManager) {
+function initMcuSerialMonitor(wsManager, onPortReady) {
     const configPath = path.join(__dirname, 'config', 'hil.config.json');
     if (!fs.existsSync(configPath)) {
         console.log('[Monitor] 提示：未检测到 config/hil.config.json 配置文件，跳过物理串口日志监听。');
@@ -699,6 +713,16 @@ function initMcuSerialMonitor(wsManager) {
             }
 
             console.log('[Monitor] 成功连接至调试物理串口: ' + portPath + '，启动实时日志监听与广播。');
+
+            // 通知外部模块（如 MshClient）串口已就绪，可共享使用
+            if (typeof onPortReady === 'function') {
+                try {
+                    onPortReady(port);
+                    console.log('[Monitor] 已将串口实例共享给 MshClient');
+                } catch (e) {
+                    console.error('[Monitor] 共享串口实例失败:', e.message);
+                }
+            }
         });
 
         parser.on('data', (line) => {

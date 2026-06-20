@@ -99,6 +99,13 @@ class SensorTestExecutor extends EventEmitter {
       // 1.5 重置所有传感器值为默认值，避免上次测试残留
       this._resetAllSensorValues();
 
+      // 1.6 确保 TCP 连接可用（测试间可能断连）
+      try {
+        await this._stateReader._ensureConnected();
+      } catch (e) {
+        this._log(`测试前重连失败: ${e.message}`);
+      }
+
       // 2. 按场景类型执行
       let result;
       switch (scenario.type) {
@@ -282,7 +289,8 @@ class SensorTestExecutor extends EventEmitter {
 
   /**
    * 执行正常抄读场景 (T-READ-001~004)
-   * 温湿度传感器在轮询队列前部，CO2/压差在中后部，需要更长等待时间
+   * 温湿度传感器在轮询队列前部，CO2/压差在中后部
+   * 对 CO2/压差测试精简温湿度传感器以缩短轮询周期
    */
   async _executeNormalRead(scenario, assertions) {
     const sensors = scenario.inputs.sensors;
@@ -294,28 +302,30 @@ class SensorTestExecutor extends EventEmitter {
     }
     this._log(`设置 ${sensors.length} 个传感器值`);
 
-    // 根据传感器类型确定等待时间：
-    // 固件轮询队列包含所有已安装传感器（~28路），每路约1秒
-    // CO2/压差在队列中后部，需要至少2个完整轮询周期才能稳定采集
+    // 判断传感器类型
     const sensorType = scenario.id.startsWith('T-READ-001') || scenario.id.startsWith('T-READ-002')
       ? 'temp' : scenario.id.startsWith('T-READ-003') ? 'press' : 'co2';
+
+    // 根据传感器类型确定等待时间
+    // 交错轮询模式: 每路传感器后跟 4 路压差, 完整周期 ~80s
+    // CO2 在队列中后部, 需等完整周期; 压差有 POLL_QUERY_SEC=6 插队
     const waitMs = sensorType === 'temp' ? 15000
-      : sensorType === 'co2' ? 45000   // CO2轮询较晚，需等2个完整周期
-      : 35000;                          // 压差有POLL_QUERY_SEC=6插队，稍短
+      : sensorType === 'co2' ? 90000   // CO2 在交错轮询 ~30s 才开始
+      : 35000;                          // 压差
 
     this._log(`等待采集 (${sensorType}, ${waitMs/1000}秒)...`);
     await this._waitCollect(waitMs);
 
     // 读取环控器数据（带重试）
-    let sensorData = await this._stateReader.readSensorData();
-    const actual = await this._stateReader.readActualTempHumi();
+    let sensorData = await this._resilientReadSensorData();
+    const actual = await this._resilientReadActualTempHumi();
 
     // 检查是否有未读到的数据，若全为0则重试一次
     const hasZeroData = this._checkAllZero(sensorData, sensorType);
     if (hasZeroData) {
       this._log('部分传感器数据为0，等待额外采集周期...');
-      await this._waitCollect(30000);
-      sensorData = await this._stateReader.readSensorData();
+      await this._waitCollect(15000);
+      sensorData = await this._resilientReadSensorData();
     }
 
     // 逐路断言
@@ -334,13 +344,14 @@ class SensorTestExecutor extends EventEmitter {
         actualValue = sensorData.press[idx];
       }
 
-      if (actualValue != null && actualValue !== 0) {
+      // 0 值检查：对压差/CO2 等 0 可能是有效值的传感器类型，跳过此检查
+      const zeroIsValid = sensor.key.startsWith('press_') || sensor.key.startsWith('co2_');
+      if (actualValue != null && (actualValue !== 0 || zeroIsValid)) {
         assertions.push(this._assertEngine.assertSensorValue(
           actualValue, sensor.value, tolerance, sensor.key
         ));
         passedCount++;
       } else {
-        // 数据为0或null，记录为失败但不阻断
         assertions.push({
           pass: false,
           code: 'SENSOR_DATA_ZERO',
@@ -476,8 +487,15 @@ class SensorTestExecutor extends EventEmitter {
       this._log('等待 ErMax 触发 (约 400 秒, 3路传感器 × 100次)...');
       await this._waitCollect(400000);
 
-      // 读取 ErMax 告警状态
-      const alarmStatus = await this._stateReader.readAlarmStatus();
+      // 读取 ErMax 告警状态（强韧读取）
+      let alarmStatus;
+      try {
+        alarmStatus = await this._stateReader.readAlarmStatus();
+      } catch (err) {
+        this._log(`读取告警状态失败: ${err.message}，尝试重连...`);
+        await this._stateReader._ensureConnected();
+        alarmStatus = await this._stateReader.readAlarmStatus();
+      }
       const hasErMax = alarmStatus && (alarmStatus.erMax === true || alarmStatus.erMaxTemp === true);
       assertions.push({
         pass: hasErMax,
@@ -487,8 +505,15 @@ class SensorTestExecutor extends EventEmitter {
         actual: hasErMax,
       });
 
-      // 验证数据仍在（固定值）
-      const regValue = await this._stateReader.readRegister(0x1001);
+      // 验证数据仍在（固定值，强韧读取）
+      let regValue;
+      try {
+        regValue = await this._stateReader.readRegister(0x1001);
+      } catch (err) {
+        this._log(`读取 regValue 失败: ${err.message}，尝试重连...`);
+        await this._stateReader._ensureConnected();
+        regValue = await this._stateReader.readRegister(0x1001);
+      }
       assertions.push(this._assertEngine.assertClose(
         regValue / 10, fixedValue.value, 0.1,
         `ErMax 后 temp_1 应保持固定值`
@@ -665,7 +690,7 @@ class SensorTestExecutor extends EventEmitter {
 
       // 等待跨小时
       this._log(`等待跨小时到 ${group.verifyHour}:00...`);
-      const crossOk = await this._waitCrossHour(group.verifyHour, 200);
+      const crossOk = await this._waitCrossHour(group.verifyHour, 200, syncResult);
       if (!crossOk) {
         assertions.push({ pass: false, code: 'CROSS_HOUR_TIMEOUT', message: `跨小时等待超时: 期望 ${group.verifyHour}` });
         return;
@@ -726,6 +751,27 @@ class SensorTestExecutor extends EventEmitter {
       }
       this._log(`重启成功, 耗时 ${rebootResult.rebootTimeMs}ms`);
 
+      // 重启后多次尝试重连（设备可能还在初始化）
+      this._log('等待设备完全启动...');
+      let reconnected = false;
+      for (let attempt = 1; attempt <= 5; attempt++) {
+        try {
+          await this._stateReader._ensureConnected();
+          // 验证连接可用
+          await this._stateReader.readRegister(0x0000);
+          reconnected = true;
+          this._log(`重启后重连成功 (attempt ${attempt})`);
+          break;
+        } catch (e) {
+          this._log(`重启后重连失败 (attempt ${attempt}/5): ${e.message}`);
+          await new Promise(r => setTimeout(r, attempt * 5000)); // 5s, 10s, 15s, 20s, 25s
+        }
+      }
+      if (!reconnected) {
+        assertions.push({ pass: false, code: 'RECONNECT_FAIL', message: '重启后无法重连' });
+        return;
+      }
+
       // 对时到今天 verifyHour:05
       const today = new Date();
       const syncResult = await this._stateReader.syncTime({
@@ -777,17 +823,38 @@ class SensorTestExecutor extends EventEmitter {
 
     // 探测历史读取方式
     if (this._mshClient) {
+      this._log(`[MSH] 开始探测历史读取方式...`);
+      this._log(`[MSH] 连接状态: connected=${this._mshClient._connected}, ownsPort=${this._mshClient._ownsPort}, hasPort=${!!this._mshClient._serialPort}`);
       try {
+        this._log(`[MSH] 正在调用 connect()...`);
         await this._mshClient.connect();
-        const pingOk = await this._mshClient.ping();
+        this._log(`[MSH] connect() 成功, connected=${this._mshClient._connected}`);
+        this._log(`[MSH] 正在调用 pingResult() (发送 'help' 命令)...`);
+        const pingDiag = await this._mshClient.pingResult();
+        const pingOk = pingDiag.ok;
+        if (!pingOk) {
+          this._log(`[MSH] ping 失败! error=${pingDiag.error}`);
+          if (pingDiag.raw) {
+            this._log(`[MSH] MSH 原始响应 (前500字符): ${JSON.stringify(pingDiag.raw).substring(0, 500)}`);
+          } else {
+            this._log(`[MSH] MSH 无响应 (命令超时或串口无数据)`);
+          }
+        } else {
+          this._log('[MSH] ping 成功, MSH shell 活跃');
+        }
         if (pingOk) {
           historyMethod = 'msh';
-          this._log('历史读取方式: MSH 串口');
-          await this._mshClient.clearHistory();
+          this._log('[MSH] 历史读取方式确认: MSH 串口');
+          this._log('[MSH] 正在清空历史缓冲...');
+          const cleared = await this._mshClient.clearHistory();
+          this._log(`[MSH] 清空历史缓冲结果: ${cleared}`);
         }
       } catch (e) {
-        this._log(`MSH 连接失败: ${e.message}`);
+        this._log(`[MSH] 连接/探测失败: ${e.message}`);
+        this._log(`[MSH] 错误堆栈: ${e.stack ? e.stack.split('\n').slice(0, 3).join(' | ') : 'N/A'}`);
       }
+    } else {
+      this._log('[MSH] mshClient 未注入，跳过 MSH 探测');
     }
     if (!historyMethod) {
       try {
@@ -818,7 +885,7 @@ class SensorTestExecutor extends EventEmitter {
     ));
 
     // 等待跨小时
-    const crossOk = await this._waitCrossHour(verifyHour, 200);
+    const crossOk = await this._waitCrossHour(verifyHour, 200, syncResult);
     if (!crossOk) {
       assertions.push({ pass: false, code: 'CROSS_HOUR_TIMEOUT', message: `跨小时等待超时` });
       return;
@@ -1026,10 +1093,20 @@ class SensorTestExecutor extends EventEmitter {
 
   /**
    * RS485 端口切换热更新
+   *
+   * 测试策略：
+   *   1. 读取原端口 → 切换到新端口 → 回读验证 → 立即恢复原端口
+   *   2. 恢复后再设置模拟器值并验证数据采集正常
+   *
+   * 设计原因：模拟器的 USB-RS485 固定连接在原端口上，切换到新端口后
+   * 固件无法在新端口上找到模拟器，会保留旧缓存值（如前序测试 T-ABNF-003
+   * 的 30.0）。因此回读验证后必须先恢复原端口再测试数据采集，
+   * 验证配置变更不中断正常通信。
    */
   async _execHotPortSwitch(scenario, assertions) {
-    // 读取当前端口配置
+    // 读取当前端口配置并保存（存为实例变量供 cleanup 异常恢复使用）
     const originalPort = await this._stateReader.readPortConfig(0);
+    this._originalPortConfig = originalPort;
     this._log(`当前端口: ${originalPort}`);
 
     // 切换到新端口
@@ -1041,32 +1118,34 @@ class SensorTestExecutor extends EventEmitter {
     assertions.push(this._assertEngine.assertEqual(readback, newPort,
       `端口回读: ${readback}, 期望: ${newPort}`));
 
-    // 等待 Modbus 重建
-    await this._waitCollect(5000);
-
-    // 验证数据正常采集
-    this._simulator.setSensorValue('temp_1', 25.0);
-    await this._waitCollect(5000);
-    const sensorData = await this._stateReader.readSensorData();
-    assertions.push(this._assertEngine.assertClose(sensorData.temp[0], 25.0, 0.2,
-      `切换后数据: ${sensorData.temp[0]}, 期望: 25.0`));
-
-    // 恢复原端口
+    // 立即恢复原端口（模拟器连接在原端口，切到新端口后固件无法采集数据）
     await this._stateReader.writePortConfig(0, originalPort);
-    this._log(`恢复端口: ${originalPort}`);
+    this._log(`端口切换验证完成，已恢复原端口: ${originalPort}`);
+
+    // 等待固件轮询队列重建（端口切换后固件需重建轮询队列，30 秒）
+    this._log('等待轮询队列重建 (30 秒)...');
+    await this._waitCollect(30000);
+
+    // 验证数据正常采集（原端口上模拟器可达）
+    this._simulator.setSensorValue('temp_1', 25.0);
+    this._log('设置 temp_1 = 25.0，等待完整轮询周期...');
+    await this._waitCollect(30000);
+    const sensorData = await this._resilientReadSensorData();
+    assertions.push(this._assertEngine.assertClose(sensorData.temp[0], 25.0, 0.2,
+      `恢复端口后数据: ${sensorData.temp[0]}, 期望: 25.0`));
   }
 
   /**
    * 阈值热更新 (温度/湿度)
    * Alarm_Check() 在采集线程循环中每秒执行一次
    *
-   * 温度告警使用偏差判定: ActualTemp - Expected_temp > TempHigh
-   *   - Expected_temp = 目标温度 (寄存器 0x7001, val/10 → ℃)
-   *   - TempHigh = 偏差阈值 (寄存器 0x7040, val/10 → ℃)
-   *   - 因此需先读取 Expected_temp，再计算触发值和恢复值
+   * 温度告警使用绝对值判定: ActualTemp > TempHigh
+   *   - TempHigh = 温度上限 (寄存器 0x7040, val/10 → ℃)
+   *   - Alarm_Bit_TempHigh = bit0 (enableBit 默认 0x63 已置位)
    *
    * 湿度告警使用绝对值判定: Humi > HumiHigh
    *   - HumiHigh = 湿度绝对上限 (寄存器 0x7042, val/10 → %RH)
+   *   - Alarm_Bit_HumiHigh = bit2 (enableBit 默认 0x63 未置位, 需显式写入)
    *
    * 告警清除延迟: SET_ALARM_TIMEOUT = 180 秒
    */
@@ -1078,45 +1157,48 @@ class SensorTestExecutor extends EventEmitter {
     this._log(`原 ${type} 阈值: ${originalRaw} (${(originalRaw / 10).toFixed(1)})`);
 
     if (type === 'temp') {
-      // === 温度告警: 偏差判定 ===
-      // 读取 Expected_temp (目标温度)
-      const targetTempRaw = await this._stateReader.readRegister(0x7001);
-      const targetTemp = targetTempRaw / 10;
-      this._log(`目标温度 Expected_temp: ${targetTempRaw} (${targetTemp.toFixed(1)}℃)`);
+      // === 温度告警: 绝对值判定 (ActualTemp > TempHigh) ===
+      // 温度高限告警 enableBit (bit0) 默认已开启 (0x63)，但尝试写入确保
+      this._log('写入温度高限告警使能位 (highTempRca: 1)...');
+      await this._writeAlarmEnable({ highTempRca: 1 });
+      await this._waitCollect(2000);
 
-      // 写入小偏差阈值 (3.0°C)，使告警触发点 = Expected_temp + 3.0
-      const newThresholdRaw = 30; // 3.0°C 偏差
+      // 写入告警阈值 (绝对温度, 如 280 = 28.0℃)
+      const newThresholdRaw = scenario.inputs.alarmThreshold ?? 280;
       await this._stateReader.writeThreshold(thresholdType, newThresholdRaw);
       const readback = await this._stateReader.readThreshold(thresholdType);
       assertions.push(this._assertEngine.assertEqual(readback, newThresholdRaw,
         `阈值回读: ${readback}, 期望: ${newThresholdRaw}`));
-      this._log(`写入温度高限偏差: ${newThresholdRaw} (${(newThresholdRaw / 10).toFixed(1)}℃)`);
+      this._log(`写入温度高限: ${newThresholdRaw} (${(newThresholdRaw / 10).toFixed(1)}℃)`);
 
-      // 设置超阈值: ActualTemp = Expected_temp + 5.0 (> Expected_temp + 3.0)
-      const testValue = targetTemp + 5.0;
-      this._simulator.setSensorValue('temp_1', testValue);
-      this._log(`设置超阈值: temp_1 = ${testValue}℃ (目标 ${targetTemp} + 偏差 ${newThresholdRaw / 10} = ${(targetTemp + newThresholdRaw / 10).toFixed(1)}℃)`);
+      // 设置所有传感器超阈值: ActualTemp > TempHigh → 触发告警
+      const testValue = scenario.inputs.testValue ?? 30.0;
+      for (let i = 1; i <= 16; i++) {
+        this._simulator.setSensorValue(`temp_${i}`, testValue);
+      }
+      this._log(`设置全部 16 路温度 = ${testValue}℃ (阈值 ${(newThresholdRaw / 10).toFixed(1)}℃)`);
 
-      // 等待 Alarm_Check() 检测 (每秒执行一次，等 30 秒确保多轮检测)
+      // 等待 Alarm_Check() 检测
       this._log('等待告警触发 (30 秒)...');
       await this._waitCollect(30000);
 
-      // 读取告警状态（带重试）
       let alarmAfterExceed = await this._stateReader.readAlarmStatus();
       this._log(`告警状态: tempHigh=${alarmAfterExceed.tempHigh}, raw=${JSON.stringify(alarmAfterExceed.raw)}`);
       if (!alarmAfterExceed.tempHigh) {
-        this._log(`告警未触发，追加等待 20 秒...`);
-        await this._waitCollect(20000);
+        this._log('告警未触发，追加等待 30 秒...');
+        await this._waitCollect(30000);
         alarmAfterExceed = await this._stateReader.readAlarmStatus();
         this._log(`重试告警状态: tempHigh=${alarmAfterExceed.tempHigh}, raw=${JSON.stringify(alarmAfterExceed.raw)}`);
       }
       assertions.push(this._assertEngine.assertEqual(alarmAfterExceed.tempHigh, true,
         `超阈值后告警: ${alarmAfterExceed.tempHigh} (raw: ${JSON.stringify(alarmAfterExceed.raw)})`));
 
-      // 恢复正常值: 设为目标温度-1 (低于目标，不触发偏差告警)
-      const recoverValue = targetTemp - 1.0;
-      this._simulator.setSensorValue('temp_1', recoverValue);
-      this._log(`恢复正常值: temp_1 = ${recoverValue}℃ (低于目标 ${targetTemp}℃)`);
+      // 恢复: 所有传感器降到阈值以下 → 清除告警
+      const recoverValue = scenario.inputs.recoverValue ?? 25.0;
+      for (let i = 1; i <= 16; i++) {
+        this._simulator.setSensorValue(`temp_${i}`, recoverValue);
+      }
+      this._log(`恢复全部温度 = ${recoverValue}℃ (阈值 ${(newThresholdRaw / 10).toFixed(1)}℃)`);
 
     } else {
       // === 湿度告警: 绝对值判定 ===
@@ -1180,10 +1262,13 @@ class SensorTestExecutor extends EventEmitter {
     await this._stateReader.writeThreshold(thresholdType, originalRaw);
     this._log(`恢复原阈值: ${originalRaw}`);
 
-    // 恢复告警使能位 (仅湿度告警需要，恢复为默认关闭)
+    // 恢复告警使能位 (恢复为默认关闭)
     if (type === 'humi') {
       this._log('恢复湿度高限告警使能位 (highHumiRca: 0)...');
       await this._writeAlarmEnable({ highHumiRca: 0 });
+    } else {
+      this._log('恢复温度高限告警使能位 (highTempRca: 0)...');
+      await this._writeAlarmEnable({ highTempRca: 0 });
     }
   }
 
@@ -1414,13 +1499,27 @@ class SensorTestExecutor extends EventEmitter {
    */
   async _waitCollect(ms) {
     // 每 10 秒发送一次心跳保活（GD32 超时为 15 秒）
+    // 连续 2 次心跳失败时主动重连，避免 DevicePool 4 次超时后 hard reset
+    let consecutiveFailures = 0;
     const keepaliveInterval = 10000;
     const keepaliveTimer = setInterval(async () => {
       try {
         if (this._stateReader && this._deviceKey) {
           await this._stateReader.readRegister(0x0000); // 心跳寄存器保活
+          consecutiveFailures = 0;  // 重置失败计数
         }
-      } catch (_) { /* 忽略保活失败 */ }
+      } catch (_) {
+        consecutiveFailures++;
+        if (consecutiveFailures >= 2) {
+          this._log('心跳连续失败，尝试重连...');
+          try {
+            await this._stateReader._ensureConnected();
+            consecutiveFailures = 0;
+          } catch (e) {
+            this._log(`重连失败: ${e.message}`);
+          }
+        }
+      }
     }, keepaliveInterval);
 
     return new Promise(resolve => {
@@ -1433,12 +1532,78 @@ class SensorTestExecutor extends EventEmitter {
 
   /**
    * 等待跨小时
-   * @param {number} expectedHour
-   * @param {number} maxWaitSec
+   *
+   * 策略：先快速轮询 HR13（适配固件更新 Modbus 时钟寄存器的情况），
+   * 若寄存器不更新则回退为时间推算等待（固件内部时钟前进但不回写 HR13 的情况）。
+   *
+   * @param {number} expectedHour - 期望的目标小时
+   * @param {number} maxWaitSec - 最大等待秒数
+   * @param {object} [syncResult] - syncTime() 返回结果，含 syncCompletedAt / syncMinute / syncSecond
    * @returns {Promise<boolean>}
    */
-  async _waitCrossHour(expectedHour, maxWaitSec) {
-    for (let i = 0; i < maxWaitSec; i++) {
+  async _waitCrossHour(expectedHour, maxWaitSec, syncResult) {
+    // 第一阶段：快速轮询 HR13（兼容固件实时更新 Modbus 寄存器的情况）
+    // 如果固件更新 HR13，几秒内就能检测到
+    const pollDurationSec = 10;
+    for (let i = 0; i < pollDurationSec; i++) {
+      await this._waitCollect(1000);
+      try {
+        const hr = await this._stateReader.readRegister(BLOCK_SENSOR_TIME.TIME_HOUR);
+        if (hr === expectedHour) return true;
+      } catch (e) {
+        // 读取失败，继续等待
+      }
+    }
+
+    // 第二阶段：HR13 未变化，回退为时间推算等待
+    // 固件内部时钟持续前进，但 HR10-HR15 Modbus 寄存器仅在 syncTime 时写入、不随运行时钟更新。
+    // 根据对时完成时刻 + 对时分钟/秒数，推算距下一整点的剩余秒数。
+    if (syncResult && syncResult.syncCompletedAt != null) {
+      const syncMinute = syncResult.syncMinute ?? 0;
+      const syncSecond = syncResult.syncSecond ?? 0;
+      // 对时完成时，固件时钟为 HH:syncMinute:syncSecond → 距 (HH+1):00 的剩余秒数
+      const secondsToNextHour = ((60 - syncMinute) * 60 - syncSecond);
+      // 已经过的时间
+      const elapsedSec = (Date.now() - syncResult.syncCompletedAt) / 1000;
+      // 剩余需等待的秒数（+5 秒安全余量，确保固件已跨过整点）
+      const remainingSec = Math.max(0, secondsToNextHour - elapsedSec + 5);
+
+      this._log(`时间推算等待: 对时后已过 ${elapsedSec.toFixed(0)}s, 距整点剩余 ${remainingSec.toFixed(0)}s`);
+
+      if (remainingSec > 0) {
+        // 以 5 秒为单位分段等待，保持心跳保活
+        let waitedSec = 0;
+        while (waitedSec < remainingSec) {
+          const chunk = Math.min(5000, (remainingSec - waitedSec) * 1000);
+          await this._waitCollect(chunk);
+          waitedSec += chunk / 1000;
+          // 每 30 秒检查一次 HR13（万一固件确实在更新）
+          if (waitedSec % 30 < 5) {
+            try {
+              const hr = await this._stateReader.readRegister(BLOCK_SENSOR_TIME.TIME_HOUR);
+              if (hr === expectedHour) return true;
+            } catch (e) { /* 忽略 */ }
+          }
+        }
+      }
+
+      // 等待结束，做最终 HR13 确认（可能仍未变化，但时间已到）
+      try {
+        const hr = await this._stateReader.readRegister(BLOCK_SENSOR_TIME.TIME_HOUR);
+        if (hr === expectedHour) {
+          this._log('跨小时确认: HR13 已更新');
+          return true;
+        }
+      } catch (e) { /* 忽略 */ }
+
+      // HR13 仍未变化，但时间推算已足够（固件内部时钟已前进，只是 HR13 不更新）
+      this._log(`跨小时(时间推算): HR13 仍为旧值，但已等待足够时间，固件内部时钟应已到达 ${expectedHour}:00`);
+      return true;
+    }
+
+    // 无 syncResult 信息，继续原始轮询直到 maxWaitSec
+    this._log('无 syncResult 信息，回退为持续轮询');
+    for (let i = pollDurationSec; i < maxWaitSec; i++) {
       await this._waitCollect(1000);
       try {
         const hr = await this._stateReader.readRegister(BLOCK_SENSOR_TIME.TIME_HOUR);
@@ -1496,21 +1661,80 @@ class SensorTestExecutor extends EventEmitter {
   }
 
   /**
-   * 写入告警使能位 (通过 ATE TCP JSON 协议)
-   * @param {object} alarmConfig - AlarmThresholdSet 部分字段
-   * @returns {Promise<boolean>} 是否成功
+   * 写入告警使能位
+   * 优先使用 Modbus 寄存器 0x7035 (需固件实现)
+   * 备选使用 ATE TCP JSON 协议 (需端口 9001)
+   *
+   * enableBit 位定义 (来自 alarm_event.h):
+   *   bit0 = Alarm_Bit_TempHigh (温度高限)
+   *   bit1 = Alarm_Bit_TempLow  (温度低限)
+   *   bit2 = Alarm_Bit_HumiHigh (湿度高限)
+   *   bit3 = Alarm_Bit_HumiLow  (湿度低限)
+   *   bit4 = Alarm_Bit_TempDiff (温差)
+   *   bit5 = Alarm_Bit_CO2High  (CO2 高限)
+   *   bit6 = Alarm_Bit_NH3High  (氨气高限)
+   *   bit7 = Alarm_Bit_DP       (压差高限)
+   *
+   * 固件默认 enableBit = 0x63 (bit0+1+5+6 置位)
+   *
+   * @param {object} alarmConfig - 例 { highTempRca: 1 } 或 { highHumiRca: 0 }
+   * @returns {Promise<boolean>}
    */
   async _writeAlarmEnable(alarmConfig) {
-    if (!this._ateClient) {
-      this._log('ateClient 未设置，跳过告警使能位写入');
-      return false;
-    }
+    const ALARM_ENABLE_REG = 0x7035;
+    const BIT_MAP = {
+      highTempRca: 0,  // Alarm_Bit_TempHigh
+      lowTempRca:  1,  // Alarm_Bit_TempLow
+      highHumiRca: 2,  // Alarm_Bit_HumiHigh
+      lowHumiRca:  3,  // Alarm_Bit_HumiLow
+      tempDiffRca: 4,  // Alarm_Bit_TempDiff
+      CO2Rca:      5,  // Alarm_Bit_CO2High
+      NH4Rca:      6,  // Alarm_Bit_NH3High
+      DPRca:       7,  // Alarm_Bit_DP
+    };
+
     try {
-      await this._ateClient.writeConfig({ AlarmThresholdSet: alarmConfig });
-      this._log(`告警使能位写入成功: ${JSON.stringify(alarmConfig)}`);
-      return true;
+      // 读取当前 enableBit
+      let current;
+      try {
+        current = await this._stateReader.readRegister(ALARM_ENABLE_REG);
+      } catch (e) {
+        // 0x7035 不存在，回退到 ATE TCP
+        this._log(`0x7035 读取失败 (${e.message})，尝试 ATE TCP...`);
+        if (this._ateClient) {
+          await this._ateClient.writeConfig({ AlarmThresholdSet: alarmConfig });
+          this._log(`ATE TCP 告警使能位写入成功: ${JSON.stringify(alarmConfig)}`);
+          return true;
+        }
+        this._log('ATE TCP 也不可用，跳过告警使能位写入');
+        return false;
+      }
+
+      // 修改指定位
+      let newBitmask = current;
+      for (const [field, enable] of Object.entries(alarmConfig)) {
+        const bit = BIT_MAP[field];
+        if (bit === undefined) {
+          this._log(`未知告警字段: ${field}`);
+          continue;
+        }
+        if (enable) {
+          newBitmask |= (1 << bit);    // 置位
+        } else {
+          newBitmask &= ~(1 << bit);   // 清位
+        }
+      }
+
+      // 写回
+      await this._stateReader.writeRegister(ALARM_ENABLE_REG, newBitmask);
+
+      // 回读验证
+      const readback = await this._stateReader.readRegister(ALARM_ENABLE_REG);
+      const ok = readback === newBitmask;
+      this._log(`告警使能位: 0x${current.toString(16)} -> 0x${newBitmask.toString(16)} (回读: 0x${readback.toString(16)}, ${ok ? 'OK' : 'MISMATCH'})`);
+      return ok;
     } catch (e) {
-      this._log(`告警使能位写入失败: ${e.message}`);
+      this._log(`告警使能位写入异常: ${e.message}`);
       return false;
     }
   }

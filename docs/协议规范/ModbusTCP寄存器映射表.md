@@ -165,17 +165,18 @@
 | 0x7032 | 温度高限告警     | uint16 | RO   | 1=温度高限告警触发                                        |
 | 0x7033 | 湿度高限告警     | uint16 | RO   | 1=湿度高限告警触发                                        |
 | 0x7034 | 传感器在线状态   | uint16 | RO   | bit0~bit15 对应传感器，1=在线                             |
+| 0x7035 | 告警使能位       | uint16 | R/W  | 直接映射 `App_Save.alarm.enableBit`，写入后自动保存 Flash  |
 
 ### 5.3 阈值配置区 (BLOCK_SENSOR_THRESHOLD)
 | 地址   | 名称           | 类型   | 读写 | 换算逻辑                                    |
 | :----- | :------------- | :----- | :--- | :------------------------------------------ |
-| 0x7040 | 温度高限阈值   | uint16 | R/W  | val/10 → ℃（**偏差值**，ActualTemp - Expected_temp > TempHigh 时触发告警） |
-| 0x7041 | 温度低限阈值   | uint16 | R/W  | val/10 → ℃（偏差值）                       |
+| 0x7040 | 温度高限阈值   | uint16 | R/W  | val/10 → ℃（**绝对值**，ActualTemp > TempHigh 时触发告警） |
+| 0x7041 | 温度低限阈值   | uint16 | R/W  | val/10 → ℃（绝对值，ActualTemp < TempLow 时触发告警） |
 | 0x7042 | 湿度高限阈值   | uint16 | R/W  | val/10 → %RH（**绝对值**，Humi > HumiHigh 时触发告警） |
-| 0x7043 | 湿度低限阈值   | uint16 | R/W  | val/10 → %RH（绝对值）                     |
+| 0x7043 | 湿度低限阈值   | uint16 | R/W  | val/10 → %RH（绝对值，Humi < HumiLow 时触发告警） |
 
-> **重要**: 温度告警阈值为**偏差值**（相对于目标温度 `0x7001`），非绝对温度。
-> 例如：Expected_temp=20℃, TempHigh=30(3.0℃)，则 ActualTemp > 23℃ 时触发告警。
+> **重要**: 温度和湿度告警阈值均为**绝对值**。
+> 例如：TempHigh=280(28.0℃)，则 ActualTemp > 28.0℃ 时触发告警。
 
 ### 5.4 温度补偿值 (BLOCK_SENSOR_COMPENSATION.TEMP_COMP_BASE)
 | 地址范围       | 名称               | 类型   | 读写 | 换算逻辑                           |
@@ -206,9 +207,17 @@
 | 0x7110 | 历史清空触发     | uint16 | WO   | 写入 0xAA55 触发清空历史缓冲                             |
 | 0x7111 | 历史清空结果     | uint16 | RO   | 0=空闲, 1=清空中, 2=完成                                 |
 
-### 5.8 告警使能位 (enableBit) — JSON 属性协议
+### 5.8 告警使能位 (enableBit)
 
-告警使能位**不是 Modbus 寄存器**，而是通过 JSON 属性协议 (`AlarmThresholdSet`) 下发到固件 `App_Save.alarm.enableBit`。屏幕 (HMI) 和测试系统均可通过此协议写入。
+告警使能位可通过以下两种方式写入：
+
+**方式 1：Modbus TCP 寄存器 (推荐)**
+- 地址 `0x7035`，uint16，读写
+- 直接映射 `App_Save.alarm.enableBit`，写入后自动保存 Flash
+- 测试代码：`writeRegister(0x7035, value)`
+
+**方式 2：JSON 属性协议 (ATE TCP 9001)**
+- 通过 `AlarmThresholdSet` 下发，屏幕 (HMI) 和测试系统均可使用
 
 **下发格式**:
 ```json

@@ -1,0 +1,127 @@
+<!--  --># GD32-Web-MaxClaw 文档中心
+
+> 环境控制器自动化测试系统 · 全量文档索引
+
+---
+
+## 项目总览
+
+- [项目总览](项目总览.md) — 系统架构、设计哲学、核心功能、开发优先级
+
+---
+
+## 协议规范
+
+通信协议与寄存器定义，所有涉及 Modbus 通信的模块必读。
+
+- [Modbus-TCP 后端通信开发规范](协议规范/Modbus-TCP后端通信开发规范.md) — 连接管理、读写规则、错误处理
+- [ModbusTCP 寄存器映射表](协议规范/ModbusTCP寄存器映射表.md) — 全量寄存器地址字典（V2.0）
+
+---
+
+## 使用指南
+
+部署、启动和开发规约。
+
+- [前后端启动配置文档](使用指南/前后端启动配置文档.md) — 多环境部署与网络配置
+- [前端 UI 开发总规约](使用指南/前端UI开发总规约.md) — 组件规范、样式约定
+- [ATE 部署指南（虚拟传感器）](使用指南/ATE部署指南(虚拟传感器).md) — ATE 测试系统部署步骤
+
+---
+
+## 固件开发
+
+固件侧需实现的功能与规格。
+
+- [环控器主板需添加内容](固件开发/环控器主板需添加内容.md) — 固件新增需求清单（v2.0）
+- [OTA 升级系统开发规格说明书](固件开发/OTA升级系统开发规格说明书.md) — OTA 流程与寄存器定义（V2.0）
+
+---
+
+## 开发计划
+
+按优先级排列的开发任务与方案。
+
+- [环境控制器自动化测试系统开发方案总规划](开发计划/环境控制器自动化测试系统开发方案总规划.md) — v1 开发方案总纲
+
+### P0 — 基础模块
+
+- [开发任务表 P0](开发计划/P0/环境控制器自动化测试系统开发任务表P0.md) — P0 阶段任务分解
+- [未开发与不到位项清单](开发计划/P0/环境控制器自动化测试系统P0阶段未开发与不到位项清单.md) — 待补全项
+
+### P1 — 传感器与 HIL 测试
+
+- [传感器自动测试任务开发列表 P1](开发计划/P1/传感器自动测试任务开发列表P1.md) — 传感器测试任务分解
+- [传感器自动测试内容开发清单 P1](开发计划/P1/传感器自动测试内容开发清单P1.md) — 测试内容明细
+- [HIL 自动化构建与智能体闭环测试方案](开发计划/P1/HIL自动化构建与智能体闭环测试方案.md) — HIL 测试架构
+- [HIL 自动化测试调试报告](开发计划/P1/HIL自动化测试调试报告.md) — 调试记录与问题追踪
+
+---
+
+## 环控器功能
+
+环控器各功能模块的控制逻辑与测试方案。
+
+- [92 环控器系统测试清单](环控器功能/92环控器重构系统系统测试清单(整体逻辑).md) — 整体逻辑测试清单
+
+### 传感器
+
+- [传感器采集与处理逻辑](环控器功能/传感器/传感器采集与处理逻辑.md)
+- [传感器地址汇总](环控器功能/传感器/传感器地址汇总.pdf)（PDF）
+- [传感器测试场景与期望表](环控器功能/传感器/传感器测试场景与期望表.md)
+- [传感器模拟器实现方案](环控器功能/传感器/传感器模拟器实现方案.md)
+- [传感器异常历史数据回退测试方案](环控器功能/传感器/传感器异常历史数据回退测试方案.md)
+
+### 加热
+
+- [加热控制逻辑](环控器功能/加热/加热控制逻辑.md)
+- [加热器自动测试清单 P1](环控器功能/加热/加热器自动测试清单P1.md)
+
+### 告警
+
+- [告警控制逻辑](环控器功能/告警/告警控制逻辑.md)
+
+### 水帘
+
+- [水帘控制逻辑](环控器功能/水帘/水帘控制逻辑.md)
+- [CAN 通信与共享控制逻辑](环控器功能/水帘/CAN通信与共享控制逻辑.md)
+- [水帘与幕帘共享免重启优化方案](环控器功能/水帘/水帘与幕帘共享免重启优化方案.md)
+
+### 目标温度曲线
+
+- [目标温度曲线控制逻辑](环控器功能/目标温度曲线/目标温度曲线控制逻辑.md)
+
+### 通风逻辑
+
+- [季节通风控制逻辑](环控器功能/通风逻辑/季节通风控制逻辑.md)
+- [负压控制逻辑](环控器功能/通风逻辑/负压控制逻辑.md)
+- [间歇轮替关联间歇控制逻辑](环控器功能/通风逻辑/间歇轮替关联间歇控制逻辑.md)
+
+---
+
+## 代码架构分析
+
+前后端核心模块的架构分析文档（含 UML 图）。
+
+### 后端
+
+| 模块 | 文档 | UML 图 | PDF |
+|------|------|--------|-----|
+| 数据解析器 | [数据解析器.md](analysis/backend/DataParser/数据解析器.md) | [DataParser_diagram.html](analysis/backend/DataParser/DataParser_diagram.html) | [DataParser.pdf](analysis/backend/DataParser/DataParser.pdf) |
+| 设备池 | [设备池.md](analysis/backend/DevicePool/设备池.md) | [DevicePool_diagram.html](analysis/backend/DevicePool/DevicePool_diagram.html) | [DevicePool.pdf](analysis/backend/DevicePool/DevicePool.pdf) |
+| 轮询引擎 | [轮询引擎.md](analysis/backend/PollingEngine/轮询引擎.md) | [PollingEngine_diagram.html](analysis/backend/PollingEngine/PollingEngine_diagram.html) | [PollingEngine.pdf](analysis/backend/PollingEngine/PollingEngine.pdf) |
+| 服务端 | [server.md](analysis/backend/server/server.md) | [server_diagram.html](analysis/backend/server/server_diagram.html) | [server.pdf](analysis/backend/server/server.pdf) |
+
+### 前端
+
+| 模块 | 文档 | UML 图 | PDF |
+|------|------|--------|-----|
+| 前端总览 | [前端分析.md](analysis/frontend/前端分析.md) | [frontend_uml.html](analysis/frontend/frontend_uml.html) | [frontend_analysis_v2.pdf](analysis/frontend/frontend_analysis_v2.pdf) |
+| App | [应用.md](analysis/frontend/App/应用.md) | [App_diagram.html](analysis/frontend/App/App_diagram.html) | [App.pdf](analysis/frontend/App/App.pdf) |
+| Main | [main.md](analysis/frontend/main/main.md) | [main_diagram.html](analysis/frontend/main/main_diagram.html) | [main.pdf](analysis/frontend/main/main.pdf) |
+
+---
+
+## UI 原型
+
+- [ATE WinForms 原型图](figure/ate_winforms_mockup.html)
