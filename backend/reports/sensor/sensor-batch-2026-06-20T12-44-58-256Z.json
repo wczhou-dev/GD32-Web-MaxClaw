@@ -1,0 +1,4620 @@
+{
+  "reportVersion": "2.1",
+  "reportType": "sensor-batch",
+  "generatedAt": "2026-06-20T12:44:58.256Z",
+  "deviceInfo": {},
+  "fieldType": "A",
+  "summary": {
+    "total": 1,
+    "passed": 1,
+    "failed": 0,
+    "skipped": 0,
+    "passRate": "100.0%"
+  },
+  "scenarios": [
+    {
+      "scenarioId": "T-ABNF-003-EVEN",
+      "scenarioName": "偶数路温度偏差剔除",
+      "conclusion": "通过",
+      "skipReason": null,
+      "duration": 320046,
+      "assertionCount": 1,
+      "failureCount": 0,
+      "assertions": [
+        {
+          "pass": true,
+          "code": null,
+          "expected": 30,
+          "actual": 30,
+          "tolerance": 0.2,
+          "message": "ActualTemp: actual=30, expected=30"
+        }
+      ],
+      "inputs": {
+        "0x01": {
+          "0x0000": 400,
+          "0x0001": 300
+        },
+        "0x02": {
+          "0x0000": 420,
+          "0x0001": 300
+        },
+        "0x03": {
+          "0x0000": 440,
+          "0x0001": 300
+        },
+        "0x07": {
+          "0x0000": 460,
+          "0x0001": 700
+        },
+        "0x08": {
+          "0x0000": 480,
+          "0x0001": 300
+        },
+        "0x09": {
+          "0x0000": 500,
+          "0x0001": 300
+        },
+        "0x50": {
+          "0x0000": 520,
+          "0x0001": 300
+        },
+        "0x1a": {
+          "0x0000": 540,
+          "0x0001": 300
+        },
+        "0x1b": {
+          "0x0000": 560,
+          "0x0001": 300
+        },
+        "0x1c": {
+          "0x0000": 580,
+          "0x0001": 300
+        },
+        "0x1d": {
+          "0x0000": 600,
+          "0x0001": 300
+        },
+        "0x1e": {
+          "0x0000": 620,
+          "0x0001": 300
+        },
+        "0x1f": {
+          "0x0000": 640,
+          "0x0001": 300
+        },
+        "0x51": {
+          "0x0000": 660,
+          "0x0001": 300
+        },
+        "0x33": {
+          "0x0000": 680,
+          "0x0001": 300
+        },
+        "0x34": {
+          "0x0000": 700,
+          "0x0001": 300
+        },
+        "0x05": {
+          "0x0002": 400
+        },
+        "0x0a": {
+          "0x0002": 600
+        },
+        "0x11": {
+          "0x0002": 800
+        },
+        "0x14": {
+          "0x0002": 1000
+        },
+        "0x15": {
+          "0x0002": 1200
+        },
+        "0x16": {
+          "0x0002": 500
+        },
+        "0x17": {
+          "0x0002": 700
+        },
+        "0x52": {
+          "0x0002": 900
+        },
+        "0x0b": {
+          "0x0000": 0,
+          "0x0001": 0,
+          "0x0002": 1
+        },
+        "0x28": {
+          "0x0000": 0,
+          "0x0001": 100,
+          "0x0002": 1
+        },
+        "0x29": {
+          "0x0000": 0,
+          "0x0001": 250,
+          "0x0002": 1
+        },
+        "0x2a": {
+          "0x0000": 0,
+          "0x0001": 500,
+          "0x0002": 1
+        },
+        "0x06": {
+          "0x0000": 0
+        },
+        "0x37": {
+          "0x0000": 0
+        },
+        "0x38": {
+          "0x0000": 0
+        },
+        "0x39": {
+          "0x0000": 0
+        }
+      },
+      "transactionLog": [
+        {
+          "action": "setSensorValue",
+          "key": "co2_1",
+          "value": 400,
+          "rawValue": 400,
+          "slaveAddr": 5,
+          "registerAddr": 2,
+          "timestamp": "2026-06-20T12:39:28.339Z"
+        },
+        {
+          "action": "setSensorValue",
+          "key": "co2_2",
+          "value": 600,
+          "rawValue": 600,
+          "slaveAddr": 10,
+          "registerAddr": 2,
+          "timestamp": "2026-06-20T12:39:28.339Z"
+        },
+        {
+          "action": "setSensorValue",
+          "key": "co2_3",
+          "value": 800,
+          "rawValue": 800,
+          "slaveAddr": 17,
+          "registerAddr": 2,
+          "timestamp": "2026-06-20T12:39:28.339Z"
+        },
+        {
+          "action": "setSensorValue",
+          "key": "co2_4",
+          "value": 1000,
+          "rawValue": 1000,
+          "slaveAddr": 20,
+          "registerAddr": 2,
+          "timestamp": "2026-06-20T12:39:28.339Z"
+        },
+        {
+          "action": "setSensorValue",
+          "key": "co2_5",
+          "value": 1200,
+          "rawValue": 1200,
+          "slaveAddr": 21,
+          "registerAddr": 2,
+          "timestamp": "2026-06-20T12:39:28.339Z"
+        },
+        {
+          "action": "setSensorValue",
+          "key": "co2_6",
+          "value": 500,
+          "rawValue": 500,
+          "slaveAddr": 22,
+          "registerAddr": 2,
+          "timestamp": "2026-06-20T12:39:28.339Z"
+        },
+        {
+          "action": "setSensorValue",
+          "key": "co2_7",
+          "value": 700,
+          "rawValue": 700,
+          "slaveAddr": 23,
+          "registerAddr": 2,
+          "timestamp": "2026-06-20T12:39:28.339Z"
+        },
+        {
+          "action": "setSensorValue",
+          "key": "co2_8",
+          "value": 900,
+          "rawValue": 900,
+          "slaveAddr": 82,
+          "registerAddr": 2,
+          "timestamp": "2026-06-20T12:39:28.339Z"
+        },
+        {
+          "action": "setSensorValue",
+          "key": "press_1",
+          "value": 0,
+          "rawValue": 0,
+          "slaveAddr": 11,
+          "registerAddr": 1,
+          "timestamp": "2026-06-20T12:39:28.340Z"
+        },
+        {
+          "action": "setSensorValue",
+          "key": "press_2",
+          "value": 10,
+          "rawValue": 100,
+          "slaveAddr": 40,
+          "registerAddr": 1,
+          "timestamp": "2026-06-20T12:39:28.340Z"
+        },
+        {
+          "action": "setSensorValue",
+          "key": "press_3",
+          "value": 25,
+          "rawValue": 250,
+          "slaveAddr": 41,
+          "registerAddr": 1,
+          "timestamp": "2026-06-20T12:39:28.340Z"
+        },
+        {
+          "action": "setSensorValue",
+          "key": "press_4",
+          "value": 50,
+          "rawValue": 500,
+          "slaveAddr": 42,
+          "registerAddr": 1,
+          "timestamp": "2026-06-20T12:39:28.340Z"
+        },
+        {
+          "action": "read_response",
+          "slaveAddr": 40,
+          "startAddr": 0,
+          "regCount": 3,
+          "values": [
+            0,
+            100,
+            1
+          ],
+          "key": "press_2",
+          "timestamp": "2026-06-20T12:39:29.849Z"
+        },
+        {
+          "action": "read_response",
+          "slaveAddr": 41,
+          "startAddr": 0,
+          "regCount": 3,
+          "values": [
+            0,
+            250,
+            1
+          ],
+          "key": "press_3",
+          "timestamp": "2026-06-20T12:39:30.917Z"
+        },
+        {
+          "action": "read_response",
+          "slaveAddr": 42,
+          "startAddr": 0,
+          "regCount": 3,
+          "values": [
+            0,
+            500,
+            1
+          ],
+          "key": "press_4",
+          "timestamp": "2026-06-20T12:39:31.986Z"
+        },
+        {
+          "action": "read_response",
+          "slaveAddr": 51,
+          "startAddr": 0,
+          "regCount": 2,
+          "values": [
+            680,
+            340
+          ],
+          "key": "temp_15",
+          "timestamp": "2026-06-20T12:39:33.039Z"
+        },
+        {
+          "action": "read_response",
+          "slaveAddr": 52,
+          "startAddr": 0,
+          "regCount": 2,
+          "values": [
+            700,
+            350
+          ],
+          "key": "temp_16",
+          "timestamp": "2026-06-20T12:39:34.092Z"
+        },
+        {
+          "action": "read_response",
+          "slaveAddr": 11,
+          "startAddr": 0,
+          "regCount": 3,
+          "values": [
+            0,
+            0,
+            1
+          ],
+          "key": "press_1",
+          "timestamp": "2026-06-20T12:39:35.162Z"
+        },
+        {
+          "action": "read_response",
+          "slaveAddr": 40,
+          "startAddr": 0,
+          "regCount": 3,
+          "values": [
+            0,
+            100,
+            1
+          ],
+          "key": "press_2",
+          "timestamp": "2026-06-20T12:39:36.231Z"
+        },
+        {
+          "action": "read_response",
+          "slaveAddr": 41,
+          "startAddr": 0,
+          "regCount": 3,
+          "values": [
+            0,
+            250,
+            1
+          ],
+          "key": "press_3",
+          "timestamp": "2026-06-20T12:39:37.300Z"
+        },
+        {
+          "action": "setSensorValue",
+          "key": "temp_1",
+          "value": 20,
+          "rawValue": 200,
+          "slaveAddr": 1,
+          "registerAddr": 1,
+          "timestamp": "2026-06-20T12:39:38.210Z"
+        },
+        {
+          "action": "setSensorValue",
+          "key": "temp_2",
+          "value": 21,
+          "rawValue": 210,
+          "slaveAddr": 2,
+          "registerAddr": 1,
+          "timestamp": "2026-06-20T12:39:38.210Z"
+        },
+        {
+          "action": "setSensorValue",
+          "key": "temp_3",
+          "value": 22,
+          "rawValue": 220,
+          "slaveAddr": 3,
+          "registerAddr": 1,
+          "timestamp": "2026-06-20T12:39:38.210Z"
+        },
+        {
+          "action": "setSensorValue",
+          "key": "temp_4",
+          "value": 23,
+          "rawValue": 230,
+          "slaveAddr": 7,
+          "registerAddr": 1,
+          "timestamp": "2026-06-20T12:39:38.210Z"
+        },
+        {
+          "action": "setSensorValue",
+          "key": "temp_5",
+          "value": 24,
+          "rawValue": 240,
+          "slaveAddr": 8,
+          "registerAddr": 1,
+          "timestamp": "2026-06-20T12:39:38.210Z"
+        },
+        {
+          "action": "setSensorValue",
+          "key": "temp_6",
+          "value": 25,
+          "rawValue": 250,
+          "slaveAddr": 9,
+          "registerAddr": 1,
+          "timestamp": "2026-06-20T12:39:38.210Z"
+        },
+        {
+          "action": "setSensorValue",
+          "key": "temp_7",
+          "value": 26,
+          "rawValue": 260,
+          "slaveAddr": 80,
+          "registerAddr": 1,
+          "timestamp": "2026-06-20T12:39:38.210Z"
+        },
+        {
+          "action": "setSensorValue",
+          "key": "temp_8",
+          "value": 27,
+          "rawValue": 270,
+          "slaveAddr": 26,
+          "registerAddr": 1,
+          "timestamp": "2026-06-20T12:39:38.210Z"
+        },
+        {
+          "action": "setSensorValue",
+          "key": "temp_9",
+          "value": 28,
+          "rawValue": 280,
+          "slaveAddr": 27,
+          "registerAddr": 1,
+          "timestamp": "2026-06-20T12:39:38.210Z"
+        },
+        {
+          "action": "setSensorValue",
+          "key": "temp_10",
+          "value": 29,
+          "rawValue": 290,
+          "slaveAddr": 28,
+          "registerAddr": 1,
+          "timestamp": "2026-06-20T12:39:38.210Z"
+        },
+        {
+          "action": "setSensorValue",
+          "key": "temp_11",
+          "value": 30,
+          "rawValue": 300,
+          "slaveAddr": 29,
+          "registerAddr": 1,
+          "timestamp": "2026-06-20T12:39:38.210Z"
+        },
+        {
+          "action": "setSensorValue",
+          "key": "temp_12",
+          "value": 31,
+          "rawValue": 310,
+          "slaveAddr": 30,
+          "registerAddr": 1,
+          "timestamp": "2026-06-20T12:39:38.210Z"
+        },
+        {
+          "action": "setSensorValue",
+          "key": "temp_13",
+          "value": 32,
+          "rawValue": 320,
+          "slaveAddr": 31,
+          "registerAddr": 1,
+          "timestamp": "2026-06-20T12:39:38.210Z"
+        },
+        {
+          "action": "setSensorValue",
+          "key": "temp_14",
+          "value": 33,
+          "rawValue": 330,
+          "slaveAddr": 81,
+          "registerAddr": 1,
+          "timestamp": "2026-06-20T12:39:38.210Z"
+        },
+        {
+          "action": "setSensorValue",
+          "key": "temp_15",
+          "value": 34,
+          "rawValue": 340,
+          "slaveAddr": 51,
+          "registerAddr": 1,
+          "timestamp": "2026-06-20T12:39:38.210Z"
+        },
+        {
+          "action": "setSensorValue",
+          "key": "temp_16",
+          "value": 35,
+          "rawValue": 350,
+          "slaveAddr": 52,
+          "registerAddr": 1,
+          "timestamp": "2026-06-20T12:39:38.210Z"
+        },
+        {
+          "action": "setSensorValue",
+          "key": "humi_1",
+          "value": 40,
+          "rawValue": 400,
+          "slaveAddr": 1,
+          "registerAddr": 0,
+          "timestamp": "2026-06-20T12:39:38.210Z"
+        },
+        {
+          "action": "setSensorValue",
+          "key": "humi_2",
+          "value": 42,
+          "rawValue": 420,
+          "slaveAddr": 2,
+          "registerAddr": 0,
+          "timestamp": "2026-06-20T12:39:38.210Z"
+        },
+        {
+          "action": "setSensorValue",
+          "key": "humi_3",
+          "value": 44,
+          "rawValue": 440,
+          "slaveAddr": 3,
+          "registerAddr": 0,
+          "timestamp": "2026-06-20T12:39:38.210Z"
+        },
+        {
+          "action": "setSensorValue",
+          "key": "humi_4",
+          "value": 46,
+          "rawValue": 460,
+          "slaveAddr": 7,
+          "registerAddr": 0,
+          "timestamp": "2026-06-20T12:39:38.210Z"
+        },
+        {
+          "action": "setSensorValue",
+          "key": "humi_5",
+          "value": 48,
+          "rawValue": 480,
+          "slaveAddr": 8,
+          "registerAddr": 0,
+          "timestamp": "2026-06-20T12:39:38.210Z"
+        },
+        {
+          "action": "setSensorValue",
+          "key": "humi_6",
+          "value": 50,
+          "rawValue": 500,
+          "slaveAddr": 9,
+          "registerAddr": 0,
+          "timestamp": "2026-06-20T12:39:38.210Z"
+        },
+        {
+          "action": "setSensorValue",
+          "key": "humi_7",
+          "value": 52,
+          "rawValue": 520,
+          "slaveAddr": 80,
+          "registerAddr": 0,
+          "timestamp": "2026-06-20T12:39:38.210Z"
+        },
+        {
+          "action": "setSensorValue",
+          "key": "humi_8",
+          "value": 54,
+          "rawValue": 540,
+          "slaveAddr": 26,
+          "registerAddr": 0,
+          "timestamp": "2026-06-20T12:39:38.210Z"
+        },
+        {
+          "action": "setSensorValue",
+          "key": "humi_9",
+          "value": 56,
+          "rawValue": 560,
+          "slaveAddr": 27,
+          "registerAddr": 0,
+          "timestamp": "2026-06-20T12:39:38.210Z"
+        },
+        {
+          "action": "setSensorValue",
+          "key": "humi_10",
+          "value": 58,
+          "rawValue": 580,
+          "slaveAddr": 28,
+          "registerAddr": 0,
+          "timestamp": "2026-06-20T12:39:38.210Z"
+        },
+        {
+          "action": "setSensorValue",
+          "key": "humi_11",
+          "value": 60,
+          "rawValue": 600,
+          "slaveAddr": 29,
+          "registerAddr": 0,
+          "timestamp": "2026-06-20T12:39:38.210Z"
+        },
+        {
+          "action": "setSensorValue",
+          "key": "humi_12",
+          "value": 62,
+          "rawValue": 620,
+          "slaveAddr": 30,
+          "registerAddr": 0,
+          "timestamp": "2026-06-20T12:39:38.210Z"
+        },
+        {
+          "action": "setSensorValue",
+          "key": "humi_13",
+          "value": 64,
+          "rawValue": 640,
+          "slaveAddr": 31,
+          "registerAddr": 0,
+          "timestamp": "2026-06-20T12:39:38.210Z"
+        },
+        {
+          "action": "setSensorValue",
+          "key": "humi_14",
+          "value": 66,
+          "rawValue": 660,
+          "slaveAddr": 81,
+          "registerAddr": 0,
+          "timestamp": "2026-06-20T12:39:38.210Z"
+        },
+        {
+          "action": "setSensorValue",
+          "key": "humi_15",
+          "value": 68,
+          "rawValue": 680,
+          "slaveAddr": 51,
+          "registerAddr": 0,
+          "timestamp": "2026-06-20T12:39:38.210Z"
+        },
+        {
+          "action": "setSensorValue",
+          "key": "humi_16",
+          "value": 70,
+          "rawValue": 700,
+          "slaveAddr": 52,
+          "registerAddr": 0,
+          "timestamp": "2026-06-20T12:39:38.210Z"
+        },
+        {
+          "action": "setSensorValue",
+          "key": "co2_1",
+          "value": 400,
+          "rawValue": 400,
+          "slaveAddr": 5,
+          "registerAddr": 2,
+          "timestamp": "2026-06-20T12:39:38.210Z"
+        },
+        {
+          "action": "setSensorValue",
+          "key": "co2_2",
+          "value": 600,
+          "rawValue": 600,
+          "slaveAddr": 10,
+          "registerAddr": 2,
+          "timestamp": "2026-06-20T12:39:38.210Z"
+        },
+        {
+          "action": "setSensorValue",
+          "key": "co2_3",
+          "value": 800,
+          "rawValue": 800,
+          "slaveAddr": 17,
+          "registerAddr": 2,
+          "timestamp": "2026-06-20T12:39:38.210Z"
+        },
+        {
+          "action": "setSensorValue",
+          "key": "co2_4",
+          "value": 1000,
+          "rawValue": 1000,
+          "slaveAddr": 20,
+          "registerAddr": 2,
+          "timestamp": "2026-06-20T12:39:38.210Z"
+        },
+        {
+          "action": "setSensorValue",
+          "key": "co2_5",
+          "value": 1200,
+          "rawValue": 1200,
+          "slaveAddr": 21,
+          "registerAddr": 2,
+          "timestamp": "2026-06-20T12:39:38.210Z"
+        },
+        {
+          "action": "setSensorValue",
+          "key": "co2_6",
+          "value": 500,
+          "rawValue": 500,
+          "slaveAddr": 22,
+          "registerAddr": 2,
+          "timestamp": "2026-06-20T12:39:38.210Z"
+        },
+        {
+          "action": "setSensorValue",
+          "key": "co2_7",
+          "value": 700,
+          "rawValue": 700,
+          "slaveAddr": 23,
+          "registerAddr": 2,
+          "timestamp": "2026-06-20T12:39:38.210Z"
+        },
+        {
+          "action": "setSensorValue",
+          "key": "co2_8",
+          "value": 900,
+          "rawValue": 900,
+          "slaveAddr": 82,
+          "registerAddr": 2,
+          "timestamp": "2026-06-20T12:39:38.210Z"
+        },
+        {
+          "action": "setSensorValue",
+          "key": "press_1",
+          "value": 0,
+          "rawValue": 0,
+          "slaveAddr": 11,
+          "registerAddr": 1,
+          "timestamp": "2026-06-20T12:39:38.210Z"
+        },
+        {
+          "action": "setSensorValue",
+          "key": "press_2",
+          "value": 10,
+          "rawValue": 100,
+          "slaveAddr": 40,
+          "registerAddr": 1,
+          "timestamp": "2026-06-20T12:39:38.210Z"
+        },
+        {
+          "action": "setSensorValue",
+          "key": "press_3",
+          "value": 25,
+          "rawValue": 250,
+          "slaveAddr": 41,
+          "registerAddr": 1,
+          "timestamp": "2026-06-20T12:39:38.210Z"
+        },
+        {
+          "action": "setSensorValue",
+          "key": "press_4",
+          "value": 50,
+          "rawValue": 500,
+          "slaveAddr": 42,
+          "registerAddr": 1,
+          "timestamp": "2026-06-20T12:39:38.210Z"
+        },
+        {
+          "action": "clearAllFaults",
+          "timestamp": "2026-06-20T12:39:38.210Z"
+        },
+        {
+          "action": "setSensorValue",
+          "key": "temp_1",
+          "value": 30,
+          "rawValue": 300,
+          "slaveAddr": 1,
+          "registerAddr": 1,
+          "timestamp": "2026-06-20T12:39:38.216Z"
+        },
+        {
+          "action": "setSensorValue",
+          "key": "temp_2",
+          "value": 30,
+          "rawValue": 300,
+          "slaveAddr": 2,
+          "registerAddr": 1,
+          "timestamp": "2026-06-20T12:39:38.216Z"
+        },
+        {
+          "action": "setSensorValue",
+          "key": "temp_3",
+          "value": 30,
+          "rawValue": 300,
+          "slaveAddr": 3,
+          "registerAddr": 1,
+          "timestamp": "2026-06-20T12:39:38.216Z"
+        },
+        {
+          "action": "setSensorValue",
+          "key": "temp_4",
+          "value": 70,
+          "rawValue": 700,
+          "slaveAddr": 7,
+          "registerAddr": 1,
+          "timestamp": "2026-06-20T12:39:38.216Z"
+        },
+        {
+          "action": "setSensorValue",
+          "key": "temp_5",
+          "value": 30,
+          "rawValue": 300,
+          "slaveAddr": 8,
+          "registerAddr": 1,
+          "timestamp": "2026-06-20T12:39:38.216Z"
+        },
+        {
+          "action": "setSensorValue",
+          "key": "temp_6",
+          "value": 30,
+          "rawValue": 300,
+          "slaveAddr": 9,
+          "registerAddr": 1,
+          "timestamp": "2026-06-20T12:39:38.216Z"
+        },
+        {
+          "action": "setSensorValue",
+          "key": "temp_7",
+          "value": 30,
+          "rawValue": 300,
+          "slaveAddr": 80,
+          "registerAddr": 1,
+          "timestamp": "2026-06-20T12:39:38.216Z"
+        },
+        {
+          "action": "setSensorValue",
+          "key": "temp_8",
+          "value": 30,
+          "rawValue": 300,
+          "slaveAddr": 26,
+          "registerAddr": 1,
+          "timestamp": "2026-06-20T12:39:38.216Z"
+        },
+        {
+          "action": "setSensorValue",
+          "key": "temp_9",
+          "value": 30,
+          "rawValue": 300,
+          "slaveAddr": 27,
+          "registerAddr": 1,
+          "timestamp": "2026-06-20T12:39:38.216Z"
+        },
+        {
+          "action": "setSensorValue",
+          "key": "temp_10",
+          "value": 30,
+          "rawValue": 300,
+          "slaveAddr": 28,
+          "registerAddr": 1,
+          "timestamp": "2026-06-20T12:39:38.216Z"
+        },
+        {
+          "action": "setSensorValue",
+          "key": "temp_11",
+          "value": 30,
+          "rawValue": 300,
+          "slaveAddr": 29,
+          "registerAddr": 1,
+          "timestamp": "2026-06-20T12:39:38.216Z"
+        },
+        {
+          "action": "setSensorValue",
+          "key": "temp_12",
+          "value": 30,
+          "rawValue": 300,
+          "slaveAddr": 30,
+          "registerAddr": 1,
+          "timestamp": "2026-06-20T12:39:38.216Z"
+        },
+        {
+          "action": "setSensorValue",
+          "key": "temp_13",
+          "value": 30,
+          "rawValue": 300,
+          "slaveAddr": 31,
+          "registerAddr": 1,
+          "timestamp": "2026-06-20T12:39:38.216Z"
+        },
+        {
+          "action": "setSensorValue",
+          "key": "temp_14",
+          "value": 30,
+          "rawValue": 300,
+          "slaveAddr": 81,
+          "registerAddr": 1,
+          "timestamp": "2026-06-20T12:39:38.216Z"
+        },
+        {
+          "action": "setSensorValue",
+          "key": "temp_15",
+          "value": 30,
+          "rawValue": 300,
+          "slaveAddr": 51,
+          "registerAddr": 1,
+          "timestamp": "2026-06-20T12:39:38.216Z"
+        },
+        {
+          "action": "setSensorValue",
+          "key": "temp_16",
+          "value": 30,
+          "rawValue": 300,
+          "slaveAddr": 52,
+          "registerAddr": 1,
+          "timestamp": "2026-06-20T12:39:38.216Z"
+        },
+        {
+          "action": "read_response",
+          "slaveAddr": 42,
+          "startAddr": 0,
+          "regCount": 3,
+          "values": [
+            0,
+            500,
+            1
+          ],
+          "key": "press_4",
+          "timestamp": "2026-06-20T12:39:38.369Z"
+        },
+        {
+          "action": "unknown_slave",
+          "slaveAddr": 33,
+          "startAddr": 0,
+          "regCount": 2,
+          "timestamp": "2026-06-20T12:39:39.421Z"
+        },
+        {
+          "action": "unknown_slave",
+          "slaveAddr": 34,
+          "startAddr": 0,
+          "regCount": 2,
+          "timestamp": "2026-06-20T12:39:40.954Z"
+        },
+        {
+          "action": "read_response",
+          "slaveAddr": 11,
+          "startAddr": 0,
+          "regCount": 3,
+          "values": [
+            0,
+            0,
+            1
+          ],
+          "key": "press_1",
+          "timestamp": "2026-06-20T12:39:42.469Z"
+        },
+        {
+          "action": "read_response",
+          "slaveAddr": 40,
+          "startAddr": 0,
+          "regCount": 3,
+          "values": [
+            0,
+            100,
+            1
+          ],
+          "key": "press_2",
+          "timestamp": "2026-06-20T12:39:43.538Z"
+        },
+        {
+          "action": "read_response",
+          "slaveAddr": 41,
+          "startAddr": 0,
+          "regCount": 3,
+          "values": [
+            0,
+            250,
+            1
+          ],
+          "key": "press_3",
+          "timestamp": "2026-06-20T12:39:44.592Z"
+        },
+        {
+          "action": "read_response",
+          "slaveAddr": 42,
+          "startAddr": 0,
+          "regCount": 3,
+          "values": [
+            0,
+            500,
+            1
+          ],
+          "key": "press_4",
+          "timestamp": "2026-06-20T12:39:45.661Z"
+        },
+        {
+          "action": "read_response",
+          "slaveAddr": 5,
+          "startAddr": 2,
+          "regCount": 1,
+          "values": [
+            400
+          ],
+          "key": "co2_1",
+          "timestamp": "2026-06-20T12:39:46.730Z"
+        },
+        {
+          "action": "read_response",
+          "slaveAddr": 10,
+          "startAddr": 2,
+          "regCount": 1,
+          "values": [
+            600
+          ],
+          "key": "co2_2",
+          "timestamp": "2026-06-20T12:39:47.783Z"
+        },
+        {
+          "action": "read_response",
+          "slaveAddr": 11,
+          "startAddr": 0,
+          "regCount": 3,
+          "values": [
+            0,
+            0,
+            1
+          ],
+          "key": "press_1",
+          "timestamp": "2026-06-20T12:39:48.837Z"
+        },
+        {
+          "action": "read_response",
+          "slaveAddr": 40,
+          "startAddr": 0,
+          "regCount": 3,
+          "values": [
+            0,
+            100,
+            1
+          ],
+          "key": "press_2",
+          "timestamp": "2026-06-20T12:39:49.905Z"
+        },
+        {
+          "action": "read_response",
+          "slaveAddr": 41,
+          "startAddr": 0,
+          "regCount": 3,
+          "values": [
+            0,
+            250,
+            1
+          ],
+          "key": "press_3",
+          "timestamp": "2026-06-20T12:39:50.975Z"
+        },
+        {
+          "action": "read_response",
+          "slaveAddr": 42,
+          "startAddr": 0,
+          "regCount": 3,
+          "values": [
+            0,
+            500,
+            1
+          ],
+          "key": "press_4",
+          "timestamp": "2026-06-20T12:39:52.044Z"
+        },
+        {
+          "action": "read_response",
+          "slaveAddr": 17,
+          "startAddr": 2,
+          "regCount": 1,
+          "values": [
+            800
+          ],
+          "key": "co2_3",
+          "timestamp": "2026-06-20T12:39:53.113Z"
+        },
+        {
+          "action": "read_response",
+          "slaveAddr": 20,
+          "startAddr": 2,
+          "regCount": 1,
+          "values": [
+            1000
+          ],
+          "key": "co2_4",
+          "timestamp": "2026-06-20T12:39:54.166Z"
+        },
+        {
+          "action": "read_response",
+          "slaveAddr": 11,
+          "startAddr": 0,
+          "regCount": 3,
+          "values": [
+            0,
+            0,
+            1
+          ],
+          "key": "press_1",
+          "timestamp": "2026-06-20T12:39:55.220Z"
+        },
+        {
+          "action": "read_response",
+          "slaveAddr": 40,
+          "startAddr": 0,
+          "regCount": 3,
+          "values": [
+            0,
+            100,
+            1
+          ],
+          "key": "press_2",
+          "timestamp": "2026-06-20T12:39:56.288Z"
+        },
+        {
+          "action": "read_response",
+          "slaveAddr": 41,
+          "startAddr": 0,
+          "regCount": 3,
+          "values": [
+            0,
+            250,
+            1
+          ],
+          "key": "press_3",
+          "timestamp": "2026-06-20T12:39:57.357Z"
+        },
+        {
+          "action": "read_response",
+          "slaveAddr": 42,
+          "startAddr": 0,
+          "regCount": 3,
+          "values": [
+            0,
+            500,
+            1
+          ],
+          "key": "press_4",
+          "timestamp": "2026-06-20T12:39:58.426Z"
+        },
+        {
+          "action": "read_response",
+          "slaveAddr": 21,
+          "startAddr": 2,
+          "regCount": 1,
+          "values": [
+            1200
+          ],
+          "key": "co2_5",
+          "timestamp": "2026-06-20T12:39:59.496Z"
+        },
+        {
+          "action": "read_response",
+          "slaveAddr": 22,
+          "startAddr": 2,
+          "regCount": 1,
+          "values": [
+            500
+          ],
+          "key": "co2_6",
+          "timestamp": "2026-06-20T12:40:00.564Z"
+        },
+        {
+          "action": "read_response",
+          "slaveAddr": 11,
+          "startAddr": 0,
+          "regCount": 3,
+          "values": [
+            0,
+            0,
+            1
+          ],
+          "key": "press_1",
+          "timestamp": "2026-06-20T12:40:01.634Z"
+        },
+        {
+          "action": "read_response",
+          "slaveAddr": 40,
+          "startAddr": 0,
+          "regCount": 3,
+          "values": [
+            0,
+            100,
+            1
+          ],
+          "key": "press_2",
+          "timestamp": "2026-06-20T12:40:02.703Z"
+        },
+        {
+          "action": "read_response",
+          "slaveAddr": 41,
+          "startAddr": 0,
+          "regCount": 3,
+          "values": [
+            0,
+            250,
+            1
+          ],
+          "key": "press_3",
+          "timestamp": "2026-06-20T12:40:03.772Z"
+        },
+        {
+          "action": "read_response",
+          "slaveAddr": 42,
+          "startAddr": 0,
+          "regCount": 3,
+          "values": [
+            0,
+            500,
+            1
+          ],
+          "key": "press_4",
+          "timestamp": "2026-06-20T12:40:04.841Z"
+        },
+        {
+          "action": "read_response",
+          "slaveAddr": 23,
+          "startAddr": 2,
+          "regCount": 1,
+          "values": [
+            700
+          ],
+          "key": "co2_7",
+          "timestamp": "2026-06-20T12:40:05.910Z"
+        },
+        {
+          "action": "read_response",
+          "slaveAddr": 82,
+          "startAddr": 2,
+          "regCount": 1,
+          "values": [
+            900
+          ],
+          "key": "co2_8",
+          "timestamp": "2026-06-20T12:40:06.963Z"
+        },
+        {
+          "action": "read_response",
+          "slaveAddr": 11,
+          "startAddr": 0,
+          "regCount": 3,
+          "values": [
+            0,
+            0,
+            1
+          ],
+          "key": "press_1",
+          "timestamp": "2026-06-20T12:40:08.032Z"
+        },
+        {
+          "action": "read_response",
+          "slaveAddr": 40,
+          "startAddr": 0,
+          "regCount": 3,
+          "values": [
+            0,
+            100,
+            1
+          ],
+          "key": "press_2",
+          "timestamp": "2026-06-20T12:40:09.102Z"
+        },
+        {
+          "action": "read_response",
+          "slaveAddr": 41,
+          "startAddr": 0,
+          "regCount": 3,
+          "values": [
+            0,
+            250,
+            1
+          ],
+          "key": "press_3",
+          "timestamp": "2026-06-20T12:40:10.170Z"
+        },
+        {
+          "action": "read_response",
+          "slaveAddr": 42,
+          "startAddr": 0,
+          "regCount": 3,
+          "values": [
+            0,
+            500,
+            1
+          ],
+          "key": "press_4",
+          "timestamp": "2026-06-20T12:40:11.239Z"
+        },
+        {
+          "action": "read_response",
+          "slaveAddr": 1,
+          "startAddr": 0,
+          "regCount": 2,
+          "values": [
+            400,
+            300
+          ],
+          "key": "temp_1",
+          "timestamp": "2026-06-20T12:40:12.309Z"
+        },
+        {
+          "action": "read_response",
+          "slaveAddr": 2,
+          "startAddr": 0,
+          "regCount": 2,
+          "values": [
+            420,
+            300
+          ],
+          "key": "temp_2",
+          "timestamp": "2026-06-20T12:40:13.378Z"
+        },
+        {
+          "action": "read_response",
+          "slaveAddr": 11,
+          "startAddr": 0,
+          "regCount": 3,
+          "values": [
+            0,
+            0,
+            1
+          ],
+          "key": "press_1",
+          "timestamp": "2026-06-20T12:40:14.431Z"
+        },
+        {
+          "action": "read_response",
+          "slaveAddr": 40,
+          "startAddr": 0,
+          "regCount": 3,
+          "values": [
+            0,
+            100,
+            1
+          ],
+          "key": "press_2",
+          "timestamp": "2026-06-20T12:40:15.484Z"
+        },
+        {
+          "action": "read_response",
+          "slaveAddr": 41,
+          "startAddr": 0,
+          "regCount": 3,
+          "values": [
+            0,
+            250,
+            1
+          ],
+          "key": "press_3",
+          "timestamp": "2026-06-20T12:40:16.553Z"
+        },
+        {
+          "action": "read_response",
+          "slaveAddr": 42,
+          "startAddr": 0,
+          "regCount": 3,
+          "values": [
+            0,
+            500,
+            1
+          ],
+          "key": "press_4",
+          "timestamp": "2026-06-20T12:40:17.622Z"
+        },
+        {
+          "action": "read_response",
+          "slaveAddr": 3,
+          "startAddr": 0,
+          "regCount": 2,
+          "values": [
+            440,
+            300
+          ],
+          "key": "temp_3",
+          "timestamp": "2026-06-20T12:40:18.675Z"
+        },
+        {
+          "action": "read_response",
+          "slaveAddr": 7,
+          "startAddr": 0,
+          "regCount": 2,
+          "values": [
+            460,
+            700
+          ],
+          "key": "temp_4",
+          "timestamp": "2026-06-20T12:40:19.729Z"
+        },
+        {
+          "action": "read_response",
+          "slaveAddr": 11,
+          "startAddr": 0,
+          "regCount": 3,
+          "values": [
+            0,
+            0,
+            1
+          ],
+          "key": "press_1",
+          "timestamp": "2026-06-20T12:40:20.782Z"
+        },
+        {
+          "action": "read_response",
+          "slaveAddr": 40,
+          "startAddr": 0,
+          "regCount": 3,
+          "values": [
+            0,
+            100,
+            1
+          ],
+          "key": "press_2",
+          "timestamp": "2026-06-20T12:40:21.851Z"
+        },
+        {
+          "action": "read_response",
+          "slaveAddr": 41,
+          "startAddr": 0,
+          "regCount": 3,
+          "values": [
+            0,
+            250,
+            1
+          ],
+          "key": "press_3",
+          "timestamp": "2026-06-20T12:40:22.904Z"
+        },
+        {
+          "action": "read_response",
+          "slaveAddr": 42,
+          "startAddr": 0,
+          "regCount": 3,
+          "values": [
+            0,
+            500,
+            1
+          ],
+          "key": "press_4",
+          "timestamp": "2026-06-20T12:40:23.974Z"
+        },
+        {
+          "action": "read_response",
+          "slaveAddr": 8,
+          "startAddr": 0,
+          "regCount": 2,
+          "values": [
+            480,
+            300
+          ],
+          "key": "temp_5",
+          "timestamp": "2026-06-20T12:40:25.042Z"
+        },
+        {
+          "action": "read_response",
+          "slaveAddr": 9,
+          "startAddr": 0,
+          "regCount": 2,
+          "values": [
+            500,
+            300
+          ],
+          "key": "temp_6",
+          "timestamp": "2026-06-20T12:40:26.112Z"
+        },
+        {
+          "action": "read_response",
+          "slaveAddr": 11,
+          "startAddr": 0,
+          "regCount": 3,
+          "values": [
+            0,
+            0,
+            1
+          ],
+          "key": "press_1",
+          "timestamp": "2026-06-20T12:40:27.181Z"
+        },
+        {
+          "action": "read_response",
+          "slaveAddr": 40,
+          "startAddr": 0,
+          "regCount": 3,
+          "values": [
+            0,
+            100,
+            1
+          ],
+          "key": "press_2",
+          "timestamp": "2026-06-20T12:40:28.234Z"
+        },
+        {
+          "action": "read_response",
+          "slaveAddr": 41,
+          "startAddr": 0,
+          "regCount": 3,
+          "values": [
+            0,
+            250,
+            1
+          ],
+          "key": "press_3",
+          "timestamp": "2026-06-20T12:40:29.303Z"
+        },
+        {
+          "action": "read_response",
+          "slaveAddr": 42,
+          "startAddr": 0,
+          "regCount": 3,
+          "values": [
+            0,
+            500,
+            1
+          ],
+          "key": "press_4",
+          "timestamp": "2026-06-20T12:40:30.373Z"
+        },
+        {
+          "action": "read_response",
+          "slaveAddr": 80,
+          "startAddr": 0,
+          "regCount": 2,
+          "values": [
+            520,
+            300
+          ],
+          "key": "temp_7",
+          "timestamp": "2026-06-20T12:40:31.427Z"
+        },
+        {
+          "action": "read_response",
+          "slaveAddr": 26,
+          "startAddr": 0,
+          "regCount": 2,
+          "values": [
+            540,
+            300
+          ],
+          "key": "temp_8",
+          "timestamp": "2026-06-20T12:40:32.495Z"
+        },
+        {
+          "action": "read_response",
+          "slaveAddr": 11,
+          "startAddr": 0,
+          "regCount": 3,
+          "values": [
+            0,
+            0,
+            1
+          ],
+          "key": "press_1",
+          "timestamp": "2026-06-20T12:40:33.564Z"
+        },
+        {
+          "action": "read_response",
+          "slaveAddr": 40,
+          "startAddr": 0,
+          "regCount": 3,
+          "values": [
+            0,
+            100,
+            1
+          ],
+          "key": "press_2",
+          "timestamp": "2026-06-20T12:40:34.633Z"
+        },
+        {
+          "action": "read_response",
+          "slaveAddr": 41,
+          "startAddr": 0,
+          "regCount": 3,
+          "values": [
+            0,
+            250,
+            1
+          ],
+          "key": "press_3",
+          "timestamp": "2026-06-20T12:40:35.702Z"
+        },
+        {
+          "action": "read_response",
+          "slaveAddr": 42,
+          "startAddr": 0,
+          "regCount": 3,
+          "values": [
+            0,
+            500,
+            1
+          ],
+          "key": "press_4",
+          "timestamp": "2026-06-20T12:40:36.771Z"
+        },
+        {
+          "action": "read_response",
+          "slaveAddr": 27,
+          "startAddr": 0,
+          "regCount": 2,
+          "values": [
+            560,
+            300
+          ],
+          "key": "temp_9",
+          "timestamp": "2026-06-20T12:40:37.824Z"
+        },
+        {
+          "action": "read_response",
+          "slaveAddr": 28,
+          "startAddr": 0,
+          "regCount": 2,
+          "values": [
+            580,
+            300
+          ],
+          "key": "temp_10",
+          "timestamp": "2026-06-20T12:40:38.878Z"
+        },
+        {
+          "action": "read_response",
+          "slaveAddr": 11,
+          "startAddr": 0,
+          "regCount": 3,
+          "values": [
+            0,
+            0,
+            1
+          ],
+          "key": "press_1",
+          "timestamp": "2026-06-20T12:40:39.947Z"
+        },
+        {
+          "action": "read_response",
+          "slaveAddr": 40,
+          "startAddr": 0,
+          "regCount": 3,
+          "values": [
+            0,
+            100,
+            1
+          ],
+          "key": "press_2",
+          "timestamp": "2026-06-20T12:40:41.016Z"
+        },
+        {
+          "action": "read_response",
+          "slaveAddr": 41,
+          "startAddr": 0,
+          "regCount": 3,
+          "values": [
+            0,
+            250,
+            1
+          ],
+          "key": "press_3",
+          "timestamp": "2026-06-20T12:40:42.085Z"
+        },
+        {
+          "action": "read_response",
+          "slaveAddr": 42,
+          "startAddr": 0,
+          "regCount": 3,
+          "values": [
+            0,
+            500,
+            1
+          ],
+          "key": "press_4",
+          "timestamp": "2026-06-20T12:40:43.154Z"
+        },
+        {
+          "action": "read_response",
+          "slaveAddr": 29,
+          "startAddr": 0,
+          "regCount": 2,
+          "values": [
+            600,
+            300
+          ],
+          "key": "temp_11",
+          "timestamp": "2026-06-20T12:40:44.207Z"
+        },
+        {
+          "action": "read_response",
+          "slaveAddr": 30,
+          "startAddr": 0,
+          "regCount": 2,
+          "values": [
+            620,
+            300
+          ],
+          "key": "temp_12",
+          "timestamp": "2026-06-20T12:40:45.261Z"
+        },
+        {
+          "action": "read_response",
+          "slaveAddr": 11,
+          "startAddr": 0,
+          "regCount": 3,
+          "values": [
+            0,
+            0,
+            1
+          ],
+          "key": "press_1",
+          "timestamp": "2026-06-20T12:40:46.314Z"
+        },
+        {
+          "action": "read_response",
+          "slaveAddr": 40,
+          "startAddr": 0,
+          "regCount": 3,
+          "values": [
+            0,
+            100,
+            1
+          ],
+          "key": "press_2",
+          "timestamp": "2026-06-20T12:40:47.383Z"
+        },
+        {
+          "action": "read_response",
+          "slaveAddr": 41,
+          "startAddr": 0,
+          "regCount": 3,
+          "values": [
+            0,
+            250,
+            1
+          ],
+          "key": "press_3",
+          "timestamp": "2026-06-20T12:40:48.452Z"
+        },
+        {
+          "action": "read_response",
+          "slaveAddr": 42,
+          "startAddr": 0,
+          "regCount": 3,
+          "values": [
+            0,
+            500,
+            1
+          ],
+          "key": "press_4",
+          "timestamp": "2026-06-20T12:40:49.506Z"
+        },
+        {
+          "action": "read_response",
+          "slaveAddr": 31,
+          "startAddr": 0,
+          "regCount": 2,
+          "values": [
+            640,
+            300
+          ],
+          "key": "temp_13",
+          "timestamp": "2026-06-20T12:40:50.574Z"
+        },
+        {
+          "action": "read_response",
+          "slaveAddr": 81,
+          "startAddr": 0,
+          "regCount": 2,
+          "values": [
+            660,
+            300
+          ],
+          "key": "temp_14",
+          "timestamp": "2026-06-20T12:40:51.627Z"
+        },
+        {
+          "action": "read_response",
+          "slaveAddr": 11,
+          "startAddr": 0,
+          "regCount": 3,
+          "values": [
+            0,
+            0,
+            1
+          ],
+          "key": "press_1",
+          "timestamp": "2026-06-20T12:40:52.697Z"
+        },
+        {
+          "action": "read_response",
+          "slaveAddr": 40,
+          "startAddr": 0,
+          "regCount": 3,
+          "values": [
+            0,
+            100,
+            1
+          ],
+          "key": "press_2",
+          "timestamp": "2026-06-20T12:40:53.766Z"
+        },
+        {
+          "action": "read_response",
+          "slaveAddr": 41,
+          "startAddr": 0,
+          "regCount": 3,
+          "values": [
+            0,
+            250,
+            1
+          ],
+          "key": "press_3",
+          "timestamp": "2026-06-20T12:40:54.835Z"
+        },
+        {
+          "action": "read_response",
+          "slaveAddr": 42,
+          "startAddr": 0,
+          "regCount": 3,
+          "values": [
+            0,
+            500,
+            1
+          ],
+          "key": "press_4",
+          "timestamp": "2026-06-20T12:40:55.904Z"
+        },
+        {
+          "action": "read_response",
+          "slaveAddr": 51,
+          "startAddr": 0,
+          "regCount": 2,
+          "values": [
+            680,
+            300
+          ],
+          "key": "temp_15",
+          "timestamp": "2026-06-20T12:40:56.957Z"
+        },
+        {
+          "action": "read_response",
+          "slaveAddr": 52,
+          "startAddr": 0,
+          "regCount": 2,
+          "values": [
+            700,
+            300
+          ],
+          "key": "temp_16",
+          "timestamp": "2026-06-20T12:40:58.011Z"
+        },
+        {
+          "action": "read_response",
+          "slaveAddr": 11,
+          "startAddr": 0,
+          "regCount": 3,
+          "values": [
+            0,
+            0,
+            1
+          ],
+          "key": "press_1",
+          "timestamp": "2026-06-20T12:40:59.064Z"
+        },
+        {
+          "action": "read_response",
+          "slaveAddr": 40,
+          "startAddr": 0,
+          "regCount": 3,
+          "values": [
+            0,
+            100,
+            1
+          ],
+          "key": "press_2",
+          "timestamp": "2026-06-20T12:41:00.117Z"
+        },
+        {
+          "action": "read_response",
+          "slaveAddr": 41,
+          "startAddr": 0,
+          "regCount": 3,
+          "values": [
+            0,
+            250,
+            1
+          ],
+          "key": "press_3",
+          "timestamp": "2026-06-20T12:41:01.170Z"
+        },
+        {
+          "action": "read_response",
+          "slaveAddr": 42,
+          "startAddr": 0,
+          "regCount": 3,
+          "values": [
+            0,
+            500,
+            1
+          ],
+          "key": "press_4",
+          "timestamp": "2026-06-20T12:41:02.239Z"
+        },
+        {
+          "action": "unknown_slave",
+          "slaveAddr": 33,
+          "startAddr": 0,
+          "regCount": 2,
+          "timestamp": "2026-06-20T12:41:03.308Z"
+        },
+        {
+          "action": "unknown_slave",
+          "slaveAddr": 34,
+          "startAddr": 0,
+          "regCount": 2,
+          "timestamp": "2026-06-20T12:41:04.824Z"
+        },
+        {
+          "action": "read_response",
+          "slaveAddr": 11,
+          "startAddr": 0,
+          "regCount": 3,
+          "values": [
+            0,
+            0,
+            1
+          ],
+          "key": "press_1",
+          "timestamp": "2026-06-20T12:41:06.340Z"
+        },
+        {
+          "action": "read_response",
+          "slaveAddr": 40,
+          "startAddr": 0,
+          "regCount": 3,
+          "values": [
+            0,
+            100,
+            1
+          ],
+          "key": "press_2",
+          "timestamp": "2026-06-20T12:41:07.409Z"
+        },
+        {
+          "action": "read_response",
+          "slaveAddr": 41,
+          "startAddr": 0,
+          "regCount": 3,
+          "values": [
+            0,
+            250,
+            1
+          ],
+          "key": "press_3",
+          "timestamp": "2026-06-20T12:41:08.478Z"
+        },
+        {
+          "action": "read_response",
+          "slaveAddr": 42,
+          "startAddr": 0,
+          "regCount": 3,
+          "values": [
+            0,
+            500,
+            1
+          ],
+          "key": "press_4",
+          "timestamp": "2026-06-20T12:41:09.531Z"
+        },
+        {
+          "action": "read_response",
+          "slaveAddr": 5,
+          "startAddr": 2,
+          "regCount": 1,
+          "values": [
+            400
+          ],
+          "key": "co2_1",
+          "timestamp": "2026-06-20T12:41:10.585Z"
+        },
+        {
+          "action": "read_response",
+          "slaveAddr": 10,
+          "startAddr": 2,
+          "regCount": 1,
+          "values": [
+            600
+          ],
+          "key": "co2_2",
+          "timestamp": "2026-06-20T12:41:11.638Z"
+        },
+        {
+          "action": "read_response",
+          "slaveAddr": 11,
+          "startAddr": 0,
+          "regCount": 3,
+          "values": [
+            0,
+            0,
+            1
+          ],
+          "key": "press_1",
+          "timestamp": "2026-06-20T12:41:12.707Z"
+        },
+        {
+          "action": "read_response",
+          "slaveAddr": 40,
+          "startAddr": 0,
+          "regCount": 3,
+          "values": [
+            0,
+            100,
+            1
+          ],
+          "key": "press_2",
+          "timestamp": "2026-06-20T12:41:13.776Z"
+        },
+        {
+          "action": "read_response",
+          "slaveAddr": 41,
+          "startAddr": 0,
+          "regCount": 3,
+          "values": [
+            0,
+            250,
+            1
+          ],
+          "key": "press_3",
+          "timestamp": "2026-06-20T12:41:14.829Z"
+        },
+        {
+          "action": "read_response",
+          "slaveAddr": 42,
+          "startAddr": 0,
+          "regCount": 3,
+          "values": [
+            0,
+            500,
+            1
+          ],
+          "key": "press_4",
+          "timestamp": "2026-06-20T12:41:15.898Z"
+        },
+        {
+          "action": "read_response",
+          "slaveAddr": 17,
+          "startAddr": 2,
+          "regCount": 1,
+          "values": [
+            800
+          ],
+          "key": "co2_3",
+          "timestamp": "2026-06-20T12:41:16.967Z"
+        },
+        {
+          "action": "read_response",
+          "slaveAddr": 20,
+          "startAddr": 2,
+          "regCount": 1,
+          "values": [
+            1000
+          ],
+          "key": "co2_4",
+          "timestamp": "2026-06-20T12:41:18.036Z"
+        },
+        {
+          "action": "read_response",
+          "slaveAddr": 11,
+          "startAddr": 0,
+          "regCount": 3,
+          "values": [
+            0,
+            0,
+            1
+          ],
+          "key": "press_1",
+          "timestamp": "2026-06-20T12:41:19.106Z"
+        },
+        {
+          "action": "read_response",
+          "slaveAddr": 40,
+          "startAddr": 0,
+          "regCount": 3,
+          "values": [
+            0,
+            100,
+            1
+          ],
+          "key": "press_2",
+          "timestamp": "2026-06-20T12:41:20.175Z"
+        },
+        {
+          "action": "read_response",
+          "slaveAddr": 41,
+          "startAddr": 0,
+          "regCount": 3,
+          "values": [
+            0,
+            250,
+            1
+          ],
+          "key": "press_3",
+          "timestamp": "2026-06-20T12:41:21.244Z"
+        },
+        {
+          "action": "read_response",
+          "slaveAddr": 42,
+          "startAddr": 0,
+          "regCount": 3,
+          "values": [
+            0,
+            500,
+            1
+          ],
+          "key": "press_4",
+          "timestamp": "2026-06-20T12:41:22.313Z"
+        },
+        {
+          "action": "read_response",
+          "slaveAddr": 21,
+          "startAddr": 2,
+          "regCount": 1,
+          "values": [
+            1200
+          ],
+          "key": "co2_5",
+          "timestamp": "2026-06-20T12:41:23.382Z"
+        },
+        {
+          "action": "read_response",
+          "slaveAddr": 22,
+          "startAddr": 2,
+          "regCount": 1,
+          "values": [
+            500
+          ],
+          "key": "co2_6",
+          "timestamp": "2026-06-20T12:41:24.435Z"
+        },
+        {
+          "action": "read_response",
+          "slaveAddr": 11,
+          "startAddr": 0,
+          "regCount": 3,
+          "values": [
+            0,
+            0,
+            1
+          ],
+          "key": "press_1",
+          "timestamp": "2026-06-20T12:41:25.488Z"
+        },
+        {
+          "action": "read_response",
+          "slaveAddr": 40,
+          "startAddr": 0,
+          "regCount": 3,
+          "values": [
+            0,
+            100,
+            1
+          ],
+          "key": "press_2",
+          "timestamp": "2026-06-20T12:41:26.558Z"
+        },
+        {
+          "action": "read_response",
+          "slaveAddr": 41,
+          "startAddr": 0,
+          "regCount": 3,
+          "values": [
+            0,
+            250,
+            1
+          ],
+          "key": "press_3",
+          "timestamp": "2026-06-20T12:41:27.611Z"
+        },
+        {
+          "action": "read_response",
+          "slaveAddr": 42,
+          "startAddr": 0,
+          "regCount": 3,
+          "values": [
+            0,
+            500,
+            1
+          ],
+          "key": "press_4",
+          "timestamp": "2026-06-20T12:41:28.680Z"
+        },
+        {
+          "action": "read_response",
+          "slaveAddr": 23,
+          "startAddr": 2,
+          "regCount": 1,
+          "values": [
+            700
+          ],
+          "key": "co2_7",
+          "timestamp": "2026-06-20T12:41:29.749Z"
+        },
+        {
+          "action": "read_response",
+          "slaveAddr": 82,
+          "startAddr": 2,
+          "regCount": 1,
+          "values": [
+            900
+          ],
+          "key": "co2_8",
+          "timestamp": "2026-06-20T12:41:30.819Z"
+        },
+        {
+          "action": "read_response",
+          "slaveAddr": 11,
+          "startAddr": 0,
+          "regCount": 3,
+          "values": [
+            0,
+            0,
+            1
+          ],
+          "key": "press_1",
+          "timestamp": "2026-06-20T12:41:31.888Z"
+        },
+        {
+          "action": "read_response",
+          "slaveAddr": 40,
+          "startAddr": 0,
+          "regCount": 3,
+          "values": [
+            0,
+            100,
+            1
+          ],
+          "key": "press_2",
+          "timestamp": "2026-06-20T12:41:32.957Z"
+        },
+        {
+          "action": "read_response",
+          "slaveAddr": 41,
+          "startAddr": 0,
+          "regCount": 3,
+          "values": [
+            0,
+            250,
+            1
+          ],
+          "key": "press_3",
+          "timestamp": "2026-06-20T12:41:34.026Z"
+        },
+        {
+          "action": "read_response",
+          "slaveAddr": 42,
+          "startAddr": 0,
+          "regCount": 3,
+          "values": [
+            0,
+            500,
+            1
+          ],
+          "key": "press_4",
+          "timestamp": "2026-06-20T12:41:35.079Z"
+        },
+        {
+          "action": "read_response",
+          "slaveAddr": 1,
+          "startAddr": 0,
+          "regCount": 2,
+          "values": [
+            400,
+            300
+          ],
+          "key": "temp_1",
+          "timestamp": "2026-06-20T12:41:36.148Z"
+        },
+        {
+          "action": "read_response",
+          "slaveAddr": 2,
+          "startAddr": 0,
+          "regCount": 2,
+          "values": [
+            420,
+            300
+          ],
+          "key": "temp_2",
+          "timestamp": "2026-06-20T12:41:37.218Z"
+        },
+        {
+          "action": "read_response",
+          "slaveAddr": 11,
+          "startAddr": 0,
+          "regCount": 3,
+          "values": [
+            0,
+            0,
+            1
+          ],
+          "key": "press_1",
+          "timestamp": "2026-06-20T12:41:38.286Z"
+        },
+        {
+          "action": "read_response",
+          "slaveAddr": 40,
+          "startAddr": 0,
+          "regCount": 3,
+          "values": [
+            0,
+            100,
+            1
+          ],
+          "key": "press_2",
+          "timestamp": "2026-06-20T12:41:39.355Z"
+        },
+        {
+          "action": "read_response",
+          "slaveAddr": 41,
+          "startAddr": 0,
+          "regCount": 3,
+          "values": [
+            0,
+            250,
+            1
+          ],
+          "key": "press_3",
+          "timestamp": "2026-06-20T12:41:40.425Z"
+        },
+        {
+          "action": "read_response",
+          "slaveAddr": 42,
+          "startAddr": 0,
+          "regCount": 3,
+          "values": [
+            0,
+            500,
+            1
+          ],
+          "key": "press_4",
+          "timestamp": "2026-06-20T12:41:41.494Z"
+        },
+        {
+          "action": "read_response",
+          "slaveAddr": 3,
+          "startAddr": 0,
+          "regCount": 2,
+          "values": [
+            440,
+            300
+          ],
+          "key": "temp_3",
+          "timestamp": "2026-06-20T12:41:42.563Z"
+        },
+        {
+          "action": "read_response",
+          "slaveAddr": 7,
+          "startAddr": 0,
+          "regCount": 2,
+          "values": [
+            460,
+            700
+          ],
+          "key": "temp_4",
+          "timestamp": "2026-06-20T12:41:43.616Z"
+        },
+        {
+          "action": "read_response",
+          "slaveAddr": 11,
+          "startAddr": 0,
+          "regCount": 3,
+          "values": [
+            0,
+            0,
+            1
+          ],
+          "key": "press_1",
+          "timestamp": "2026-06-20T12:41:44.669Z"
+        },
+        {
+          "action": "read_response",
+          "slaveAddr": 40,
+          "startAddr": 0,
+          "regCount": 3,
+          "values": [
+            0,
+            100,
+            1
+          ],
+          "key": "press_2",
+          "timestamp": "2026-06-20T12:41:45.723Z"
+        },
+        {
+          "action": "read_response",
+          "slaveAddr": 41,
+          "startAddr": 0,
+          "regCount": 3,
+          "values": [
+            0,
+            250,
+            1
+          ],
+          "key": "press_3",
+          "timestamp": "2026-06-20T12:41:46.792Z"
+        },
+        {
+          "action": "read_response",
+          "slaveAddr": 42,
+          "startAddr": 0,
+          "regCount": 3,
+          "values": [
+            0,
+            500,
+            1
+          ],
+          "key": "press_4",
+          "timestamp": "2026-06-20T12:41:47.845Z"
+        },
+        {
+          "action": "read_response",
+          "slaveAddr": 8,
+          "startAddr": 0,
+          "regCount": 2,
+          "values": [
+            480,
+            300
+          ],
+          "key": "temp_5",
+          "timestamp": "2026-06-20T12:41:48.914Z"
+        },
+        {
+          "action": "read_response",
+          "slaveAddr": 9,
+          "startAddr": 0,
+          "regCount": 2,
+          "values": [
+            500,
+            300
+          ],
+          "key": "temp_6",
+          "timestamp": "2026-06-20T12:41:49.983Z"
+        },
+        {
+          "action": "read_response",
+          "slaveAddr": 11,
+          "startAddr": 0,
+          "regCount": 3,
+          "values": [
+            0,
+            0,
+            1
+          ],
+          "key": "press_1",
+          "timestamp": "2026-06-20T12:41:51.052Z"
+        },
+        {
+          "action": "read_response",
+          "slaveAddr": 40,
+          "startAddr": 0,
+          "regCount": 3,
+          "values": [
+            0,
+            100,
+            1
+          ],
+          "key": "press_2",
+          "timestamp": "2026-06-20T12:41:52.121Z"
+        },
+        {
+          "action": "read_response",
+          "slaveAddr": 41,
+          "startAddr": 0,
+          "regCount": 3,
+          "values": [
+            0,
+            250,
+            1
+          ],
+          "key": "press_3",
+          "timestamp": "2026-06-20T12:41:53.191Z"
+        },
+        {
+          "action": "read_response",
+          "slaveAddr": 42,
+          "startAddr": 0,
+          "regCount": 3,
+          "values": [
+            0,
+            500,
+            1
+          ],
+          "key": "press_4",
+          "timestamp": "2026-06-20T12:41:54.260Z"
+        },
+        {
+          "action": "read_response",
+          "slaveAddr": 80,
+          "startAddr": 0,
+          "regCount": 2,
+          "values": [
+            520,
+            300
+          ],
+          "key": "temp_7",
+          "timestamp": "2026-06-20T12:41:55.313Z"
+        },
+        {
+          "action": "read_response",
+          "slaveAddr": 26,
+          "startAddr": 0,
+          "regCount": 2,
+          "values": [
+            540,
+            300
+          ],
+          "key": "temp_8",
+          "timestamp": "2026-06-20T12:41:56.366Z"
+        },
+        {
+          "action": "read_response",
+          "slaveAddr": 11,
+          "startAddr": 0,
+          "regCount": 3,
+          "values": [
+            0,
+            0,
+            1
+          ],
+          "key": "press_1",
+          "timestamp": "2026-06-20T12:41:57.435Z"
+        },
+        {
+          "action": "read_response",
+          "slaveAddr": 40,
+          "startAddr": 0,
+          "regCount": 3,
+          "values": [
+            0,
+            100,
+            1
+          ],
+          "key": "press_2",
+          "timestamp": "2026-06-20T12:41:58.488Z"
+        },
+        {
+          "action": "read_response",
+          "slaveAddr": 41,
+          "startAddr": 0,
+          "regCount": 3,
+          "values": [
+            0,
+            250,
+            1
+          ],
+          "key": "press_3",
+          "timestamp": "2026-06-20T12:41:59.557Z"
+        },
+        {
+          "action": "read_response",
+          "slaveAddr": 42,
+          "startAddr": 0,
+          "regCount": 3,
+          "values": [
+            0,
+            500,
+            1
+          ],
+          "key": "press_4",
+          "timestamp": "2026-06-20T12:42:00.627Z"
+        },
+        {
+          "action": "read_response",
+          "slaveAddr": 27,
+          "startAddr": 0,
+          "regCount": 2,
+          "values": [
+            560,
+            300
+          ],
+          "key": "temp_9",
+          "timestamp": "2026-06-20T12:42:01.680Z"
+        },
+        {
+          "action": "read_response",
+          "slaveAddr": 28,
+          "startAddr": 0,
+          "regCount": 2,
+          "values": [
+            580,
+            300
+          ],
+          "key": "temp_10",
+          "timestamp": "2026-06-20T12:42:02.733Z"
+        },
+        {
+          "action": "read_response",
+          "slaveAddr": 11,
+          "startAddr": 0,
+          "regCount": 3,
+          "values": [
+            0,
+            0,
+            1
+          ],
+          "key": "press_1",
+          "timestamp": "2026-06-20T12:42:03.786Z"
+        },
+        {
+          "action": "read_response",
+          "slaveAddr": 40,
+          "startAddr": 0,
+          "regCount": 3,
+          "values": [
+            0,
+            100,
+            1
+          ],
+          "key": "press_2",
+          "timestamp": "2026-06-20T12:42:04.839Z"
+        },
+        {
+          "action": "read_response",
+          "slaveAddr": 41,
+          "startAddr": 0,
+          "regCount": 3,
+          "values": [
+            0,
+            250,
+            1
+          ],
+          "key": "press_3",
+          "timestamp": "2026-06-20T12:42:05.909Z"
+        },
+        {
+          "action": "read_response",
+          "slaveAddr": 42,
+          "startAddr": 0,
+          "regCount": 3,
+          "values": [
+            0,
+            500,
+            1
+          ],
+          "key": "press_4",
+          "timestamp": "2026-06-20T12:42:06.978Z"
+        },
+        {
+          "action": "read_response",
+          "slaveAddr": 29,
+          "startAddr": 0,
+          "regCount": 2,
+          "values": [
+            600,
+            300
+          ],
+          "key": "temp_11",
+          "timestamp": "2026-06-20T12:42:08.046Z"
+        },
+        {
+          "action": "read_response",
+          "slaveAddr": 30,
+          "startAddr": 0,
+          "regCount": 2,
+          "values": [
+            620,
+            300
+          ],
+          "key": "temp_12",
+          "timestamp": "2026-06-20T12:42:09.100Z"
+        },
+        {
+          "action": "read_response",
+          "slaveAddr": 11,
+          "startAddr": 0,
+          "regCount": 3,
+          "values": [
+            0,
+            0,
+            1
+          ],
+          "key": "press_1",
+          "timestamp": "2026-06-20T12:42:10.153Z"
+        },
+        {
+          "action": "read_response",
+          "slaveAddr": 40,
+          "startAddr": 0,
+          "regCount": 3,
+          "values": [
+            0,
+            100,
+            1
+          ],
+          "key": "press_2",
+          "timestamp": "2026-06-20T12:42:11.206Z"
+        },
+        {
+          "action": "read_response",
+          "slaveAddr": 41,
+          "startAddr": 0,
+          "regCount": 3,
+          "values": [
+            0,
+            250,
+            1
+          ],
+          "key": "press_3",
+          "timestamp": "2026-06-20T12:42:12.259Z"
+        },
+        {
+          "action": "read_response",
+          "slaveAddr": 42,
+          "startAddr": 0,
+          "regCount": 3,
+          "values": [
+            0,
+            500,
+            1
+          ],
+          "key": "press_4",
+          "timestamp": "2026-06-20T12:42:13.328Z"
+        },
+        {
+          "action": "read_response",
+          "slaveAddr": 31,
+          "startAddr": 0,
+          "regCount": 2,
+          "values": [
+            640,
+            300
+          ],
+          "key": "temp_13",
+          "timestamp": "2026-06-20T12:42:14.381Z"
+        },
+        {
+          "action": "read_response",
+          "slaveAddr": 81,
+          "startAddr": 0,
+          "regCount": 2,
+          "values": [
+            660,
+            300
+          ],
+          "key": "temp_14",
+          "timestamp": "2026-06-20T12:42:15.434Z"
+        },
+        {
+          "action": "read_response",
+          "slaveAddr": 11,
+          "startAddr": 0,
+          "regCount": 3,
+          "values": [
+            0,
+            0,
+            1
+          ],
+          "key": "press_1",
+          "timestamp": "2026-06-20T12:42:16.488Z"
+        },
+        {
+          "action": "read_response",
+          "slaveAddr": 40,
+          "startAddr": 0,
+          "regCount": 3,
+          "values": [
+            0,
+            100,
+            1
+          ],
+          "key": "press_2",
+          "timestamp": "2026-06-20T12:42:17.557Z"
+        },
+        {
+          "action": "read_response",
+          "slaveAddr": 41,
+          "startAddr": 0,
+          "regCount": 3,
+          "values": [
+            0,
+            250,
+            1
+          ],
+          "key": "press_3",
+          "timestamp": "2026-06-20T12:42:18.626Z"
+        },
+        {
+          "action": "read_response",
+          "slaveAddr": 42,
+          "startAddr": 0,
+          "regCount": 3,
+          "values": [
+            0,
+            500,
+            1
+          ],
+          "key": "press_4",
+          "timestamp": "2026-06-20T12:42:19.695Z"
+        },
+        {
+          "action": "read_response",
+          "slaveAddr": 51,
+          "startAddr": 0,
+          "regCount": 2,
+          "values": [
+            680,
+            300
+          ],
+          "key": "temp_15",
+          "timestamp": "2026-06-20T12:42:20.764Z"
+        },
+        {
+          "action": "read_response",
+          "slaveAddr": 52,
+          "startAddr": 0,
+          "regCount": 2,
+          "values": [
+            700,
+            300
+          ],
+          "key": "temp_16",
+          "timestamp": "2026-06-20T12:42:21.834Z"
+        },
+        {
+          "action": "read_response",
+          "slaveAddr": 11,
+          "startAddr": 0,
+          "regCount": 3,
+          "values": [
+            0,
+            0,
+            1
+          ],
+          "key": "press_1",
+          "timestamp": "2026-06-20T12:42:22.886Z"
+        },
+        {
+          "action": "read_response",
+          "slaveAddr": 40,
+          "startAddr": 0,
+          "regCount": 3,
+          "values": [
+            0,
+            100,
+            1
+          ],
+          "key": "press_2",
+          "timestamp": "2026-06-20T12:42:23.940Z"
+        },
+        {
+          "action": "read_response",
+          "slaveAddr": 41,
+          "startAddr": 0,
+          "regCount": 3,
+          "values": [
+            0,
+            250,
+            1
+          ],
+          "key": "press_3",
+          "timestamp": "2026-06-20T12:42:25.009Z"
+        },
+        {
+          "action": "read_response",
+          "slaveAddr": 42,
+          "startAddr": 0,
+          "regCount": 3,
+          "values": [
+            0,
+            500,
+            1
+          ],
+          "key": "press_4",
+          "timestamp": "2026-06-20T12:42:26.078Z"
+        },
+        {
+          "action": "unknown_slave",
+          "slaveAddr": 33,
+          "startAddr": 0,
+          "regCount": 2,
+          "timestamp": "2026-06-20T12:42:27.131Z"
+        },
+        {
+          "action": "unknown_slave",
+          "slaveAddr": 34,
+          "startAddr": 0,
+          "regCount": 2,
+          "timestamp": "2026-06-20T12:42:28.647Z"
+        },
+        {
+          "action": "read_response",
+          "slaveAddr": 11,
+          "startAddr": 0,
+          "regCount": 3,
+          "values": [
+            0,
+            0,
+            1
+          ],
+          "key": "press_1",
+          "timestamp": "2026-06-20T12:42:30.179Z"
+        },
+        {
+          "action": "read_response",
+          "slaveAddr": 40,
+          "startAddr": 0,
+          "regCount": 3,
+          "values": [
+            0,
+            100,
+            1
+          ],
+          "key": "press_2",
+          "timestamp": "2026-06-20T12:42:31.248Z"
+        },
+        {
+          "action": "read_response",
+          "slaveAddr": 41,
+          "startAddr": 0,
+          "regCount": 3,
+          "values": [
+            0,
+            250,
+            1
+          ],
+          "key": "press_3",
+          "timestamp": "2026-06-20T12:42:32.317Z"
+        },
+        {
+          "action": "read_response",
+          "slaveAddr": 42,
+          "startAddr": 0,
+          "regCount": 3,
+          "values": [
+            0,
+            500,
+            1
+          ],
+          "key": "press_4",
+          "timestamp": "2026-06-20T12:42:33.370Z"
+        },
+        {
+          "action": "read_response",
+          "slaveAddr": 5,
+          "startAddr": 2,
+          "regCount": 1,
+          "values": [
+            400
+          ],
+          "key": "co2_1",
+          "timestamp": "2026-06-20T12:42:34.423Z"
+        },
+        {
+          "action": "read_response",
+          "slaveAddr": 10,
+          "startAddr": 2,
+          "regCount": 1,
+          "values": [
+            600
+          ],
+          "key": "co2_2",
+          "timestamp": "2026-06-20T12:42:35.476Z"
+        },
+        {
+          "action": "read_response",
+          "slaveAddr": 11,
+          "startAddr": 0,
+          "regCount": 3,
+          "values": [
+            0,
+            0,
+            1
+          ],
+          "key": "press_1",
+          "timestamp": "2026-06-20T12:42:36.546Z"
+        },
+        {
+          "action": "read_response",
+          "slaveAddr": 40,
+          "startAddr": 0,
+          "regCount": 3,
+          "values": [
+            0,
+            100,
+            1
+          ],
+          "key": "press_2",
+          "timestamp": "2026-06-20T12:42:37.615Z"
+        },
+        {
+          "action": "read_response",
+          "slaveAddr": 41,
+          "startAddr": 0,
+          "regCount": 3,
+          "values": [
+            0,
+            250,
+            1
+          ],
+          "key": "press_3",
+          "timestamp": "2026-06-20T12:42:38.684Z"
+        },
+        {
+          "action": "read_response",
+          "slaveAddr": 42,
+          "startAddr": 0,
+          "regCount": 3,
+          "values": [
+            0,
+            500,
+            1
+          ],
+          "key": "press_4",
+          "timestamp": "2026-06-20T12:42:39.753Z"
+        },
+        {
+          "action": "read_response",
+          "slaveAddr": 17,
+          "startAddr": 2,
+          "regCount": 1,
+          "values": [
+            800
+          ],
+          "key": "co2_3",
+          "timestamp": "2026-06-20T12:42:40.806Z"
+        },
+        {
+          "action": "read_response",
+          "slaveAddr": 20,
+          "startAddr": 2,
+          "regCount": 1,
+          "values": [
+            1000
+          ],
+          "key": "co2_4",
+          "timestamp": "2026-06-20T12:42:41.859Z"
+        },
+        {
+          "action": "read_response",
+          "slaveAddr": 11,
+          "startAddr": 0,
+          "regCount": 3,
+          "values": [
+            0,
+            0,
+            1
+          ],
+          "key": "press_1",
+          "timestamp": "2026-06-20T12:42:42.912Z"
+        },
+        {
+          "action": "read_response",
+          "slaveAddr": 40,
+          "startAddr": 0,
+          "regCount": 3,
+          "values": [
+            0,
+            100,
+            1
+          ],
+          "key": "press_2",
+          "timestamp": "2026-06-20T12:42:43.981Z"
+        },
+        {
+          "action": "read_response",
+          "slaveAddr": 41,
+          "startAddr": 0,
+          "regCount": 3,
+          "values": [
+            0,
+            250,
+            1
+          ],
+          "key": "press_3",
+          "timestamp": "2026-06-20T12:42:45.051Z"
+        },
+        {
+          "action": "read_response",
+          "slaveAddr": 42,
+          "startAddr": 0,
+          "regCount": 3,
+          "values": [
+            0,
+            500,
+            1
+          ],
+          "key": "press_4",
+          "timestamp": "2026-06-20T12:42:46.120Z"
+        },
+        {
+          "action": "read_response",
+          "slaveAddr": 21,
+          "startAddr": 2,
+          "regCount": 1,
+          "values": [
+            1200
+          ],
+          "key": "co2_5",
+          "timestamp": "2026-06-20T12:42:47.189Z"
+        },
+        {
+          "action": "read_response",
+          "slaveAddr": 22,
+          "startAddr": 2,
+          "regCount": 1,
+          "values": [
+            500
+          ],
+          "key": "co2_6",
+          "timestamp": "2026-06-20T12:42:48.242Z"
+        },
+        {
+          "action": "read_response",
+          "slaveAddr": 11,
+          "startAddr": 0,
+          "regCount": 3,
+          "values": [
+            0,
+            0,
+            1
+          ],
+          "key": "press_1",
+          "timestamp": "2026-06-20T12:42:49.295Z"
+        },
+        {
+          "action": "read_response",
+          "slaveAddr": 40,
+          "startAddr": 0,
+          "regCount": 3,
+          "values": [
+            0,
+            100,
+            1
+          ],
+          "key": "press_2",
+          "timestamp": "2026-06-20T12:42:50.365Z"
+        },
+        {
+          "action": "read_response",
+          "slaveAddr": 41,
+          "startAddr": 0,
+          "regCount": 3,
+          "values": [
+            0,
+            250,
+            1
+          ],
+          "key": "press_3",
+          "timestamp": "2026-06-20T12:42:51.434Z"
+        },
+        {
+          "action": "read_response",
+          "slaveAddr": 42,
+          "startAddr": 0,
+          "regCount": 3,
+          "values": [
+            0,
+            500,
+            1
+          ],
+          "key": "press_4",
+          "timestamp": "2026-06-20T12:42:52.487Z"
+        },
+        {
+          "action": "read_response",
+          "slaveAddr": 23,
+          "startAddr": 2,
+          "regCount": 1,
+          "values": [
+            700
+          ],
+          "key": "co2_7",
+          "timestamp": "2026-06-20T12:42:53.556Z"
+        },
+        {
+          "action": "read_response",
+          "slaveAddr": 82,
+          "startAddr": 2,
+          "regCount": 1,
+          "values": [
+            900
+          ],
+          "key": "co2_8",
+          "timestamp": "2026-06-20T12:42:54.609Z"
+        },
+        {
+          "action": "read_response",
+          "slaveAddr": 11,
+          "startAddr": 0,
+          "regCount": 3,
+          "values": [
+            0,
+            0,
+            1
+          ],
+          "key": "press_1",
+          "timestamp": "2026-06-20T12:42:55.678Z"
+        },
+        {
+          "action": "read_response",
+          "slaveAddr": 40,
+          "startAddr": 0,
+          "regCount": 3,
+          "values": [
+            0,
+            100,
+            1
+          ],
+          "key": "press_2",
+          "timestamp": "2026-06-20T12:42:56.747Z"
+        },
+        {
+          "action": "read_response",
+          "slaveAddr": 41,
+          "startAddr": 0,
+          "regCount": 3,
+          "values": [
+            0,
+            250,
+            1
+          ],
+          "key": "press_3",
+          "timestamp": "2026-06-20T12:42:57.816Z"
+        },
+        {
+          "action": "read_response",
+          "slaveAddr": 42,
+          "startAddr": 0,
+          "regCount": 3,
+          "values": [
+            0,
+            500,
+            1
+          ],
+          "key": "press_4",
+          "timestamp": "2026-06-20T12:42:58.870Z"
+        },
+        {
+          "action": "read_response",
+          "slaveAddr": 1,
+          "startAddr": 0,
+          "regCount": 2,
+          "values": [
+            400,
+            300
+          ],
+          "key": "temp_1",
+          "timestamp": "2026-06-20T12:42:59.939Z"
+        },
+        {
+          "action": "read_response",
+          "slaveAddr": 2,
+          "startAddr": 0,
+          "regCount": 2,
+          "values": [
+            420,
+            300
+          ],
+          "key": "temp_2",
+          "timestamp": "2026-06-20T12:43:01.008Z"
+        },
+        {
+          "action": "read_response",
+          "slaveAddr": 11,
+          "startAddr": 0,
+          "regCount": 3,
+          "values": [
+            0,
+            0,
+            1
+          ],
+          "key": "press_1",
+          "timestamp": "2026-06-20T12:43:02.077Z"
+        },
+        {
+          "action": "read_response",
+          "slaveAddr": 40,
+          "startAddr": 0,
+          "regCount": 3,
+          "values": [
+            0,
+            100,
+            1
+          ],
+          "key": "press_2",
+          "timestamp": "2026-06-20T12:43:03.146Z"
+        },
+        {
+          "action": "read_response",
+          "slaveAddr": 41,
+          "startAddr": 0,
+          "regCount": 3,
+          "values": [
+            0,
+            250,
+            1
+          ],
+          "key": "press_3",
+          "timestamp": "2026-06-20T12:43:04.215Z"
+        },
+        {
+          "action": "read_response",
+          "slaveAddr": 42,
+          "startAddr": 0,
+          "regCount": 3,
+          "values": [
+            0,
+            500,
+            1
+          ],
+          "key": "press_4",
+          "timestamp": "2026-06-20T12:43:05.268Z"
+        },
+        {
+          "action": "read_response",
+          "slaveAddr": 3,
+          "startAddr": 0,
+          "regCount": 2,
+          "values": [
+            440,
+            300
+          ],
+          "key": "temp_3",
+          "timestamp": "2026-06-20T12:43:06.337Z"
+        },
+        {
+          "action": "read_response",
+          "slaveAddr": 7,
+          "startAddr": 0,
+          "regCount": 2,
+          "values": [
+            460,
+            700
+          ],
+          "key": "temp_4",
+          "timestamp": "2026-06-20T12:43:07.407Z"
+        },
+        {
+          "action": "read_response",
+          "slaveAddr": 11,
+          "startAddr": 0,
+          "regCount": 3,
+          "values": [
+            0,
+            0,
+            1
+          ],
+          "key": "press_1",
+          "timestamp": "2026-06-20T12:43:08.476Z"
+        },
+        {
+          "action": "read_response",
+          "slaveAddr": 40,
+          "startAddr": 0,
+          "regCount": 3,
+          "values": [
+            0,
+            100,
+            1
+          ],
+          "key": "press_2",
+          "timestamp": "2026-06-20T12:43:09.529Z"
+        },
+        {
+          "action": "read_response",
+          "slaveAddr": 41,
+          "startAddr": 0,
+          "regCount": 3,
+          "values": [
+            0,
+            250,
+            1
+          ],
+          "key": "press_3",
+          "timestamp": "2026-06-20T12:43:10.582Z"
+        },
+        {
+          "action": "read_response",
+          "slaveAddr": 42,
+          "startAddr": 0,
+          "regCount": 3,
+          "values": [
+            0,
+            500,
+            1
+          ],
+          "key": "press_4",
+          "timestamp": "2026-06-20T12:43:11.635Z"
+        },
+        {
+          "action": "read_response",
+          "slaveAddr": 8,
+          "startAddr": 0,
+          "regCount": 2,
+          "values": [
+            480,
+            300
+          ],
+          "key": "temp_5",
+          "timestamp": "2026-06-20T12:43:12.688Z"
+        },
+        {
+          "action": "read_response",
+          "slaveAddr": 9,
+          "startAddr": 0,
+          "regCount": 2,
+          "values": [
+            500,
+            300
+          ],
+          "key": "temp_6",
+          "timestamp": "2026-06-20T12:43:13.757Z"
+        },
+        {
+          "action": "read_response",
+          "slaveAddr": 11,
+          "startAddr": 0,
+          "regCount": 3,
+          "values": [
+            0,
+            0,
+            1
+          ],
+          "key": "press_1",
+          "timestamp": "2026-06-20T12:43:14.826Z"
+        },
+        {
+          "action": "read_response",
+          "slaveAddr": 40,
+          "startAddr": 0,
+          "regCount": 3,
+          "values": [
+            0,
+            100,
+            1
+          ],
+          "key": "press_2",
+          "timestamp": "2026-06-20T12:43:15.879Z"
+        },
+        {
+          "action": "read_response",
+          "slaveAddr": 41,
+          "startAddr": 0,
+          "regCount": 3,
+          "values": [
+            0,
+            250,
+            1
+          ],
+          "key": "press_3",
+          "timestamp": "2026-06-20T12:43:16.932Z"
+        },
+        {
+          "action": "read_response",
+          "slaveAddr": 42,
+          "startAddr": 0,
+          "regCount": 3,
+          "values": [
+            0,
+            500,
+            1
+          ],
+          "key": "press_4",
+          "timestamp": "2026-06-20T12:43:17.985Z"
+        },
+        {
+          "action": "read_response",
+          "slaveAddr": 80,
+          "startAddr": 0,
+          "regCount": 2,
+          "values": [
+            520,
+            300
+          ],
+          "key": "temp_7",
+          "timestamp": "2026-06-20T12:43:19.039Z"
+        },
+        {
+          "action": "read_response",
+          "slaveAddr": 26,
+          "startAddr": 0,
+          "regCount": 2,
+          "values": [
+            540,
+            300
+          ],
+          "key": "temp_8",
+          "timestamp": "2026-06-20T12:43:20.108Z"
+        },
+        {
+          "action": "read_response",
+          "slaveAddr": 11,
+          "startAddr": 0,
+          "regCount": 3,
+          "values": [
+            0,
+            0,
+            1
+          ],
+          "key": "press_1",
+          "timestamp": "2026-06-20T12:43:21.177Z"
+        },
+        {
+          "action": "read_response",
+          "slaveAddr": 40,
+          "startAddr": 0,
+          "regCount": 3,
+          "values": [
+            0,
+            100,
+            1
+          ],
+          "key": "press_2",
+          "timestamp": "2026-06-20T12:43:22.230Z"
+        },
+        {
+          "action": "read_response",
+          "slaveAddr": 41,
+          "startAddr": 0,
+          "regCount": 3,
+          "values": [
+            0,
+            250,
+            1
+          ],
+          "key": "press_3",
+          "timestamp": "2026-06-20T12:43:23.299Z"
+        },
+        {
+          "action": "read_response",
+          "slaveAddr": 42,
+          "startAddr": 0,
+          "regCount": 3,
+          "values": [
+            0,
+            500,
+            1
+          ],
+          "key": "press_4",
+          "timestamp": "2026-06-20T12:43:24.368Z"
+        },
+        {
+          "action": "read_response",
+          "slaveAddr": 27,
+          "startAddr": 0,
+          "regCount": 2,
+          "values": [
+            560,
+            300
+          ],
+          "key": "temp_9",
+          "timestamp": "2026-06-20T12:43:25.437Z"
+        },
+        {
+          "action": "read_response",
+          "slaveAddr": 28,
+          "startAddr": 0,
+          "regCount": 2,
+          "values": [
+            580,
+            300
+          ],
+          "key": "temp_10",
+          "timestamp": "2026-06-20T12:43:26.506Z"
+        },
+        {
+          "action": "read_response",
+          "slaveAddr": 11,
+          "startAddr": 0,
+          "regCount": 3,
+          "values": [
+            0,
+            0,
+            1
+          ],
+          "key": "press_1",
+          "timestamp": "2026-06-20T12:43:27.559Z"
+        },
+        {
+          "action": "read_response",
+          "slaveAddr": 40,
+          "startAddr": 0,
+          "regCount": 3,
+          "values": [
+            0,
+            100,
+            1
+          ],
+          "key": "press_2",
+          "timestamp": "2026-06-20T12:43:28.612Z"
+        },
+        {
+          "action": "read_response",
+          "slaveAddr": 41,
+          "startAddr": 0,
+          "regCount": 3,
+          "values": [
+            0,
+            250,
+            1
+          ],
+          "key": "press_3",
+          "timestamp": "2026-06-20T12:43:29.681Z"
+        },
+        {
+          "action": "read_response",
+          "slaveAddr": 42,
+          "startAddr": 0,
+          "regCount": 3,
+          "values": [
+            0,
+            500,
+            1
+          ],
+          "key": "press_4",
+          "timestamp": "2026-06-20T12:43:30.750Z"
+        },
+        {
+          "action": "read_response",
+          "slaveAddr": 29,
+          "startAddr": 0,
+          "regCount": 2,
+          "values": [
+            600,
+            300
+          ],
+          "key": "temp_11",
+          "timestamp": "2026-06-20T12:43:31.819Z"
+        },
+        {
+          "action": "read_response",
+          "slaveAddr": 30,
+          "startAddr": 0,
+          "regCount": 2,
+          "values": [
+            620,
+            300
+          ],
+          "key": "temp_12",
+          "timestamp": "2026-06-20T12:43:32.872Z"
+        },
+        {
+          "action": "read_response",
+          "slaveAddr": 11,
+          "startAddr": 0,
+          "regCount": 3,
+          "values": [
+            0,
+            0,
+            1
+          ],
+          "key": "press_1",
+          "timestamp": "2026-06-20T12:43:33.925Z"
+        },
+        {
+          "action": "read_response",
+          "slaveAddr": 40,
+          "startAddr": 0,
+          "regCount": 3,
+          "values": [
+            0,
+            100,
+            1
+          ],
+          "key": "press_2",
+          "timestamp": "2026-06-20T12:43:34.994Z"
+        },
+        {
+          "action": "read_response",
+          "slaveAddr": 41,
+          "startAddr": 0,
+          "regCount": 3,
+          "values": [
+            0,
+            250,
+            1
+          ],
+          "key": "press_3",
+          "timestamp": "2026-06-20T12:43:36.063Z"
+        },
+        {
+          "action": "read_response",
+          "slaveAddr": 42,
+          "startAddr": 0,
+          "regCount": 3,
+          "values": [
+            0,
+            500,
+            1
+          ],
+          "key": "press_4",
+          "timestamp": "2026-06-20T12:43:37.132Z"
+        },
+        {
+          "action": "read_response",
+          "slaveAddr": 31,
+          "startAddr": 0,
+          "regCount": 2,
+          "values": [
+            640,
+            300
+          ],
+          "key": "temp_13",
+          "timestamp": "2026-06-20T12:43:38.201Z"
+        },
+        {
+          "action": "read_response",
+          "slaveAddr": 81,
+          "startAddr": 0,
+          "regCount": 2,
+          "values": [
+            660,
+            300
+          ],
+          "key": "temp_14",
+          "timestamp": "2026-06-20T12:43:39.270Z"
+        },
+        {
+          "action": "read_response",
+          "slaveAddr": 11,
+          "startAddr": 0,
+          "regCount": 3,
+          "values": [
+            0,
+            0,
+            1
+          ],
+          "key": "press_1",
+          "timestamp": "2026-06-20T12:43:40.323Z"
+        },
+        {
+          "action": "read_response",
+          "slaveAddr": 40,
+          "startAddr": 0,
+          "regCount": 3,
+          "values": [
+            0,
+            100,
+            1
+          ],
+          "key": "press_2",
+          "timestamp": "2026-06-20T12:43:41.393Z"
+        },
+        {
+          "action": "read_response",
+          "slaveAddr": 41,
+          "startAddr": 0,
+          "regCount": 3,
+          "values": [
+            0,
+            250,
+            1
+          ],
+          "key": "press_3",
+          "timestamp": "2026-06-20T12:43:42.462Z"
+        },
+        {
+          "action": "read_response",
+          "slaveAddr": 42,
+          "startAddr": 0,
+          "regCount": 3,
+          "values": [
+            0,
+            500,
+            1
+          ],
+          "key": "press_4",
+          "timestamp": "2026-06-20T12:43:43.531Z"
+        },
+        {
+          "action": "read_response",
+          "slaveAddr": 51,
+          "startAddr": 0,
+          "regCount": 2,
+          "values": [
+            680,
+            300
+          ],
+          "key": "temp_15",
+          "timestamp": "2026-06-20T12:43:44.600Z"
+        },
+        {
+          "action": "read_response",
+          "slaveAddr": 52,
+          "startAddr": 0,
+          "regCount": 2,
+          "values": [
+            700,
+            300
+          ],
+          "key": "temp_16",
+          "timestamp": "2026-06-20T12:43:45.669Z"
+        },
+        {
+          "action": "read_response",
+          "slaveAddr": 11,
+          "startAddr": 0,
+          "regCount": 3,
+          "values": [
+            0,
+            0,
+            1
+          ],
+          "key": "press_1",
+          "timestamp": "2026-06-20T12:43:46.722Z"
+        },
+        {
+          "action": "read_response",
+          "slaveAddr": 40,
+          "startAddr": 0,
+          "regCount": 3,
+          "values": [
+            0,
+            100,
+            1
+          ],
+          "key": "press_2",
+          "timestamp": "2026-06-20T12:43:47.791Z"
+        },
+        {
+          "action": "read_response",
+          "slaveAddr": 41,
+          "startAddr": 0,
+          "regCount": 3,
+          "values": [
+            0,
+            250,
+            1
+          ],
+          "key": "press_3",
+          "timestamp": "2026-06-20T12:43:48.861Z"
+        },
+        {
+          "action": "read_response",
+          "slaveAddr": 42,
+          "startAddr": 0,
+          "regCount": 3,
+          "values": [
+            0,
+            500,
+            1
+          ],
+          "key": "press_4",
+          "timestamp": "2026-06-20T12:43:49.930Z"
+        },
+        {
+          "action": "unknown_slave",
+          "slaveAddr": 33,
+          "startAddr": 0,
+          "regCount": 2,
+          "timestamp": "2026-06-20T12:43:50.999Z"
+        },
+        {
+          "action": "unknown_slave",
+          "slaveAddr": 34,
+          "startAddr": 0,
+          "regCount": 2,
+          "timestamp": "2026-06-20T12:43:52.515Z"
+        },
+        {
+          "action": "read_response",
+          "slaveAddr": 11,
+          "startAddr": 0,
+          "regCount": 3,
+          "values": [
+            0,
+            0,
+            1
+          ],
+          "key": "press_1",
+          "timestamp": "2026-06-20T12:43:54.031Z"
+        },
+        {
+          "action": "read_response",
+          "slaveAddr": 40,
+          "startAddr": 0,
+          "regCount": 3,
+          "values": [
+            0,
+            100,
+            1
+          ],
+          "key": "press_2",
+          "timestamp": "2026-06-20T12:43:55.100Z"
+        },
+        {
+          "action": "read_response",
+          "slaveAddr": 41,
+          "startAddr": 0,
+          "regCount": 3,
+          "values": [
+            0,
+            250,
+            1
+          ],
+          "key": "press_3",
+          "timestamp": "2026-06-20T12:43:56.169Z"
+        },
+        {
+          "action": "read_response",
+          "slaveAddr": 42,
+          "startAddr": 0,
+          "regCount": 3,
+          "values": [
+            0,
+            500,
+            1
+          ],
+          "key": "press_4",
+          "timestamp": "2026-06-20T12:43:57.222Z"
+        },
+        {
+          "action": "read_response",
+          "slaveAddr": 5,
+          "startAddr": 2,
+          "regCount": 1,
+          "values": [
+            400
+          ],
+          "key": "co2_1",
+          "timestamp": "2026-06-20T12:43:58.291Z"
+        },
+        {
+          "action": "read_response",
+          "slaveAddr": 10,
+          "startAddr": 2,
+          "regCount": 1,
+          "values": [
+            600
+          ],
+          "key": "co2_2",
+          "timestamp": "2026-06-20T12:43:59.360Z"
+        },
+        {
+          "action": "read_response",
+          "slaveAddr": 11,
+          "startAddr": 0,
+          "regCount": 3,
+          "values": [
+            0,
+            0,
+            1
+          ],
+          "key": "press_1",
+          "timestamp": "2026-06-20T12:44:00.429Z"
+        },
+        {
+          "action": "read_response",
+          "slaveAddr": 40,
+          "startAddr": 0,
+          "regCount": 3,
+          "values": [
+            0,
+            100,
+            1
+          ],
+          "key": "press_2",
+          "timestamp": "2026-06-20T12:44:01.483Z"
+        },
+        {
+          "action": "read_response",
+          "slaveAddr": 41,
+          "startAddr": 0,
+          "regCount": 3,
+          "values": [
+            0,
+            250,
+            1
+          ],
+          "key": "press_3",
+          "timestamp": "2026-06-20T12:44:02.552Z"
+        },
+        {
+          "action": "read_response",
+          "slaveAddr": 42,
+          "startAddr": 0,
+          "regCount": 3,
+          "values": [
+            0,
+            500,
+            1
+          ],
+          "key": "press_4",
+          "timestamp": "2026-06-20T12:44:03.605Z"
+        },
+        {
+          "action": "read_response",
+          "slaveAddr": 17,
+          "startAddr": 2,
+          "regCount": 1,
+          "values": [
+            800
+          ],
+          "key": "co2_3",
+          "timestamp": "2026-06-20T12:44:04.674Z"
+        },
+        {
+          "action": "read_response",
+          "slaveAddr": 20,
+          "startAddr": 2,
+          "regCount": 1,
+          "values": [
+            1000
+          ],
+          "key": "co2_4",
+          "timestamp": "2026-06-20T12:44:05.727Z"
+        },
+        {
+          "action": "read_response",
+          "slaveAddr": 11,
+          "startAddr": 0,
+          "regCount": 3,
+          "values": [
+            0,
+            0,
+            1
+          ],
+          "key": "press_1",
+          "timestamp": "2026-06-20T12:44:06.781Z"
+        },
+        {
+          "action": "read_response",
+          "slaveAddr": 40,
+          "startAddr": 0,
+          "regCount": 3,
+          "values": [
+            0,
+            100,
+            1
+          ],
+          "key": "press_2",
+          "timestamp": "2026-06-20T12:44:07.833Z"
+        },
+        {
+          "action": "read_response",
+          "slaveAddr": 41,
+          "startAddr": 0,
+          "regCount": 3,
+          "values": [
+            0,
+            250,
+            1
+          ],
+          "key": "press_3",
+          "timestamp": "2026-06-20T12:44:08.886Z"
+        },
+        {
+          "action": "read_response",
+          "slaveAddr": 42,
+          "startAddr": 0,
+          "regCount": 3,
+          "values": [
+            0,
+            500,
+            1
+          ],
+          "key": "press_4",
+          "timestamp": "2026-06-20T12:44:09.956Z"
+        },
+        {
+          "action": "read_response",
+          "slaveAddr": 21,
+          "startAddr": 2,
+          "regCount": 1,
+          "values": [
+            1200
+          ],
+          "key": "co2_5",
+          "timestamp": "2026-06-20T12:44:11.025Z"
+        },
+        {
+          "action": "read_response",
+          "slaveAddr": 22,
+          "startAddr": 2,
+          "regCount": 1,
+          "values": [
+            500
+          ],
+          "key": "co2_6",
+          "timestamp": "2026-06-20T12:44:12.094Z"
+        },
+        {
+          "action": "read_response",
+          "slaveAddr": 11,
+          "startAddr": 0,
+          "regCount": 3,
+          "values": [
+            0,
+            0,
+            1
+          ],
+          "key": "press_1",
+          "timestamp": "2026-06-20T12:44:13.163Z"
+        },
+        {
+          "action": "read_response",
+          "slaveAddr": 40,
+          "startAddr": 0,
+          "regCount": 3,
+          "values": [
+            0,
+            100,
+            1
+          ],
+          "key": "press_2",
+          "timestamp": "2026-06-20T12:44:14.232Z"
+        },
+        {
+          "action": "read_response",
+          "slaveAddr": 41,
+          "startAddr": 0,
+          "regCount": 3,
+          "values": [
+            0,
+            250,
+            1
+          ],
+          "key": "press_3",
+          "timestamp": "2026-06-20T12:44:15.302Z"
+        },
+        {
+          "action": "read_response",
+          "slaveAddr": 42,
+          "startAddr": 0,
+          "regCount": 3,
+          "values": [
+            0,
+            500,
+            1
+          ],
+          "key": "press_4",
+          "timestamp": "2026-06-20T12:44:16.355Z"
+        },
+        {
+          "action": "read_response",
+          "slaveAddr": 23,
+          "startAddr": 2,
+          "regCount": 1,
+          "values": [
+            700
+          ],
+          "key": "co2_7",
+          "timestamp": "2026-06-20T12:44:17.424Z"
+        },
+        {
+          "action": "read_response",
+          "slaveAddr": 82,
+          "startAddr": 2,
+          "regCount": 1,
+          "values": [
+            900
+          ],
+          "key": "co2_8",
+          "timestamp": "2026-06-20T12:44:18.477Z"
+        },
+        {
+          "action": "read_response",
+          "slaveAddr": 11,
+          "startAddr": 0,
+          "regCount": 3,
+          "values": [
+            0,
+            0,
+            1
+          ],
+          "key": "press_1",
+          "timestamp": "2026-06-20T12:44:19.546Z"
+        },
+        {
+          "action": "read_response",
+          "slaveAddr": 40,
+          "startAddr": 0,
+          "regCount": 3,
+          "values": [
+            0,
+            100,
+            1
+          ],
+          "key": "press_2",
+          "timestamp": "2026-06-20T12:44:20.599Z"
+        },
+        {
+          "action": "read_response",
+          "slaveAddr": 41,
+          "startAddr": 0,
+          "regCount": 3,
+          "values": [
+            0,
+            250,
+            1
+          ],
+          "key": "press_3",
+          "timestamp": "2026-06-20T12:44:21.668Z"
+        },
+        {
+          "action": "read_response",
+          "slaveAddr": 42,
+          "startAddr": 0,
+          "regCount": 3,
+          "values": [
+            0,
+            500,
+            1
+          ],
+          "key": "press_4",
+          "timestamp": "2026-06-20T12:44:22.737Z"
+        },
+        {
+          "action": "read_response",
+          "slaveAddr": 1,
+          "startAddr": 0,
+          "regCount": 2,
+          "values": [
+            400,
+            300
+          ],
+          "key": "temp_1",
+          "timestamp": "2026-06-20T12:44:23.807Z"
+        },
+        {
+          "action": "read_response",
+          "slaveAddr": 2,
+          "startAddr": 0,
+          "regCount": 2,
+          "values": [
+            420,
+            300
+          ],
+          "key": "temp_2",
+          "timestamp": "2026-06-20T12:44:24.876Z"
+        },
+        {
+          "action": "read_response",
+          "slaveAddr": 11,
+          "startAddr": 0,
+          "regCount": 3,
+          "values": [
+            0,
+            0,
+            1
+          ],
+          "key": "press_1",
+          "timestamp": "2026-06-20T12:44:25.945Z"
+        },
+        {
+          "action": "read_response",
+          "slaveAddr": 40,
+          "startAddr": 0,
+          "regCount": 3,
+          "values": [
+            0,
+            100,
+            1
+          ],
+          "key": "press_2",
+          "timestamp": "2026-06-20T12:44:27.014Z"
+        },
+        {
+          "action": "read_response",
+          "slaveAddr": 41,
+          "startAddr": 0,
+          "regCount": 3,
+          "values": [
+            0,
+            250,
+            1
+          ],
+          "key": "press_3",
+          "timestamp": "2026-06-20T12:44:28.083Z"
+        },
+        {
+          "action": "read_response",
+          "slaveAddr": 42,
+          "startAddr": 0,
+          "regCount": 3,
+          "values": [
+            0,
+            500,
+            1
+          ],
+          "key": "press_4",
+          "timestamp": "2026-06-20T12:44:29.136Z"
+        },
+        {
+          "action": "read_response",
+          "slaveAddr": 3,
+          "startAddr": 0,
+          "regCount": 2,
+          "values": [
+            440,
+            300
+          ],
+          "key": "temp_3",
+          "timestamp": "2026-06-20T12:44:30.205Z"
+        },
+        {
+          "action": "read_response",
+          "slaveAddr": 7,
+          "startAddr": 0,
+          "regCount": 2,
+          "values": [
+            460,
+            700
+          ],
+          "key": "temp_4",
+          "timestamp": "2026-06-20T12:44:31.274Z"
+        },
+        {
+          "action": "read_response",
+          "slaveAddr": 11,
+          "startAddr": 0,
+          "regCount": 3,
+          "values": [
+            0,
+            0,
+            1
+          ],
+          "key": "press_1",
+          "timestamp": "2026-06-20T12:44:32.327Z"
+        },
+        {
+          "action": "read_response",
+          "slaveAddr": 40,
+          "startAddr": 0,
+          "regCount": 3,
+          "values": [
+            0,
+            100,
+            1
+          ],
+          "key": "press_2",
+          "timestamp": "2026-06-20T12:44:33.380Z"
+        },
+        {
+          "action": "read_response",
+          "slaveAddr": 41,
+          "startAddr": 0,
+          "regCount": 3,
+          "values": [
+            0,
+            250,
+            1
+          ],
+          "key": "press_3",
+          "timestamp": "2026-06-20T12:44:34.433Z"
+        },
+        {
+          "action": "read_response",
+          "slaveAddr": 42,
+          "startAddr": 0,
+          "regCount": 3,
+          "values": [
+            0,
+            500,
+            1
+          ],
+          "key": "press_4",
+          "timestamp": "2026-06-20T12:44:35.502Z"
+        },
+        {
+          "action": "read_response",
+          "slaveAddr": 8,
+          "startAddr": 0,
+          "regCount": 2,
+          "values": [
+            480,
+            300
+          ],
+          "key": "temp_5",
+          "timestamp": "2026-06-20T12:44:36.571Z"
+        },
+        {
+          "action": "read_response",
+          "slaveAddr": 9,
+          "startAddr": 0,
+          "regCount": 2,
+          "values": [
+            500,
+            300
+          ],
+          "key": "temp_6",
+          "timestamp": "2026-06-20T12:44:37.624Z"
+        },
+        {
+          "action": "read_response",
+          "slaveAddr": 11,
+          "startAddr": 0,
+          "regCount": 3,
+          "values": [
+            0,
+            0,
+            1
+          ],
+          "key": "press_1",
+          "timestamp": "2026-06-20T12:44:38.694Z"
+        },
+        {
+          "action": "read_response",
+          "slaveAddr": 40,
+          "startAddr": 0,
+          "regCount": 3,
+          "values": [
+            0,
+            100,
+            1
+          ],
+          "key": "press_2",
+          "timestamp": "2026-06-20T12:44:39.747Z"
+        },
+        {
+          "action": "read_response",
+          "slaveAddr": 41,
+          "startAddr": 0,
+          "regCount": 3,
+          "values": [
+            0,
+            250,
+            1
+          ],
+          "key": "press_3",
+          "timestamp": "2026-06-20T12:44:40.816Z"
+        },
+        {
+          "action": "read_response",
+          "slaveAddr": 42,
+          "startAddr": 0,
+          "regCount": 3,
+          "values": [
+            0,
+            500,
+            1
+          ],
+          "key": "press_4",
+          "timestamp": "2026-06-20T12:44:41.869Z"
+        },
+        {
+          "action": "read_response",
+          "slaveAddr": 80,
+          "startAddr": 0,
+          "regCount": 2,
+          "values": [
+            520,
+            300
+          ],
+          "key": "temp_7",
+          "timestamp": "2026-06-20T12:44:42.922Z"
+        },
+        {
+          "action": "read_response",
+          "slaveAddr": 26,
+          "startAddr": 0,
+          "regCount": 2,
+          "values": [
+            540,
+            300
+          ],
+          "key": "temp_8",
+          "timestamp": "2026-06-20T12:44:43.992Z"
+        },
+        {
+          "action": "read_response",
+          "slaveAddr": 11,
+          "startAddr": 0,
+          "regCount": 3,
+          "values": [
+            0,
+            0,
+            1
+          ],
+          "key": "press_1",
+          "timestamp": "2026-06-20T12:44:45.061Z"
+        },
+        {
+          "action": "read_response",
+          "slaveAddr": 40,
+          "startAddr": 0,
+          "regCount": 3,
+          "values": [
+            0,
+            100,
+            1
+          ],
+          "key": "press_2",
+          "timestamp": "2026-06-20T12:44:46.114Z"
+        },
+        {
+          "action": "read_response",
+          "slaveAddr": 41,
+          "startAddr": 0,
+          "regCount": 3,
+          "values": [
+            0,
+            250,
+            1
+          ],
+          "key": "press_3",
+          "timestamp": "2026-06-20T12:44:47.167Z"
+        },
+        {
+          "action": "read_response",
+          "slaveAddr": 42,
+          "startAddr": 0,
+          "regCount": 3,
+          "values": [
+            0,
+            500,
+            1
+          ],
+          "key": "press_4",
+          "timestamp": "2026-06-20T12:44:48.236Z"
+        },
+        {
+          "action": "read_response",
+          "slaveAddr": 27,
+          "startAddr": 0,
+          "regCount": 2,
+          "values": [
+            560,
+            300
+          ],
+          "key": "temp_9",
+          "timestamp": "2026-06-20T12:44:49.305Z"
+        },
+        {
+          "action": "read_response",
+          "slaveAddr": 28,
+          "startAddr": 0,
+          "regCount": 2,
+          "values": [
+            580,
+            300
+          ],
+          "key": "temp_10",
+          "timestamp": "2026-06-20T12:44:50.374Z"
+        },
+        {
+          "action": "read_response",
+          "slaveAddr": 11,
+          "startAddr": 0,
+          "regCount": 3,
+          "values": [
+            0,
+            0,
+            1
+          ],
+          "key": "press_1",
+          "timestamp": "2026-06-20T12:44:51.443Z"
+        },
+        {
+          "action": "read_response",
+          "slaveAddr": 40,
+          "startAddr": 0,
+          "regCount": 3,
+          "values": [
+            0,
+            100,
+            1
+          ],
+          "key": "press_2",
+          "timestamp": "2026-06-20T12:44:52.497Z"
+        },
+        {
+          "action": "read_response",
+          "slaveAddr": 41,
+          "startAddr": 0,
+          "regCount": 3,
+          "values": [
+            0,
+            250,
+            1
+          ],
+          "key": "press_3",
+          "timestamp": "2026-06-20T12:44:53.566Z"
+        },
+        {
+          "action": "read_response",
+          "slaveAddr": 42,
+          "startAddr": 0,
+          "regCount": 3,
+          "values": [
+            0,
+            500,
+            1
+          ],
+          "key": "press_4",
+          "timestamp": "2026-06-20T12:44:54.635Z"
+        },
+        {
+          "action": "read_response",
+          "slaveAddr": 29,
+          "startAddr": 0,
+          "regCount": 2,
+          "values": [
+            600,
+            300
+          ],
+          "key": "temp_11",
+          "timestamp": "2026-06-20T12:44:55.704Z"
+        },
+        {
+          "action": "read_response",
+          "slaveAddr": 30,
+          "startAddr": 0,
+          "regCount": 2,
+          "values": [
+            620,
+            300
+          ],
+          "key": "temp_12",
+          "timestamp": "2026-06-20T12:44:56.757Z"
+        },
+        {
+          "action": "read_response",
+          "slaveAddr": 11,
+          "startAddr": 0,
+          "regCount": 3,
+          "values": [
+            0,
+            0,
+            1
+          ],
+          "key": "press_1",
+          "timestamp": "2026-06-20T12:44:57.827Z"
+        },
+        {
+          "action": "clearAllFaults",
+          "timestamp": "2026-06-20T12:44:58.255Z"
+        }
+      ],
+      "cleanupResult": null
+    }
+  ]
+}

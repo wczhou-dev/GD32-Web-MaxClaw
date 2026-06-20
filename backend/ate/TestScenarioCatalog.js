@@ -462,10 +462,10 @@ const scenarios = [
     group: PAGE_GROUP.HIST,
     priority: 'P0',
     isP1Required: true,
-    estimatedSeconds: 600,
+    estimatedSeconds: 300,
     dependencies: ['PRE-FIELD-001', 'PRE-ENV-001'],
-    timeoutMs: 600000,  // 10 分钟（含 3 次跨小时等待 + 3 次重启）
-    description: '验证 3 组固定模拟值冻结后，启动回退按 tm_hour 匹配正确历史值',
+    timeoutMs: 600000,
+    description: '验证 3 组固定模拟值冻结后，启动回退按 tm_hour 匹配正确历史值 (精简传感器+59分对时加速)',
     executeMode: 'caseAOnly',
     inputs: {
       freezeGroups: [
@@ -647,12 +647,12 @@ const scenarios = [
     estimatedSeconds: 30,
     dependencies: ['PRE-FIELD-001'],
     timeoutMs: 30000,
-    description: '修改温度告警阈值后新阈值立即参与判断（绝对值判定: ActualTemp > TempHigh）',
+    description: '修改温度告警阈值后新阈值立即参与判断（偏差判定: ActualTemp - Expected > TempHigh, Expected默认18℃）',
     inputs: {
       thresholdRegister: 'temp_high_limit',
-      alarmThreshold: 280,    // 告警阈值 28.0℃ (单位 0.1℃, 绝对值判定)
-      testValue: 30.0,        // 测试温度 30.0℃ (ActualTemp > 28.0 → 触发)
-      recoverValue: 25.0,     // 恢复温度 25.0℃ (ActualTemp < 28.0 → 清除)
+      alarmThreshold: 50,     // 偏差阈值 5.0℃ (单位 0.1℃, ActualTemp - Expected(18) > 5.0 时触发)
+      testValue: 30.0,        // 测试温度 30.0℃ (偏差=30-18=12 > 5 → 触发)
+      recoverValue: 20.0,     // 恢复温度 20.0℃ (偏差=20-18=2 < 5 → 清除)
     },
     expected: {
       alarmSet: true,

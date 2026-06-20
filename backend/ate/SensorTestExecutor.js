@@ -626,6 +626,11 @@ class SensorTestExecutor extends EventEmitter {
     const tolerance = scenario.tolerance || scenario.inputs.tolerance || 0.2;
     let historyMethod = null;  // 'msh' | 'modbus' | null
 
+    // 精简传感器以加速轮询（历史测试只需 temp_1 + humi_1）
+    await this._saveInstallConfig();
+    await this._setReducedSensors(3);
+    this._log('历史测试: 精简传感器至 3 路');
+
     // 探测历史读取方式
     if (this._mshClient) {
       try {
@@ -679,7 +684,7 @@ class SensorTestExecutor extends EventEmitter {
         await new Promise(r => setTimeout(r, 2000));
       }
 
-      // 对时到昨天 freezeHour:57
+      // 对时到昨天 freezeHour:59 (距整点仅 1 分钟，大幅缩短跨小时等待)
       const yesterday = new Date();
       yesterday.setDate(yesterday.getDate() - 1);
       const syncResult = await this._stateReader.syncTime({
@@ -687,13 +692,13 @@ class SensorTestExecutor extends EventEmitter {
         month: yesterday.getMonth() + 1,
         day: yesterday.getDate(),
         hour: group.freezeHour,
-        minute: 57,
+        minute: 59,
         second: 0,
       });
       assertions.push(...this._assertEngine.assertTimeSync(
         syncResult.hr17,
         { hour: syncResult.deviceTimeArray[3], minute: syncResult.deviceTimeArray[4] },
-        { hour: group.freezeHour, minute: 57 }
+        { hour: group.freezeHour, minute: 59 }
       ));
       this._log(`对时结果: ${syncResult.ok ? '成功' : '失败'}`);
 
@@ -819,6 +824,7 @@ class SensorTestExecutor extends EventEmitter {
     this._simulator.clearFault(sensorKeys.temp);
     this._simulator.clearFault(sensorKeys.humi);
     await this._stateReader.restoreRealTime();
+    await this._restoreInstallConfig();
     // 断开 MSH 串口
     if (this._mshClient) {
       await this._mshClient.disconnect().catch(() => {});
@@ -889,13 +895,13 @@ class SensorTestExecutor extends EventEmitter {
       month: yesterday.getMonth() + 1,
       day: yesterday.getDate(),
       hour: freezeHour,
-      minute: 57,
+      minute: 59,  // 距整点仅 1 分钟
       second: 0,
     });
     assertions.push(...this._assertEngine.assertTimeSync(
       syncResult.hr17,
       { hour: syncResult.deviceTimeArray[3], minute: syncResult.deviceTimeArray[4] },
-      { hour: freezeHour, minute: 57 }
+      { hour: freezeHour, minute: 59 }
     ));
 
     // 等待跨小时
@@ -962,7 +968,7 @@ class SensorTestExecutor extends EventEmitter {
       month: yesterday.getMonth() + 1,
       day: yesterday.getDate(),
       hour: freezeHour + 4,
-      minute: 57,
+      minute: 59,
       second: 0,
     });
 

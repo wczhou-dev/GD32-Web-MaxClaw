@@ -1087,3 +1087,397 @@ node backend/server.js
 | `T-COMP-001` | 传感器离线后恢复 | 验证产生 ErRead 告警后，恢复正常应答，系统自动恢复为在线且告警清除 | P0 |
 | `T-COMP-002` | 多路传感器同时失效 | 验证多路离线情况下系统不崩溃，且均值计算按剩余有效路进行 | P1 |
 
+---
+
+## 12. 固件 MSH 命令规范（HIL 测试依赖）
+
+### 12.1 背景
+
+HIL 历史回退测试（T-HIST-001、T-HIST-003、SEN-HIST-BOOT-001）需要通过调试串口（COM4, 115200 baud）发送 MSH 命令读取和清空固件的历史缓冲区。后端 `MshClient.js` 已实现命令发送和响应解析，但固件侧需要实现对应的 MSH 命令。
+
+### 12.2 命令清单
+
+| 命令 | 功能 | 超时 | 测试依赖 |
+| :--- | :--- | :--- | :--- |
+| `sensor_history` | 读取历史缓冲区所有非空条目 | 8s | T-HIST-001, T-HIST-003, SEN-HIST-BOOT-001 |
+| `sensor_history_clear` | 清空历史缓冲区并保存到 Flash | 5s | T-HIST-001, SEN-HIST-BOOT-001 |
+
+### 12.3 `sensor_history` 命令规范
+
+**功能**：遍历 `App_Save.sensor_history` 缓冲区，输出所有有效条目的小时、温度、湿度。
+
+**输出格式**（key=value，后端 `_parseHistory()` 已支持解析）：
+
+```
+sensor_history:
+hour=10 temp=25.0 humi=60.0 stamp=1718860800
+hour=14 temp=27.0 humi=62.0 stamp=1718875200
+hour=18 temp=29.0 humi=64.0 stamp=1718889600
+msh />
+```
+
+- 每行一个条目：`hour=<0-23> temp=<float> humi=<float> stamp=<unix_timestamp>`
+- 跳过无效条目（timestamp ≤ 0 或 > 2147483647，或 temp/humi 为 0 或 0xFFFFFFFF）
+- 缓冲区为空时输出 `(empty)`
+- 命令结束后输出 MSH 提示符 `msh />`
+
+**参考实现**（添加到 `sensor_history_service.c` 末尾）：
+
+```c
+#include <rtthread.h>
+
+static int cmd_sensor_history(int argc, char *argv[])
+{
+    struct tm time_get;
+    int count = 0;
+
+    rt_kprintf("sensor_history:\n");
+    for (int i = 0; i < HISTORY_LOG_MAX; i++) {
+        time_t ts = App_Save.sensor_history.time_stamp[i];
+        if (ts <= 0 || ts > 2147483647) continue;
+
+        localtime_r(&ts, &time_get);
+        float temp = App_Save.sensor_history.history_InTemp[i];
+        float humi = App_Save.sensor_history.history_InHumi[i];
+
+        if (temp == 0 || temp == (float)0xFFFFFFFF) continue;
+        if (humi == 0 || humi == (float)0xFFFFFFFF) continue;
+
+        rt_kprintf("hour=%d temp=%.1f humi=%.1f stamp=%d\n",
+                   time_get.tm_hour, temp, humi, (int)ts);
+        count++;
+    }
+
+    if (count == 0) {
+        rt_kprintf("(empty)\n");
+    }
+    return RT_EOK;
+}
+MSH_CMD_EXPORT(cmd_sensor_history, show sensor temperature/humidity history);
+```
+
+### 12.4 `sensor_history_clear` 命令规范
+
+**功能**：清空历史缓冲区所有条目并持久化到 Flash。
+
+**输出格式**：
+
+```
+sensor_history: cleared
+msh />
+```
+
+**参考实现**：
+
+```c
+static int cmd_sensor_history_clear(int argc, char *argv[])
+{
+    for (int i = 0; i < HISTORY_LOG_MAX; i++) {
+        App_Save.sensor_history.time_stamp[i] = 0;
+        App_Save.sensor_history.history_InTemp[i] = 0;
+        App_Save.sensor_history.history_InHumi[i] = 0;
+    }
+
+    control_Mode_SendEvent(Para_Msg_SAVEFILE, SAVE_SENSOR_HISTORY);
+    rt_kprintf("sensor_history: cleared\n");
+    return RT_EOK;
+}
+MSH_CMD_EXPORT(cmd_sensor_history_clear, clear sensor history buffer);
+```
+
+### 12.5 后端解析器兼容性
+
+后端 `MshClient._parseHistory()` 支持 3 种输出格式，上述实现匹配**格式 A**：
+
+| 格式 | 示例 | 正则 |
+| :--- | :--- | :--- |
+| A: key=value | `hour=10 temp=25.0 humi=60.0` | `/hour\s*=\s*(\d+).*temp\s*=\s*(-?[\d.]+).*humi\s*=\s*(-?[\d.]+)/` |
+| B: 方括号 | `[0] hour=10 temp=25.0 humi=60.0` | 同上（忽略前缀） |
+| C: 空格分隔 | `10  25.0  60.0  123456` | 按空格分割，第1字段为 hour(0-23) |
+
+### 12.6 验证方法
+
+烧录固件后，在串口终端（SSCOM / Xshell）中手动验证：
+
+```bash
+# 1. 读取历史缓冲
+msh /> sensor_history
+sensor_history:
+hour=17 temp=28.5 humi=55.0 stamp=1718889600
+msh />
+
+# 2. 清空历史缓冲
+msh /> sensor_history_clear
+sensor_history: cleared
+msh />
+
+# 3. 确认清空后为空
+msh /> sensor_history
+sensor_history:
+(empty)
+msh />
+```
+
+### 12.7 关联文件
+
+| 文件 | 说明 |
+| :--- | :--- |
+| `applications/app/environment/sensor_history_service.c` | 历史数据存储与回退（添加 MSH 命令） |
+| `applications/app/environment/sensor_history_service.h` | `HISTORY_LOG_MAX` 定义、数据结构 |
+| `backend/ate/MshClient.js` | MSH 客户端，`readHistory()` / `clearHistory()` |
+| `backend/ate/SensorTestExecutor.js` | `_execBootFallback()` / `_execHistoryUpdate()` 调用 MSH |
+
+---
+
+## 13. 固件偏差检测修复方案（T-ABNF-003-B）
+
+### 13.1 问题现象
+
+T-ABNF-003-B（偶数路温度偏差剔除）测试失败：设置 16 路温度传感器，其中 temp_16=70℃ 为离群值，其余 15 路=30℃。期望 ActualTemp=30.0（离群被排除），实际 ActualTemp=32.5 = (15×30+70)/16（16 路全部参与平均，无剔除）。
+
+T-ABNF-003-A（奇数路，temp_5 为离群值）通过，ActualTemp=30.0。
+
+### 13.2 根因分析
+
+**文件**：`applications/app/environment/indoor_th_deviation_service.c`
+
+**调用位置**：`sensor_rtu_lifecycle_service.c` 第 74 行，在 `sensor_query_service_poll()` 之后**每次传感器轮询都调用**。
+
+**核心问题**：偏差检测的 `error_cnt` 计数器在每次检测时，对**非偏差传感器重置为 0**：
+
+```c
+// indoor_th_deviation_service.c 第 69-81 行
+for (int i = 0; i < INDOOR_TH_SENSOR_MAX; i++) {
+    if (...偏差 > 10℃...) {
+        if (senMap[...].error_cnt[i] < 5) error_cnt[i]++;
+        if (error_cnt[i] >= 5) setbit(error_flag, i);
+    } else {
+        senMap[...].error_cnt[i] = 0;  // ← 非偏差传感器重置计数器
+    }
+}
+```
+
+**轮询顺序影响**：固件按轮询队列逐个采集传感器，每次采集后都运行偏差检测。
+
+假设 16 路传感器按顺序轮询，temp_16（离群值）排在最后：
+
+| 步骤 | 轮询传感器 | 偏差检测 temp_16 计数 | 说明 |
+| :--- | :--- | :--- | :--- |
+| 1 | temp_1 (30℃) | error_cnt[15] = 0 | temp_1 偏差=0，不触发 → error_cnt[15] **被重置** |
+| 2 | temp_2 (30℃) | error_cnt[15] = 0 | 同上，重置 |
+| ... | ... | 0 | 每次都被重置 |
+| 15 | temp_15 (30℃) | error_cnt[15] = 0 | 仍然被重置 |
+| 16 | **temp_16 (70℃)** | error_cnt[15] = **1** | 离群值！计数+1 |
+| 17 | temp_1 (下一周期) | error_cnt[15] = **0** | temp_1 正常值，**重置** |
+
+**结果**：离群传感器的 `error_cnt` 永远只能累积到 **1**，永远达不到阈值 **5**。
+
+**为什么 T-ABNF-003-A（temp_5）通过了**：temp_5 的轮询位置靠前（从站 0x08），在轮询队列中排在多个传感器之前。当 temp_5 被轮询后，后续传感器（temp_6~temp_16）还没被轮询（值仍为 0 或默认值），这些传感器会被 `t_data[i] != 0` 过滤掉不参与中位数计算，导致 temp_5 的偏差检测行为不同。这属于**轮询时序导致的偶发通过**。
+
+### 13.3 修复方案
+
+**将偏差检测从"每次轮询"改为"每完成一轮完整轮询后"执行一次**，并在检测中**不重置计数器**（仅在传感器恢复正常时重置）。
+
+**修改文件**：`applications/app/environment/indoor_th_deviation_service.c`
+
+```c
+/**
+ * @brief  检测室内温湿度传感器偏差并标记故障传感器
+ * @param  t_data  输入参数，室内各通道温度数组（大小为 INDOOR_TH_SENSOR_MAX）
+ * @return 无
+ * @note   每轮完整轮询后调用一次。过滤无效数据后取中位数，
+ *         偏差超过10度的传感器累积计数，连续5轮偏差则标记为故障。
+ *         仅在传感器恢复正常时重置计数器（不再每次检测都重置）。
+ */
+void indoor_th_deviation_service_check(float* t_data)
+{
+    float t_temp[INDOOR_TH_SENSOR_MAX] = {0};
+    float correct_data                 = 0;
+    rt_uint8_t idx                     = 0;
+    static rt_bool_t Reportflg         = RT_TRUE;
+
+    // 1. 收集有效温度数据
+    for (int i = 0; i < INDOOR_TH_SENSOR_MAX; i++) {
+        if ((t_data[i] != INVALID_VALUE && (t_data[i] != 0)) &&
+            (getbit(senMap[Sensor_Type_Indoor_TH].deployment, i) == 1)) {
+            t_temp[idx++] = t_data[i];
+        }
+    }
+    if (idx == 0) {
+        return;
+    }
+
+    // 2. 排序取中位数
+    sort_float(t_temp, idx);
+    if (idx % 2 == 0) {
+        correct_data = (t_temp[(idx / 2 - 1)] + t_temp[idx / 2]) / 2.0f;
+    } else {
+        correct_data = t_temp[idx / 2];
+    }
+
+    // 3. 偏差检测（仅在偏差消失时重置计数器）
+    senMap[Sensor_Type_Indoor_TH].error_flag = 0;
+    for (int i = 0; i < INDOOR_TH_SENSOR_MAX; i++) {
+        if ((t_data[i] != INVALID_VALUE) && (getbit(senMap[Sensor_Type_Indoor_TH].deployment, i)) &&
+            (fabs(t_data[i] - correct_data) > 10.0f)) {
+            // 偏差超限：累积计数（上限 5）
+            if (senMap[Sensor_Type_Indoor_TH].error_cnt[i] < 5) {
+                senMap[Sensor_Type_Indoor_TH].error_cnt[i]++;
+            }
+            if (senMap[Sensor_Type_Indoor_TH].error_cnt[i] >= 5) {
+                setbit(senMap[Sensor_Type_Indoor_TH].error_flag, i);
+            }
+        }
+        // 注意：不再 else 重置 error_cnt[i] = 0
+        // 计数器只在传感器恢复到中位数 ±10℃ 范围内时才重置
+    }
+
+    // 4. 单独处理恢复正常的情况（计数器归零）
+    for (int i = 0; i < INDOOR_TH_SENSOR_MAX; i++) {
+        if ((t_data[i] != INVALID_VALUE) && (getbit(senMap[Sensor_Type_Indoor_TH].deployment, i)) &&
+            (fabs(t_data[i] - correct_data) <= 10.0f)) {
+            senMap[Sensor_Type_Indoor_TH].error_cnt[i] = 0;
+        }
+    }
+
+    // 5. 上报逻辑（不变）
+    if (Reportflg) {
+        if (senMap[Sensor_Type_Indoor_TH].error_flag) {
+            Reportflg            = RT_FALSE;
+            App_Run.SensorErrFlg = 1;
+            LOG_I("set Sensor_Type_Indoor_TH  ErSensor_Temp");
+        }
+    } else {
+        if (senMap[Sensor_Type_Indoor_TH].error_flag == 0) {
+            Reportflg            = RT_TRUE;
+            App_Run.SensorErrFlg = 1;
+            LOG_I("clr Sensor_Type_Indoor_TH  ErSensor_Temp");
+        }
+    }
+}
+```
+
+**关键改动**：将偏差检测的 `else { error_cnt[i] = 0; }` 逻辑分离为独立的"恢复检测"循环。偏差传感器的计数器不再被正常传感器的检测重置，确保跨轮询累积。
+
+**预期效果**：离群传感器每完整轮询周期累积 1 次计数，5 轮后（约 5×16×1s = 80 秒）触发 `error_flag`，从 ActualTemp 计算中排除。
+
+### 13.4 关联文件
+
+| 文件 | 说明 |
+| :--- | :--- |
+| `applications/app/environment/indoor_th_deviation_service.c` | 偏差检测实现（需修改） |
+| `applications/app/environment/indoor_th_deviation_service.h` | 接口定义 |
+| `applications/app/environment/sensor_rtu_lifecycle_service.c` | 调用位置（第 74 行） |
+| `applications/app/environment/sensor_actual_service.c` | ActualTemp 计算（排除 error_flag 传感器） |
+
+---
+
+## 14. 固件告警使能位寄存器映射方案（T-HOT-004/005）
+
+### 14.1 问题现象
+
+T-HOT-004（温度告警阈值热更新）和 T-HOT-005（湿度告警阈值热更新）测试失败：告警阈值正确写入（回读 OK），enableBit 写入 0x7035 成功（回读 OK），但 `Alarm_Check()` 不触发告警。
+
+### 14.2 根因分析
+
+**文件**：`applications/app/integration/modbus_tcp_slave_service.c`
+
+当前固件中 0x7035 寄存器虽然可读写（Modbus slave 的通用寄存器映射），但**没有映射到 `App_Save.alarm.enableBit`**。写入 0x7035 的值存在 Modbus 寄存器表中，`Alarm_Check()` 读取的是 `App_Save.alarm.enableBit`（来自 FlashDB），两者不互通。
+
+**`Alarm_Check()` 判定条件**（`alarm_controller.c` 第 33-38 行）：
+
+```c
+if ((ActualTemp > App_Save.alarm.TempHigh) &&           // 温度超阈值
+    (ActualTemp != INVALID_VALUE) &&                      // 数据有效
+    (alarm_controller_is_enabled(Alarm_Bit_TempHigh)))    // enableBit 对应位已置位
+```
+
+其中 `alarm_controller_is_enabled` 读取 `App_Save.alarm.enableBit`。
+
+**额外阻塞条件**（`alarm_event.c`，旧版固件）：
+
+```c
+if (App_Save.pigsty_info.Numofpigs == 0) return;  // 空圈不报警
+```
+
+如果设备 `Numofpigs=0`（空圈），所有告警跳过。默认值为 600。
+
+### 14.3 修复方案
+
+**修改文件**：`applications/app/integration/modbus_tcp_slave_service.c` 和 `.h`
+
+#### 步骤 1：添加寄存器定义（.h 文件）
+
+在告警状态寄存器区之后添加：
+
+```c
+/* ---- 告警使能位寄存器 (读写, 0x7035) ---- */
+#define MBTCP_CFG_ALARM_ENABLE_BIT  0x7035  /**< 告警使能位 uint16, 映射 App_Save.alarm.enableBit (读写) */
+```
+
+#### 步骤 2：读同步（.c 文件 `sync_config_to_registers`）
+
+在告警状态只读区之后添加：
+
+```c
+/* ---- 告警使能位 (读写, 0x7035) ---- */
+regs[MBTCP_CFG_ALARM_ENABLE_BIT - MBTCP_CFG_BASE] = App_Save.alarm.enableBit;
+```
+
+#### 步骤 3：写回调（.c 文件 `handle_write_callbacks`）
+
+在告警阈值写回之后添加：
+
+```c
+/* ---- 告警使能位写回 (0x7035) ---- */
+if (regs[MBTCP_CFG_ALARM_ENABLE_BIT - MBTCP_CFG_BASE] !=
+    cfg_shadow[MBTCP_CFG_ALARM_ENABLE_BIT - MBTCP_CFG_BASE]) {
+    App_Save.alarm.enableBit = regs[MBTCP_CFG_ALARM_ENABLE_BIT - MBTCP_CFG_BASE];
+    cfg_shadow[MBTCP_CFG_ALARM_ENABLE_BIT - MBTCP_CFG_BASE] = regs[MBTCP_CFG_ALARM_ENABLE_BIT - MBTCP_CFG_BASE];
+    alarm_changed = RT_TRUE;
+    LOG_I("Alarm enableBit updated: 0x%04X", App_Save.alarm.enableBit);
+}
+```
+
+#### 步骤 4：持久化
+
+`alarm_changed` 已有保存逻辑（第 595 行 `control_Mode_SendEvent(Para_Msg_SAVEFILE, SAVE_ALARMINFO)`），无需额外修改。
+
+#### enableBit 位定义参考
+
+| 位 | 字段 | 含义 | 固件默认值 |
+| :--- | :--- | :--- | :--- |
+| bit 0 | Alarm_Bit_TempHigh | 温度高限告警 | 1 (开启) |
+| bit 1 | Alarm_Bit_TempLow | 温度低限告警 | 1 (开启) |
+| bit 2 | Alarm_Bit_HumiHigh | 湿度高限告警 | 0 (关闭) |
+| bit 3 | Alarm_Bit_HumiLow | 湿度低限告警 | 0 (关闭) |
+| bit 4 | Alarm_Bit_TempDiff | 温差告警 | 0 (关闭) |
+| bit 5 | Alarm_Bit_CO2High | CO2 高限告警 | 1 (开启) |
+| bit 6 | Alarm_Bit_NH3High | 氨气高限告警 | 1 (开启) |
+| bit 7 | Alarm_Bit_DP | 压差高限告警 | 1 (开启) |
+
+默认 enableBit = 0x63 = 0b01100011（bit0+1+5+6 置位）。
+
+### 14.4 验证方法
+
+1. 编译烧录后，通过 Modbus 写入 `0x7035 = 0x0004`（仅 bit2=HumiHigh）
+2. 读取 `0x7035` 确认回读值 = 4
+3. 设置湿度传感器超过阈值，确认 `0x7033`（湿度高限告警）变为非零
+4. 写入 `0x7035 = 0x0000`（全部禁用），确认告警清除
+
+### 14.5 关联文件
+
+| 文件 | 说明 |
+| :--- | :--- |
+| `applications/app/integration/modbus_tcp_slave_service.h` | 寄存器地址定义（添加 0x7035） |
+| `applications/app/integration/modbus_tcp_slave_service.c` | 读写处理（添加 enableBit 同步） |
+| `applications/app/environment/alarm_controller.c` | 告警检测逻辑（读取 enableBit） |
+| `applications/app/alarm/alarm_event.c` | 告警事件处理（Numofpigs 空圈保护） |
+| `backend/ate/SensorTestExecutor.js` | 后端 `_writeAlarmEnable()` 已改用 Modbus 0x7035 |
+
+### 14.6 注意事项
+
+- **Numofpigs 空圈保护**：`alarm_event.c` 中 `if (App_Save.pigsty_info.Numofpigs == 0) return;` 会跳过所有告警。确认设备 `Numofpigs > 0`（默认 600）。如为 0，通过 HMI 屏幕或 JSON 协议设置。
+- **温度告警判定**：`Alarm_Check()` 使用**绝对值判定**（`ActualTemp > TempHigh`），非偏差判定。温度阈值 280 = 28.0℃。
+- **Flash 持久化**：enableBit 写入后自动保存到 FlashDB（通过 `alarm_changed` 标志触发 `SAVE_ALARMINFO`）。断电后保持。
+

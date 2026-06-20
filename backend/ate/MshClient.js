@@ -246,7 +246,10 @@ class MshClient extends EventEmitter {
    */
   async readHistory() {
     const response = await this.sendCommand('sensor_history', 8000);
-    return this._parseHistory(response);
+    console.log(`[MshClient] sensor_history 原始响应 (${response.length} 字节): ${response.substring(0, 200)}`);
+    const parsed = this._parseHistory(response);
+    console.log(`[MshClient] 解析结果: ${parsed.length} 条历史记录`);
+    return parsed;
   }
 
   /**
