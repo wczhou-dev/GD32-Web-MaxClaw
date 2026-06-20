@@ -1,0 +1,51 @@
+{
+  "reportVersion": "2.1",
+  "reportType": "sensor-batch",
+  "generatedAt": "2026-06-20T09:04:33.388Z",
+  "deviceInfo": {},
+  "fieldType": "A",
+  "summary": {
+    "total": 1,
+    "passed": 0,
+    "failed": 1,
+    "skipped": 0,
+    "passRate": "0.0%"
+  },
+  "scenarios": [
+    {
+      "scenarioId": "T-HIST-001",
+      "scenarioName": "三组历史数据冻结",
+      "conclusion": "异常",
+      "skipReason": null,
+      "duration": 209860,
+      "assertionCount": 3,
+      "failureCount": 0,
+      "assertions": [
+        {
+          "pass": true,
+          "code": null,
+          "expected": 0,
+          "actual": 0,
+          "message": "对时结果: HR17=0, 期望=0"
+        },
+        {
+          "pass": true,
+          "code": null,
+          "expected": 10,
+          "actual": 10,
+          "message": "小时匹配: actual=10, expected=10"
+        },
+        {
+          "pass": true,
+          "code": null,
+          "expected": 57,
+          "actual": 57,
+          "message": "分钟匹配: actual=57, expected=57"
+        }
+      ],
+      "inputs": null,
+      "transactionLog": [],
+      "cleanupResult": null
+    }
+  ]
+}

@@ -324,8 +324,14 @@ class ControllerStateReader {
     const startTime = Date.now();
 
     // 写入 HR18 = 0x55AA
-    await this.writeRegister(BLOCK_SENSOR_TIME.REBOOT, BLOCK_SENSOR_TIME.REBOOT_MAGIC);
-    console.log('[ControllerStateReader] 重启指令已发送 (HR18 = 0x55AA)');
+    console.log(`[ControllerStateReader] 发送重启指令: HR${BLOCK_SENSOR_TIME.REBOOT} = 0x${BLOCK_SENSOR_TIME.REBOOT_MAGIC.toString(16)}`);
+    try {
+      await this.writeRegister(BLOCK_SENSOR_TIME.REBOOT, BLOCK_SENSOR_TIME.REBOOT_MAGIC);
+      console.log('[ControllerStateReader] 重启指令已发送 (HR18 = 0x55AA)');
+    } catch (e) {
+      console.error(`[ControllerStateReader] 重启指令发送失败: ${e.message}`);
+      return { ok: false, rebootTimeMs: Date.now() - startTime };
+    }
 
     // 断开当前连接
     try {

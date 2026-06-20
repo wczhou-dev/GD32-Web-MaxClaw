@@ -670,6 +670,15 @@ class SensorTestExecutor extends EventEmitter {
       this._simulator.setSensorValue(sensorKeys.temp, group.temp);
       this._simulator.setSensorValue(sensorKeys.humi, group.humi);
 
+      // 对时前确保连接可用（跨小时等待可能导致 TCP 断连）
+      try {
+        await this._stateReader.readRegister(0x0000);
+      } catch (e) {
+        this._log('对时前连接检查失败，重连...');
+        await this._stateReader._ensureConnected();
+        await new Promise(r => setTimeout(r, 2000));
+      }
+
       // 对时到昨天 freezeHour:57
       const yesterday = new Date();
       yesterday.setDate(yesterday.getDate() - 1);
@@ -771,6 +780,11 @@ class SensorTestExecutor extends EventEmitter {
         assertions.push({ pass: false, code: 'RECONNECT_FAIL', message: '重启后无法重连' });
         return;
       }
+
+      // 设备重启后 TCP 已重连，但固件可能还在初始化
+      // 等待固件完成启动（传感器轮询队列重建等）
+      this._log('等待固件完全初始化 (15 秒)...');
+      await this._waitCollect(15000);
 
       // 对时到今天 verifyHour:05
       const today = new Date();
@@ -1498,10 +1512,10 @@ class SensorTestExecutor extends EventEmitter {
    * 在等待期间发送心跳保活，防止 GD32 的 Modbus TCP 连接超时断开
    */
   async _waitCollect(ms) {
-    // 每 10 秒发送一次心跳保活（GD32 超时为 15 秒）
-    // 连续 2 次心跳失败时主动重连，避免 DevicePool 4 次超时后 hard reset
+    // 每 5 秒发送一次心跳保活（GD32 超时为 15 秒）
+    // 连续 1 次心跳失败即主动重连，抢在 DevicePool 4 次超时 hard reset 之前
     let consecutiveFailures = 0;
-    const keepaliveInterval = 10000;
+    const keepaliveInterval = 5000;
     const keepaliveTimer = setInterval(async () => {
       try {
         if (this._stateReader && this._deviceKey) {
@@ -1510,8 +1524,8 @@ class SensorTestExecutor extends EventEmitter {
         }
       } catch (_) {
         consecutiveFailures++;
-        if (consecutiveFailures >= 2) {
-          this._log('心跳连续失败，尝试重连...');
+        if (consecutiveFailures >= 1) {
+          this._log('心跳失败，立即重连...');
           try {
             await this._stateReader._ensureConnected();
             consecutiveFailures = 0;
