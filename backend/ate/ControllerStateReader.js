@@ -329,8 +329,17 @@ class ControllerStateReader {
       await this.writeRegister(BLOCK_SENSOR_TIME.REBOOT, BLOCK_SENSOR_TIME.REBOOT_MAGIC);
       console.log('[ControllerStateReader] 重启指令已发送 (HR18 = 0x55AA)');
     } catch (e) {
-      console.error(`[ControllerStateReader] 重启指令发送失败: ${e.message}`);
-      return { ok: false, rebootTimeMs: Date.now() - startTime };
+      // 写入失败：可能是 TCP 断连，尝试重连后重试一次
+      console.warn(`[ControllerStateReader] 重启指令发送失败: ${e.message}，尝试重连后重试...`);
+      try {
+        await this._ensureConnected();
+        await this._sleep(1000);
+        await this.writeRegister(BLOCK_SENSOR_TIME.REBOOT, BLOCK_SENSOR_TIME.REBOOT_MAGIC);
+        console.log('[ControllerStateReader] 重试成功，重启指令已发送');
+      } catch (e2) {
+        console.error(`[ControllerStateReader] 重试仍失败: ${e2.message}`);
+        return { ok: false, rebootTimeMs: Date.now() - startTime };
+      }
     }
 
     // 断开当前连接

@@ -1,0 +1,130 @@
+{
+  "reportVersion": "2.1",
+  "reportType": "sensor-batch",
+  "generatedAt": "2026-06-21T09:26:10.046Z",
+  "deviceInfo": {},
+  "fieldType": "A",
+  "summary": {
+    "total": 1,
+    "passed": 0,
+    "failed": 1,
+    "skipped": 0,
+    "passRate": "0.0%"
+  },
+  "scenarios": [
+    {
+      "scenarioId": "T-HIST-001",
+      "scenarioName": "三组历史数据冻结",
+      "conclusion": "异常",
+      "skipReason": null,
+      "duration": 595464,
+      "assertionCount": 14,
+      "failureCount": 0,
+      "assertions": [
+        {
+          "pass": true,
+          "code": null,
+          "expected": 0,
+          "actual": 0,
+          "message": "对时结果: HR17=0, 期望=0"
+        },
+        {
+          "pass": true,
+          "code": null,
+          "expected": 10,
+          "actual": 10,
+          "message": "小时匹配: actual=10, expected=10"
+        },
+        {
+          "pass": true,
+          "code": null,
+          "expected": 59,
+          "actual": 59,
+          "message": "分钟匹配: actual=59, expected=59"
+        },
+        {
+          "pass": true,
+          "code": null,
+          "expected": 0,
+          "actual": 0,
+          "message": "对时结果: HR17=0, 期望=0"
+        },
+        {
+          "pass": true,
+          "code": null,
+          "expected": 14,
+          "actual": 14,
+          "message": "小时匹配: actual=14, expected=14"
+        },
+        {
+          "pass": true,
+          "code": null,
+          "expected": 59,
+          "actual": 59,
+          "message": "分钟匹配: actual=59, expected=59"
+        },
+        {
+          "pass": true,
+          "code": null,
+          "expected": 0,
+          "actual": 0,
+          "message": "对时结果: HR17=0, 期望=0"
+        },
+        {
+          "pass": true,
+          "code": null,
+          "expected": 18,
+          "actual": 18,
+          "message": "小时匹配: actual=18, expected=18"
+        },
+        {
+          "pass": true,
+          "code": null,
+          "expected": 59,
+          "actual": 59,
+          "message": "分钟匹配: actual=59, expected=59"
+        },
+        {
+          "pass": true,
+          "code": null,
+          "expected": 29,
+          "actual": 29,
+          "tolerance": 0.2,
+          "message": "历史冻结 temp (tm_hour=19)"
+        },
+        {
+          "pass": true,
+          "code": null,
+          "expected": 64,
+          "actual": 64,
+          "tolerance": 0.2,
+          "message": "历史冻结 humi (tm_hour=19)"
+        },
+        {
+          "pass": true,
+          "code": null,
+          "expected": 0,
+          "actual": 0,
+          "message": "对时结果: HR17=0, 期望=0"
+        },
+        {
+          "pass": true,
+          "code": null,
+          "expected": 11,
+          "actual": 11,
+          "message": "小时匹配: actual=11, expected=11"
+        },
+        {
+          "pass": true,
+          "code": null,
+          "expected": 5,
+          "actual": 5,
+          "message": "分钟匹配: actual=5, expected=5"
+        }
+      ],
+      "inputs": null,
+      "transactionLog": [],
+      "cleanupResult": null
+    }
+  ]
+}
