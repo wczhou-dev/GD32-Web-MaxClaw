@@ -24,6 +24,8 @@ const {
   SENSOR_ACTUAL,
   BLOCK_SENSOR_TIME,
   BLOCK_HW,
+  BLOCK_HEATING,
+  BLOCK_HEATING_STATE,
   INVALID_VALUE,
 } = require('../../shared/constants');
 
@@ -654,6 +656,172 @@ class ControllerStateReader {
       ? BLOCK_SENSOR_COMPENSATION.TEMP_COMP_BASE
       : BLOCK_SENSOR_COMPENSATION.HUMI_COMP_BASE;
     return await this.readRegister(base + index);
+  }
+
+  // ============================================================
+  // 加热控制
+  // ============================================================
+
+  /**
+   * 读取加热控制参数
+   * @returns {Promise<object>} 加热参数结构
+   */
+  async readHeatingParams() {
+    // BLOCK_HEATING is 0x5045~0x504C = 8 registers
+    const result = await this._devicePool.runExclusive(this._deviceKey, async () => {
+      return await this._devicePool.readHoldingRegisters(
+        this._deviceKey, BLOCK_HEATING.INDOOR_OPEN_TEMP, 8
+      );
+    });
+    const d = result.data;
+    const toSigned = v => v > 32767 ? v - 65536 : v;
+    return {
+      indoor_openTemp: toSigned(d[0]) / 10,
+      indoor_closedTemp: toSigned(d[1]) / 10,
+      actualTempDisplay: toSigned(d[2]) / 10,
+      openchecktime: d[3],
+      closedchecktime: d[4],
+      closedWaitTime: d[5],
+      outdoor_openTemp: toSigned(d[6]) / 10,
+      outdoor_closedTemp: toSigned(d[7]) / 10,
+    };
+  }
+
+  /**
+   * 读取加热运行状态
+   * @returns {Promise<object>} 加热运行状态
+   */
+  async readHeatingState() {
+    const result = await this._devicePool.runExclusive(this._deviceKey, async () => {
+      return await this._devicePool.readHoldingRegisters(
+        this._deviceKey, BLOCK_HEATING_STATE.INDOOR_HEATING_STATE, 5
+      );
+    });
+    const d = result.data;
+    return {
+      indoorState: d[0],
+      outdoorState: d[1],
+      heatRunState: d[2],
+      indoorRelayNum: d[3],
+      outdoorRelayNum: d[4],
+    };
+  }
+
+  /**
+   * 写入单个加热参数
+   * @param {string} paramName - 参数名 (indoor_openTemp, indoor_closedTemp, openchecktime, closedchecktime, closedWaitTime, outdoor_openTemp, outdoor_closedTemp)
+   * @param {number} value - 参数值 (温度为℃，时间为分钟)
+   * @returns {Promise<void>}
+   */
+  async writeHeatingParam(paramName, value) {
+    const addrMap = {
+      indoor_openTemp: BLOCK_HEATING.INDOOR_OPEN_TEMP,
+      indoor_closedTemp: BLOCK_HEATING.INDOOR_CLOSE_TEMP,
+      openchecktime: BLOCK_HEATING.OPEN_CHECK_TIME,
+      closedchecktime: BLOCK_HEATING.CLOSE_CHECK_TIME,
+      closedWaitTime: BLOCK_HEATING.CLOSED_WAIT_TIME,
+      outdoor_openTemp: BLOCK_HEATING.OUTDOOR_OPEN_TEMP,
+      outdoor_closedTemp: BLOCK_HEATING.OUTDOOR_CLOSE_TEMP,
+    };
+    const addr = addrMap[paramName];
+    if (addr === undefined) throw new Error(`Unknown heating param: ${paramName}`);
+
+    // Temperature params are scaled by 10, time params are raw
+    const isTemp = paramName.includes('Temp') || paramName.includes('temp');
+    const scaledValue = isTemp ? Math.round(value * 10) : value;
+    // Handle negative values for signed int16
+    const rawValue = scaledValue < 0 ? scaledValue + 65536 : scaledValue;
+
+    await this._devicePool.runExclusive(this._deviceKey, async () => {
+      await this._devicePool.writeRegister(this._deviceKey, addr, rawValue);
+    });
+  }
+
+  /**
+   * 批量写入加热参数
+   * @param {object} params - { indoor_openTemp: -2, openchecktime: 5, ... }
+   * @returns {Promise<void>}
+   */
+  async writeHeatingParams(params) {
+    const entries = Object.entries(params);
+    for (const [name, value] of entries) {
+      await this.writeHeatingParam(name, value);
+    }
+  }
+
+  /**
+   * 读取目标温度 (Expected_temp)
+   * @returns {Promise<number>} 目标温度 ℃
+   */
+  async readExpectedTemp() {
+    const result = await this._devicePool.runExclusive(this._deviceKey, async () => {
+      return await this._devicePool.readHoldingRegisters(
+        this._deviceKey, 0x1051, 1  // Expected_temp register
+      );
+    });
+    const raw = result.data[0];
+    return (raw > 32767 ? raw - 65536 : raw) / 10;
+  }
+
+  /**
+   * 写入目标温度 (Expected_temp)
+   * @param {number} temp - 目标温度 ℃
+   * @returns {Promise<void>}
+   */
+  async writeExpectedTemp(temp) {
+    const raw = Math.round(temp * 10);
+    const value = raw < 0 ? raw + 65536 : raw;
+    await this._devicePool.runExclusive(this._deviceKey, async () => {
+      await this._devicePool.writeRegister(this._deviceKey, 0x1051, value);
+    });
+  }
+
+  /**
+   * 读取继电器状态位图
+   * @returns {Promise<number>} 32位继电器状态位图
+   */
+  async readRelayBitmap() {
+    const result = await this._devicePool.runExclusive(this._deviceKey, async () => {
+      return await this._devicePool.readHoldingRegisters(
+        this._deviceKey, BLOCK_HW.RELAY_STATUS, 2  // uint32 = 2 registers
+      );
+    });
+    return (result.data[1] << 16) | result.data[0];
+  }
+
+  /**
+   * 读取单个继电器状态
+   * @param {number} relayNum - 继电器编号 (0-based)
+   * @returns {Promise<number>} 0=OFF, 1=ON
+   */
+  async readRelayStatus(relayNum) {
+    const bitmap = await this.readRelayBitmap();
+    return (bitmap >> relayNum) & 1;
+  }
+
+  /**
+   * 读取当前通风等级
+   * @returns {Promise<number>} 通风等级
+   */
+  async readVentilationLevel() {
+    const result = await this._devicePool.runExclusive(this._deviceKey, async () => {
+      return await this._devicePool.readHoldingRegisters(
+        this._deviceKey, 0x8001, 1  // BLOCK_TEST_STATUS.VENTILATION_LEVEL
+      );
+    });
+    return result.data[0];
+  }
+
+  /**
+   * 设置系统控制模式
+   * @param {string} mode - 'local' 或 'remote'
+   * @returns {Promise<void>}
+   */
+  async setControlMode(mode) {
+    const value = mode === 'remote' ? 1 : 0;
+    await this._devicePool.runExclusive(this._deviceKey, async () => {
+      await this._devicePool.writeRegister(this._deviceKey, 0x5060, value);
+    });
   }
 
   // ============================================================

@@ -191,6 +191,39 @@ const BLOCK_SENSOR_COMPENSATION = {
   HUMI_COMP_BASE: 0x7060,     // 湿度补偿基址：R/W，int16，val/10 → %RH，0x7060+i 对应第 i+1 路
 };
 
+/**
+ * 加热控制参数寄存器区 (BLOCK_HEATING)
+ * 地址范围：0x5045 - 0x5050
+ * 用途：加热器控制参数读写（室内/室外加热阈值、确认时间等）
+ */
+const BLOCK_HEATING = {
+  // 室内加热参数
+  INDOOR_OPEN_TEMP: 0x5045,     // 室内开启阈值：R/W，int16，val/10 → ℃
+  INDOOR_CLOSE_TEMP: 0x5046,    // 室内关闭阈值：R/W，int16，val/10 → ℃
+  ACTUAL_TEMP_DISPLAY: 0x5047,  // 当前实际温度：RO，int16，val/10 → ℃
+  OPEN_CHECK_TIME: 0x5048,      // 开启确认时间：R/W，uint16，单位分钟
+  CLOSE_CHECK_TIME: 0x5049,     // 关闭确认时间：R/W，uint16，单位分钟
+  CLOSED_WAIT_TIME: 0x504A,     // 关闭后保持时间：R/W，uint16，单位分钟
+
+  // 室外加热参数
+  OUTDOOR_OPEN_TEMP: 0x504B,    // 室外开启阈值：R/W，int16，val/10 → ℃
+  OUTDOOR_CLOSE_TEMP: 0x504C,   // 室外关闭阈值：R/W，int16，val/10 → ℃
+};
+
+/**
+ * 加热运行状态寄存器区 (BLOCK_HEATING_STATE)
+ * 地址范围：0x5050 - 0x5055
+ * 用途：加热器运行状态读取（当前状态、联动状态、继电器输出等）
+ */
+const BLOCK_HEATING_STATE = {
+  INDOOR_HEATING_STATE: 0x5050,   // 室内加热状态：RO，uint16，0=关 1=开
+  OUTDOOR_HEATING_STATE: 0x5051,  // 室外加热状态：RO，uint16，0=关 1=开
+  HEAT_RUN_STATE: 0x5052,         // 联动状态：RO，uint16，0/1/2/3
+  INDOOR_RELAY_NUM: 0x5053,       // 室内加热继电器编号：RO，uint16
+  OUTDOOR_RELAY_NUM: 0x5054,      // 室外加热继电器编号：RO，uint16
+  HEATING_COMBINED_STATUS: 0x3052,// HMI状态显示：RO，uint16，Indoor|Outdoor
+};
+
 // ============================================================
 // 2. ATE 测试掩码定义
 // ============================================================
@@ -369,6 +402,22 @@ const ERROR_CODE = {
   SENSOR_CONFIG_VERIFY_FAIL:0x00AD,  // 配置回读验证失败
   SENSOR_ALARM_MISMATCH:    0x00AE,  // 告警状态不匹配
   SENSOR_HISTORY_CLEAR_FAIL:0x00AF,  // 历史缓冲清空失败
+
+  // 加热控制测试错误码
+  HEATING_RELAY_FAIL:           0x00B0,  // 加热继电器控制失败
+  HEATING_STATE_MISMATCH:       0x00B1,  // 加热状态与期望不匹配
+  HEATING_THRESHOLD_FAIL:       0x00B2,  // 温度阈值判断失败
+  HEATING_PARAM_OUT_OF_RANGE:   0x00B3,  // 参数超出有效范围
+  HEATING_PARAM_CORRECTION:     0x00B4,  // 参数运行时修正验证失败
+  HEATING_PARAM_ILLEGAL:        0x00B5,  // 阈值间隔非法未触发保护
+  HEATING_TIMER_FAIL:           0x00B6,  // 持续确认计时失败
+  HEATING_HOLD_FAIL:            0x00B7,  // 关闭后保持时间验证失败
+  HEATING_HEATRUN_STATE:        0x00B8,  // HeatRunState 状态转换失败
+  HEATING_VENT_LINKAGE:         0x00B9,  // 通风联动验证失败
+  HEATING_COMP_LINKAGE:         0x00BA,  // 补偿联动验证失败
+  HEATING_REMOTE_MODE:          0x00BB,  // 远程模式跳过验证失败
+  HEATING_DEPLOY_BIT:           0x00BC,  // 部署位关闭验证失败
+  HEATING_OUTDOOR_FAIL:         0x00BD,  // 室外加热逻辑验证失败
 };
 
 /**
@@ -689,7 +738,93 @@ const ERROR_CODE_DETAIL = {
     cause: '调用清空接口后历史缓冲仍有旧数据',
     suggestion: '确认 MSH sensor_history_clear 或调试寄存器可用',
     hardware: '环控器固件'
-  }
+  },
+
+  // 加热控制测试错误详情
+  [ERROR_CODE.HEATING_RELAY_FAIL]: {
+    name: '加热继电器控制失败',
+    cause: '继电器状态与加热器 State 不一致',
+    suggestion: '检查继电器 DO 输出通道、确认 RelayNum 配置',
+    hardware: '加热继电器模块'
+  },
+  [ERROR_CODE.HEATING_STATE_MISMATCH]: {
+    name: '加热状态与期望不匹配',
+    cause: 'IndoorHeating.State 或 OutdoorHeating.State 与温度条件不符',
+    suggestion: '检查温度阈值配置、确认传感器数据准确',
+    hardware: '环控器固件'
+  },
+  [ERROR_CODE.HEATING_THRESHOLD_FAIL]: {
+    name: '温度阈值判断失败',
+    cause: '温度达到开启/关闭阈值后加热器未正确响应',
+    suggestion: '确认阈值参数配置、检查 ActualTemp 计算',
+    hardware: '环控器固件'
+  },
+  [ERROR_CODE.HEATING_PARAM_OUT_OF_RANGE]: {
+    name: '参数超出有效范围',
+    cause: '加热参数超出 [-10,10] 或 [0,60] 范围后未被修正',
+    suggestion: '检查 Heating_Param_Verify 运行时修正逻辑',
+    hardware: '环控器固件'
+  },
+  [ERROR_CODE.HEATING_PARAM_CORRECTION]: {
+    name: '参数运行时修正验证失败',
+    cause: '越界参数未按预期修正为默认值',
+    suggestion: '检查加热控制器参数修正逻辑',
+    hardware: '环控器固件'
+  },
+  [ERROR_CODE.HEATING_PARAM_ILLEGAL]: {
+    name: '阈值间隔非法未触发保护',
+    cause: 'closedTemp - openTemp < 0.5 时未强制关闭加热',
+    suggestion: '检查参数合法性校验逻辑',
+    hardware: '环控器固件'
+  },
+  [ERROR_CODE.HEATING_TIMER_FAIL]: {
+    name: '持续确认计时失败',
+    cause: 'openchecktime 或 closedchecktime 延时与设置不符',
+    suggestion: '检查计时器精度和控制周期',
+    hardware: '环控器固件'
+  },
+  [ERROR_CODE.HEATING_HOLD_FAIL]: {
+    name: '关闭后保持时间验证失败',
+    cause: 'ClosedWaitTime 保持时间与设置不符',
+    suggestion: '检查 HeatRunState=3 保持阶段计时逻辑',
+    hardware: '环控器固件'
+  },
+  [ERROR_CODE.HEATING_HEATRUN_STATE]: {
+    name: 'HeatRunState 状态转换失败',
+    cause: 'HeatRunState 未按 IDLE→ON→CLOSE_PENDING→OFF_HOLD→IDLE 转换',
+    suggestion: '检查状态机转换逻辑、确认触发条件',
+    hardware: '环控器固件'
+  },
+  [ERROR_CODE.HEATING_VENT_LINKAGE]: {
+    name: '通风联动验证失败',
+    cause: 'HeatRunState!=0 时通风等级上升未被禁止或下降未被允许',
+    suggestion: '检查 fan_control.c 通风等级联动逻辑',
+    hardware: '环控器固件'
+  },
+  [ERROR_CODE.HEATING_COMP_LINKAGE]: {
+    name: '补偿联动验证失败',
+    cause: 'HeatRunState!=0 时气体/湿度补偿未被屏蔽',
+    suggestion: '检查 fan_control.c 补偿联动逻辑',
+    hardware: '环控器固件'
+  },
+  [ERROR_CODE.HEATING_REMOTE_MODE]: {
+    name: '远程模式跳过验证失败',
+    cause: 'CTRL_MODE_REMOTE 时本地自动加热逻辑未被跳过',
+    suggestion: '检查控制模式判断逻辑',
+    hardware: '环控器固件'
+  },
+  [ERROR_CODE.HEATING_DEPLOY_BIT]: {
+    name: '部署位关闭验证失败',
+    cause: 'Heater 部署位为 0 时室内/室外状态未清零',
+    suggestion: '检查 Devicedeployment.Heater 判断逻辑',
+    hardware: '环控器固件'
+  },
+  [ERROR_CODE.HEATING_OUTDOOR_FAIL]: {
+    name: '室外加热逻辑验证失败',
+    cause: '室外加热阈值判断或继电器输出不正确',
+    suggestion: '检查室外加热阈值比较逻辑',
+    hardware: '环控器固件'
+  },
 };
 
 // ============================================================
@@ -840,6 +975,8 @@ module.exports = {
   BLOCK_SENSOR_ALARM,
   BLOCK_SENSOR_THRESHOLD,
   BLOCK_SENSOR_COMPENSATION,
+  BLOCK_HEATING,
+  BLOCK_HEATING_STATE,
 
   // 测试掩码
   ATE_MASK_ALL,
