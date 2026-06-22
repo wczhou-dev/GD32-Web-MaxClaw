@@ -28,3 +28,9 @@ logs/modbus_trace.log
 logs/firmware_runtime.log
 reports/hil-*.json
 reports/latest-hil-summary.json
+
+# Generated docs (PDF/HTML from markdown analysis)
+docs/分析/**/*.pdf
+docs/分析/**/*_diagram.html
+docs/分析/前端/前端UML.html
+docs/环控器功能/传感器/传感器地址汇总.pdf
