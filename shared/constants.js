@@ -198,30 +198,48 @@ const BLOCK_SENSOR_COMPENSATION = {
  */
 const BLOCK_HEATING = {
   // 室内加热参数
-  INDOOR_OPEN_TEMP: 0x5045,     // 室内开启阈值：R/W，int16，val/10 → ℃
-  INDOOR_CLOSE_TEMP: 0x5046,    // 室内关闭阈值：R/W，int16，val/10 → ℃
-  ACTUAL_TEMP_DISPLAY: 0x5047,  // 当前实际温度：RO，int16，val/10 → ℃
-  OPEN_CHECK_TIME: 0x5048,      // 开启确认时间：R/W，uint16，单位分钟
-  CLOSE_CHECK_TIME: 0x5049,     // 关闭确认时间：R/W，uint16，单位分钟
-  CLOSED_WAIT_TIME: 0x504A,     // 关闭后保持时间：R/W，uint16，单位分钟
+  INDOOR_OPEN_TEMP: 0x7080,     // 室内开启阈值：R/W，int16，val/10 → ℃
+  INDOOR_CLOSE_TEMP: 0x7081,    // 室内关闭阈值：R/W，int16，val/10 → ℃
+  ACTUAL_TEMP_DISPLAY: 0x7082,  // 当前实际温度：RO，int16，val/10 → ℃
+  OPEN_CHECK_TIME: 0x7083,      // 开启确认时间：R/W，uint16，单位分钟
+  CLOSE_CHECK_TIME: 0x7084,     // 关闭确认时间：R/W，uint16，单位分钟
+  CLOSED_WAIT_TIME: 0x7085,     // 关闭后保持时间：R/W，uint16，单位分钟
 
   // 室外加热参数
-  OUTDOOR_OPEN_TEMP: 0x504B,    // 室外开启阈值：R/W，int16，val/10 → ℃
-  OUTDOOR_CLOSE_TEMP: 0x504C,   // 室外关闭阈值：R/W，int16，val/10 → ℃
+  OUTDOOR_OPEN_TEMP: 0x7086,    // 室外开启阈值：R/W，int16，val/10 → ℃
+  OUTDOOR_CLOSE_TEMP: 0x7087,   // 室外关闭阈值：R/W，int16，val/10 → ℃
 };
 
 /**
  * 加热运行状态寄存器区 (BLOCK_HEATING_STATE)
- * 地址范围：0x5050 - 0x5055
+ * 地址范围：0x7088 - 0x708F（位于 BLOCK_CFG 区内）
  * 用途：加热器运行状态读取（当前状态、联动状态、继电器输出等）
  */
 const BLOCK_HEATING_STATE = {
-  INDOOR_HEATING_STATE: 0x5050,   // 室内加热状态：RO，uint16，0=关 1=开
-  OUTDOOR_HEATING_STATE: 0x5051,  // 室外加热状态：RO，uint16，0=关 1=开
-  HEAT_RUN_STATE: 0x5052,         // 联动状态：RO，uint16，0/1/2/3
-  INDOOR_RELAY_NUM: 0x5053,       // 室内加热继电器编号：RO，uint16
-  OUTDOOR_RELAY_NUM: 0x5054,      // 室外加热继电器编号：RO，uint16
-  HEATING_COMBINED_STATUS: 0x3052,// HMI状态显示：RO，uint16，Indoor|Outdoor
+  INDOOR_HEATING_STATE: 0x7088,   // 室内加热状态：RO，uint16，0=关 1=开
+  OUTDOOR_HEATING_STATE: 0x7089,  // 室外加热状态：RO，uint16，0=关 1=开
+  HEAT_RUN_STATE: 0x708A,         // 联动状态：RO，uint16，0/1/2/3
+  INDOOR_RELAY_NUM: 0x708B,       // 室内加热继电器编号：RO，uint16
+  OUTDOOR_RELAY_NUM: 0x708C,      // 室外加热继电器编号：RO，uint16
+  EXPECTED_TEMP: 0x708D,          // 目标温度：R/W，int16，val/10 → ℃
+  VENTILATION_LEVEL: 0x708E,      // 当前通风等级：RO，uint16
+  HEATING_COMBINED_STATUS: 0x708F,// 加热状态组合：RO，uint16，Indoor|Outdoor
+  DEVICE_DEPLOYMENT: 0x7090,      // 设备部署位图：R/W，uint16，bit6=Heater
+};
+
+/**
+ * 目标温度曲线寄存器区 (BLOCK_TEMP_CURVE)
+ * 地址范围：0x7092 - 0x70AA（位于 BLOCK_CFG 区内）
+ * 用途：温度曲线控制参数读写（模式、曲线数据、猪只日龄等）
+ */
+const BLOCK_TEMP_CURVE = {
+  TEMP_CTRL_MODE: 0x7092,        // 温度控制模式：R/W，0=自动 1=手动
+  SETTEMP: 0x7093,               // 手动目标温度：R/W，int16，val/10 → ℃
+  CURVE_ENABLE: 0x7094,          // 温度曲线使能：R/W，0=关闭 1=启用
+  CURVE_VALID_NUM: 0x7095,       // 有效曲线段数：RO，uint16
+  CURVE_AGE_BASE: 0x7096,        // 曲线日龄基址：R/W，0x7096+i 对应第 i 段
+  CURVE_TEMP_BASE: 0x70B6,       // 曲线温度基址：R/W，0x70B6+i 对应第 i 段
+  PIG_AGE: 0x70C0,               // 猪只日龄：R/W，int16
 };
 
 // ============================================================
@@ -977,6 +995,7 @@ module.exports = {
   BLOCK_SENSOR_COMPENSATION,
   BLOCK_HEATING,
   BLOCK_HEATING_STATE,
+  BLOCK_TEMP_CURVE,
 
   // 测试掩码
   ATE_MASK_ALL,

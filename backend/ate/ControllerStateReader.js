@@ -26,6 +26,7 @@ const {
   BLOCK_HW,
   BLOCK_HEATING,
   BLOCK_HEATING_STATE,
+  BLOCK_TEMP_CURVE,
   INVALID_VALUE,
 } = require('../../shared/constants');
 
@@ -756,7 +757,7 @@ class ControllerStateReader {
   async readExpectedTemp() {
     const result = await this._devicePool.runExclusive(this._deviceKey, async () => {
       return await this._devicePool.readHoldingRegisters(
-        this._deviceKey, 0x1051, 1  // Expected_temp register
+        this._deviceKey, BLOCK_HEATING_STATE.EXPECTED_TEMP, 1  // Expected_temp register
       );
     });
     const raw = result.data[0];
@@ -772,7 +773,7 @@ class ControllerStateReader {
     const raw = Math.round(temp * 10);
     const value = raw < 0 ? raw + 65536 : raw;
     await this._devicePool.runExclusive(this._deviceKey, async () => {
-      await this._devicePool.writeRegister(this._deviceKey, 0x1051, value);
+      await this._devicePool.writeRegister(this._deviceKey, BLOCK_HEATING_STATE.EXPECTED_TEMP, value);
     });
   }
 
@@ -806,10 +807,39 @@ class ControllerStateReader {
   async readVentilationLevel() {
     const result = await this._devicePool.runExclusive(this._deviceKey, async () => {
       return await this._devicePool.readHoldingRegisters(
-        this._deviceKey, 0x8001, 1  // BLOCK_TEST_STATUS.VENTILATION_LEVEL
+        this._deviceKey, BLOCK_HEATING_STATE.VENTILATION_LEVEL, 1
       );
     });
     return result.data[0];
+  }
+
+  /**
+   * 读取温度曲线参数
+   */
+  async readTempCurveParams() {
+    const result = await this._devicePool.runExclusive(this._deviceKey, async () => {
+      return await this._devicePool.readHoldingRegisters(
+        this._deviceKey, 0x7092, 25  // 0x7092~0x70AA
+      );
+    });
+    const d = result.data;
+    const toSigned = v => v > 32767 ? v - 65536 : v;
+    return {
+      ctrlMode: d[0],        // 0=auto, 1=manual
+      settemp: toSigned(d[1]) / 10,
+      isEnable: d[2],        // 0=off, 1=on
+      validNum: d[3],
+      baseAge: Array.from({length: 10}, (_, i) => d[4 + i]),
+      temps: Array.from({length: 10}, (_, i) => toSigned(d[14 + i]) / 10),
+      pigAge: toSigned(d[24]),
+    };
+  }
+
+  /**
+   * 写入温度曲线参数
+   */
+  async writeTempCurveParam(paramName, value) {
+    // Implementation depends on param type
   }
 
   /**

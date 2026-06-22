@@ -437,7 +437,10 @@ const loadTestTree = async () => {
           { id: 102, label: '开口控制测试', status: 'not_run' },
           { id: 103, label: '水帘控制测试', status: 'not_run' },
           { id: 104, label: '喷淋控制测试', status: 'not_run' },
-          { id: 105, label: '加热控制测试', status: 'not_run' },
+          { id: 105, label: '加热基础功能测试', status: 'not_run' },
+          { id: 106, label: '加热参数边界测试', status: 'not_run' },
+          { id: 107, label: '加热通风联动测试', status: 'not_run' },
+          { id: 108, label: '温度曲线功能测试', status: 'not_run' },
         ]
       }
     ]
@@ -529,6 +532,83 @@ const loadSensorScenarios = async () => {
     testTree.value.push(sensorGroup)
   }
   addLog(`[传感器] 已加载 ${sensorChildren.length} 个传感器检定项`, 'info', 'system')
+}
+
+// ==================== 加热测试场景 ====================
+
+/**
+ * 加热测试场景降级目录
+ * 后端未启动时使用此硬编码列表
+ */
+const HEATING_SCENARIOS_FALLBACK = [
+  // 加热基础功能
+  { id: 'T-HEAT-001', testId: 'T-HEAT-001', name: '加热参数读写验证', group: '加热基础功能', priority: 'P0', isP1Required: false, estimatedSeconds: 15, dependencies: [], heatingTestId: 105 },
+  { id: 'T-HEAT-002', testId: 'T-HEAT-002', name: '室内加热开启验证', group: '加热基础功能', priority: 'P0', isP1Required: false, estimatedSeconds: 30, dependencies: ['T-HEAT-001'], heatingTestId: 105 },
+  { id: 'T-HEAT-003', testId: 'T-HEAT-003', name: '室内加热关闭验证', group: '加热基础功能', priority: 'P0', isP1Required: false, estimatedSeconds: 30, dependencies: ['T-HEAT-002'], heatingTestId: 105 },
+  { id: 'T-HEAT-004', testId: 'T-HEAT-004', name: 'HeatRunState 状态转换', group: '加热基础功能', priority: 'P0', isP1Required: false, estimatedSeconds: 60, dependencies: ['T-HEAT-002'], heatingTestId: 105 },
+  { id: 'T-HEAT-005', testId: 'T-HEAT-005', name: '加热继电器输出验证', group: '加热基础功能', priority: 'P0', isP1Required: false, estimatedSeconds: 30, dependencies: ['T-HEAT-002'], heatingTestId: 105 },
+  // 加热参数边界
+  { id: 'T-HEAT-010', testId: 'T-HEAT-010', name: '参数越界修正验证', group: '加热参数边界', priority: 'P0', isP1Required: false, estimatedSeconds: 15, dependencies: [], heatingTestId: 106 },
+  { id: 'T-HEAT-011', testId: 'T-HEAT-011', name: '阈值间隔合法性验证', group: '加热参数边界', priority: 'P0', isP1Required: false, estimatedSeconds: 15, dependencies: [], heatingTestId: 106 },
+  // 加热通风联动
+  { id: 'T-HEAT-020', testId: 'T-HEAT-020', name: 'HeatRunState=0 通风可调', group: '加热通风联动', priority: 'P0', isP1Required: false, estimatedSeconds: 30, dependencies: [], heatingTestId: 107 },
+  { id: 'T-HEAT-021', testId: 'T-HEAT-021', name: 'HeatRunState=1 通风不可升', group: '加热通风联动', priority: 'P0', isP1Required: false, estimatedSeconds: 30, dependencies: ['T-HEAT-020'], heatingTestId: 107 },
+  { id: 'T-HEAT-022', testId: 'T-HEAT-022', name: '加热时补偿联动屏蔽', group: '加热通风联动', priority: 'P1', isP1Required: false, estimatedSeconds: 30, dependencies: [], heatingTestId: 107 },
+  // 温度曲线功能
+  { id: 'T-HEAT-030', testId: 'T-HEAT-030', name: '自动/手动模式切换', group: '温度曲线功能', priority: 'P0', isP1Required: false, estimatedSeconds: 15, dependencies: [], heatingTestId: 108 },
+  { id: 'T-HEAT-031', testId: 'T-HEAT-031', name: '曲线参数读写验证', group: '温度曲线功能', priority: 'P0', isP1Required: false, estimatedSeconds: 15, dependencies: ['T-HEAT-030'], heatingTestId: 108 },
+  { id: 'T-HEAT-032', testId: 'T-HEAT-032', name: 'Expected_temp 计算验证', group: '温度曲线功能', priority: 'P0', isP1Required: false, estimatedSeconds: 30, dependencies: ['T-HEAT-031'], heatingTestId: 108 },
+]
+
+/**
+ * 从后端加载加热测试场景，合并到项目树
+ */
+const loadHeatingScenarios = async () => {
+  let scenarios = null
+  try {
+    const res = await fetch('/api/heating-test/scenarios')
+    const data = await res.json()
+    if (data.success && data.scenarios) {
+      scenarios = data.scenarios
+    }
+  } catch (err) {
+    console.error('[AteTest] Failed to load heating scenarios from API:', err)
+  }
+
+  // 降级：后端未启动或返回失败时使用硬编码目录
+  if (!scenarios) {
+    scenarios = HEATING_SCENARIOS_FALLBACK
+    addLog(`[加热] 后端未连接，使用降级目录 (${scenarios.length} 项)`, 'warn', 'system')
+  }
+
+  const groupOrder = ['加热基础功能', '加热参数边界', '加热通风联动', '温度曲线功能']
+  const groupMap = {}
+  for (const s of scenarios) {
+    const g = s.group || s.category || '其他'
+    if (!groupMap[g]) groupMap[g] = []
+    groupMap[g].push({
+      id: `heating:${s.testId || s.id}`,
+      label: `${s.testId || s.id} ${s.name}`,
+      status: 'not_run',
+      _heatingScenario: s,
+    })
+  }
+  const heatingChildren = []
+  for (const g of groupOrder) {
+    if (groupMap[g]) heatingChildren.push(...groupMap[g])
+  }
+  const heatingGroup = {
+    id: 'heating_tests',
+    label: '加热逻辑测试',
+    children: heatingChildren,
+  }
+  const existIdx = testTree.value.findIndex(g => g.id === 'heating_tests')
+  if (existIdx >= 0) {
+    testTree.value[existIdx] = heatingGroup
+  } else {
+    testTree.value.push(heatingGroup)
+  }
+  addLog(`[加热] 已加载 ${heatingChildren.length} 个加热检定项`, 'info', 'system')
 }
 
 const defaultProps = { children: 'children', label: 'label' }
@@ -1084,6 +1164,102 @@ const resetTest = () => {
   }
 }
 
+// ==================== 加热测试执行 ====================
+
+const executeHeatingStep = async (node, callback) => {
+  const scenario = node._heatingScenario
+  if (!scenario) {
+    node.status = 'fail'
+    addLog(`[FAIL] 加热场景数据缺失: ${node.label}`, 'error', 'system')
+    callback()
+    return
+  }
+
+  const scenarioId = scenario.testId || scenario.id
+  addLog(`[加热] 开始执行: ${scenarioId} ${scenario.name}`, 'info', 'system')
+  activeDetailRegisters.value = [
+    { id: 1, name: '测试项', result: scenario.name },
+    { id: 2, name: '场景 ID', result: scenarioId },
+    { id: 3, name: '优先级', result: scenario.priority || '-' },
+    { id: 4, name: '状态', result: '执行中...' },
+  ]
+
+  try {
+    const resp = await fetch('/api/heating-test/run', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        scenarioIds: [scenarioId],
+        deviceKey: `${deviceIp.value}:502:1`,
+        fieldType: 'A',
+      }),
+    })
+    const data = await resp.json()
+    if (data.success) {
+      addLog(`[加热] 任务已提交: ${data.taskId}`, 'info', 'system')
+      await waitForHeatingTask(data.taskId, node, callback)
+    } else {
+      node.status = 'fail'
+      addLog(`[FAIL] 加热任务提交失败: ${data.error}`, 'error', 'system')
+      activeDetailRegisters.value = [
+        { id: 1, name: '错误', result: data.error || '提交失败' },
+      ]
+      callback()
+    }
+  } catch (err) {
+    node.status = 'fail'
+    addLog(`[FAIL] 加热执行异常: ${err.message}`, 'error', 'system')
+    activeDetailRegisters.value = [
+      { id: 1, name: '错误', result: err.message },
+    ]
+    callback()
+  }
+}
+
+const waitForHeatingTask = async (taskId, node, callback) => {
+  const maxWait = 600000
+  const startTime = Date.now()
+
+  while (Date.now() - startTime < maxWait) {
+    await new Promise(r => setTimeout(r, 3000))
+    try {
+      const resp = await fetch(`/api/heating-test/tasks/${taskId}`)
+      const data = await resp.json()
+      if (data.success && data.task) {
+        const task = data.task
+        if (task.assertions && task.assertions.length) {
+          activeDetailRegisters.value = task.assertions.map((a, i) => ({
+            id: i + 1,
+            name: a.message || a.type || '-',
+            result: a.pass ? '合格' : '不合格',
+          }))
+        }
+        if (task.status === 'pass' || task.status === 'fail' ||
+            task.status === 'error' || task.status === 'stopped') {
+          if (task.status === 'pass') {
+            node.status = 'pass'
+            addLog(`[PASS] ${node.label} 测试通过`, 'success', 'system')
+          } else {
+            node.status = 'fail'
+            testEngine.value.failedItems.push(node)
+            addLog(`[FAIL] ${node.label} 测试失败 (${task.status})`, 'error', 'system')
+          }
+          callback()
+          return
+        }
+      }
+    } catch (_) {}
+  }
+
+  node.status = 'fail'
+  testEngine.value.failedItems.push(node)
+  addLog(`[FAIL] ${node.label} 测试超时`, 'error', 'system')
+  activeDetailRegisters.value = [
+    { id: 1, name: '状态', result: '超时' },
+  ]
+  callback()
+}
+
 const executeStep = (node, callback) => {
   testEngine.value.currentItemName = node.label
   node.status = 'running'
@@ -1091,6 +1267,12 @@ const executeStep = (node, callback) => {
   // 传感器测试项：走 /api/sensor-test/run
   if (typeof node.id === 'string' && node.id.startsWith('sensor:')) {
     executeSensorStep(node, callback)
+    return
+  }
+
+  // 加热测试项：走 /api/heating-test/run
+  if (typeof node.id === 'string' && node.id.startsWith('heating:')) {
+    executeHeatingStep(node, callback)
     return
   }
 
@@ -1256,6 +1438,9 @@ onMounted(async () => {
 
   // 加载传感器测试场景到项目树
   await loadSensorScenarios()
+
+  // 加载加热测试场景到项目树
+  await loadHeatingScenarios()
 
   // 连接传感器 WebSocket
   connectSensorWebSocket()
