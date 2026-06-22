@@ -340,8 +340,8 @@ class VentilationDataClient {
       return;
     }
 
-    // 检查魔数
-    const magic = this._recvBuffer.readUInt16LE(0);
+    // 检查魔数（大端序，与固件一致）
+    const magic = (this._recvBuffer[0] << 8) | this._recvBuffer[1];
     if (magic !== MAGIC) {
       // 丢弃不合法数据，尝试找到下一个魔数
       const idx = this._findMagic(this._recvBuffer);
@@ -353,8 +353,8 @@ class VentilationDataClient {
       return;
     }
 
-    // 读取数据长度
-    const dataLength = this._recvBuffer.readUInt16LE(3);
+    // 读取数据长度（大端序）
+    const dataLength = (this._recvBuffer[3] << 8) | this._recvBuffer[4];
     const totalSize = HEADER_SIZE + dataLength + CRC_SIZE;
 
     // 检查是否收到完整帧
@@ -391,11 +391,11 @@ class VentilationDataClient {
    * @private
    */
   _findMagic(buf) {
-    const magicLo = MAGIC & 0xFF;
-    const magicHi = (MAGIC >> 8) & 0xFF;
+    const magicHi = (MAGIC >> 8) & 0xFF;  // 0xAA
+    const magicLo = MAGIC & 0xFF;          // 0x55
 
     for (let i = 0; i <= buf.length - 2; i++) {
-      if (buf[i] === magicLo && buf[i + 1] === magicHi) {
+      if (buf[i] === magicHi && buf[i + 1] === magicLo) {
         return i;
       }
     }

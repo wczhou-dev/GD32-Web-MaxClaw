@@ -49,29 +49,31 @@ const CMD = {
 
 /**
  * vt_t 结构体字段定义（通风逻辑表单条记录，44 字节）
- * 字段布局与固件保持一致（#pragma pack(1)），用于序列化/反序列化
+ * 字段布局与固件 database.h 保持一致（#pragma pack(1)），用于序列化/反序列化
  */
 const VT_T_FIELDS = [
-  { name: 'vf_workMode',    size: 1,  type: 'uint8'   },  // 通风工作模式
-  { name: 'cs_workMode',    size: 10, type: 'uint8[]' },  // 舍控工作模式 cs1~cs10
-  { name: 'vq',             size: 4,  type: 'uint32'  },  // 通风量
-  { name: 'fc_runFreq',     size: 2,  type: 'uint8[]' },  // 风机运行频率组 1
-  { name: 'fc_runFreq2',    size: 2,  type: 'uint8[]' },  // 风机运行频率组 2
-  { name: 'opTime',         size: 2,  type: 'uint16'  },  // 开启时间
-  { name: 'clTime',         size: 2,  type: 'uint16'  },  // 关闭时间
-  { name: 'sw_opa',         size: 1,  type: 'uint8'   },  // 小窗开启角度
-  { name: 'windIn_opa',     size: 1,  type: 'uint8'   },  // 进风幕帘开启角度
-  { name: 'windOut_opa',    size: 1,  type: 'uint8'   },  // 出风幕帘开启角度
-  { name: 'Slid_window_opa',size: 1,  type: 'uint8'   },  // 滑窗开启角度
-  { name: 'wc_clHumi',      size: 4,  type: 'float'   },  // 水帘关闭湿度
-  { name: 'wc_opTime',      size: 2,  type: 'uint16'  },  // 水帘开启时间
-  { name: 'wc_clTime',      size: 2,  type: 'uint16'  },  // 水帘关闭时间
-  { name: 'TargetTemp',     size: 4,  type: 'float'   },  // 目标温度
-  { name: 'TargetTemp_Bak', size: 4,  type: 'float'   },  // 目标温度备份
+  { name: 'TargetTemp',      size: 4,  type: 'float'   },  // 目标温度
+  { name: 'TargetTemp_Bak',  size: 4,  type: 'float'   },  // 目标温度备份
+  { name: 'fc_workMode',     size: 1,  type: 'uint8'   },  // 变频1工作模式
+  { name: 'fc_workMode2',    size: 1,  type: 'uint8'   },  // 变频2工作模式
+  { name: 'cs_workMode',     size: 10, type: 'uint8[]' },  // 定速风机1~10工作模式
+  { name: 'vq',              size: 4,  type: 'uint32'  },  // 通风量
+  { name: 'fc_runFreq',      size: 2,  type: 'uint8[]' },  // 变频风机组1频率
+  { name: 'fc_runFreq2',     size: 2,  type: 'uint8[]' },  // 变频风机组2频率
+  { name: 'opTime',          size: 2,  type: 'uint16'  },  // 风机开启时间
+  { name: 'clTime',          size: 2,  type: 'uint16'  },  // 风机关闭时间
+  { name: 'sw_opa',          size: 1,  type: 'uint8'   },  // 小窗开启角度
+  { name: 'windIn_opa',      size: 1,  type: 'uint8'   },  // 进风幕帘开启角度
+  { name: 'windOut_opa',     size: 1,  type: 'uint8'   },  // 出风幕帘开启角度
+  { name: 'Slid_window_opa', size: 1,  type: 'uint8'   },  // 滑窗开启角度
+  { name: 'wc_clHumi',       size: 4,  type: 'float'   },  // 水帘关闭湿度
+  { name: 'wc_opTime',       size: 2,  type: 'uint16'  },  // 水帘开启时间
+  { name: 'wc_clTime',       size: 2,  type: 'uint16'  },  // 水帘关闭时间
 ];
 
 /**
  * vt_t 结构体总字节数（44 字节，#pragma pack(1)）
+ * 4+4+1+1+10+4+2+2+2+2+1+1+1+1+4+2+2 = 44
  */
 const VT_T_SIZE = VT_T_FIELDS.reduce((sum, f) => sum + f.size, 0);
 
